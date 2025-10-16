@@ -1,3 +1,59 @@
 import { Routes } from '@angular/router';
+import { authGuard } from './core/guards/auth.guard';
+import { MainLayoutComponent } from './layout/main-layout.component';
 
-export const routes: Routes = [];
+export const routes: Routes = [
+	{
+		path: '',
+		pathMatch: 'full',
+		redirectTo: 'login',
+	},
+	{
+		path: 'login',
+		loadComponent: () => import('./features/auth/login/login.component').then((m) => m.LoginComponent),
+	},
+	{
+		path: 'registro',
+		loadComponent: () => import('./features/auth/register/register.component').then((m) => m.RegisterComponent),
+	},
+	{
+		path: '',
+		component: MainLayoutComponent,
+		canActivate: [authGuard],
+		children: [
+			{
+				path: 'dashboard',
+				loadComponent: () => import('./features/dashboard/dashboard.component').then((m) => m.DashboardComponent),
+			},
+			{
+				path: 'asesores',
+				loadComponent: () => import('./features/advisors/advisors.component').then((m) => m.AdvisorsComponent),
+			},
+			{
+				path: 'clientes',
+				loadComponent: () => import('./features/clients/clients.component').then((m) => m.ClientsComponent),
+			},
+			{
+				path: 'procesos',
+				loadComponent: () => import('./features/processes/processes.component').then((m) => m.ProcessesComponent),
+			},
+			{
+				path: 'documentos',
+				loadComponent: () => import('./features/documents/documents.component').then((m) => m.DocumentsComponent),
+			},
+			{
+				path: 'chatbot',
+				loadComponent: () => import('./features/chatbot/chatbot.component').then((m) => m.ChatbotComponent),
+			},
+			{
+				path: '',
+				pathMatch: 'full',
+				redirectTo: 'dashboard',
+			},
+		],
+	},
+	{
+		path: '**',
+		redirectTo: 'dashboard',
+	},
+];
