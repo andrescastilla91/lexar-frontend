@@ -1,4 +1,4 @@
-import { CommonModule } from '@angular/common';
+
 import { Component, Signal, computed, signal } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../core/services/auth.service';
@@ -16,20 +16,21 @@ interface MenuItem {
 @Component({
   selector: 'app-main-layout',
   standalone: true,
-  imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive],
   template: `
     <div class="min-h-screen bg-slate-100 text-slate-900">
       <div class="flex h-screen overflow-hidden">
-        <div
-          class="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm transition-opacity duration-300 lg:hidden"
-          *ngIf="sidebarOpen()"
-          (click)="toggleSidebar()"
-        ></div>
-
+        @if (sidebarOpen()) {
+          <div
+            class="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm transition-opacity duration-300 lg:hidden"
+            (click)="toggleSidebar()"
+          ></div>
+        }
+    
         <aside
           class="fixed inset-y-0 left-0 z-40 w-72 transform bg-[#192033] text-white shadow-xl transition-transform duration-300 lg:translate-x-0 lg:static lg:flex lg:flex-col"
           [class.-translate-x-full]="!sidebarOpen()"
-        >
+          >
           <div class="flex h-16 items-center justify-between px-6">
             <div>
               <p class="text-sm uppercase tracking-widest text-slate-400">LexAr Suite</p>
@@ -40,14 +41,14 @@ interface MenuItem {
               class="rounded-md p-2 text-slate-300 transition hover:bg-white/10 lg:hidden"
               (click)="toggleSidebar()"
               aria-label="Cerrar menú"
-            >
+              >
               <span class="sr-only">Cerrar menú</span>
               <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
-
+    
           <nav class="mt-6 flex-1 space-y-1 px-4">
             @for (item of menuItems; track item.route) {
               <a
@@ -55,7 +56,7 @@ interface MenuItem {
                 routerLinkActive="bg-white/10 text-white"
                 class="group flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-slate-300 transition hover:bg-white/10 hover:text-white"
                 (click)="closeSidebar()"
-              >
+                >
                 <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-white/5 text-slate-200 transition group-hover:bg-white/15">
                   <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                     <path [attr.d]="item.icon" stroke-linecap="round" stroke-linejoin="round"></path>
@@ -68,7 +69,7 @@ interface MenuItem {
               </a>
             }
           </nav>
-
+    
           <div class="border-t border-white/10 px-6 py-4">
             <div class="flex items-center gap-3">
               <div class="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-sm font-semibold">
@@ -82,13 +83,13 @@ interface MenuItem {
                 type="button"
                 (click)="handleLogout()"
                 class="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-slate-200 transition hover:bg-white/10"
-              >
+                >
                 Cerrar sesión
               </button>
             </div>
           </div>
         </aside>
-
+    
         <div class="flex flex-1 flex-col">
           <header class="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-slate-200 bg-white/90 px-4 backdrop-blur lg:px-8">
             <div class="flex items-center gap-3">
@@ -97,7 +98,7 @@ interface MenuItem {
                 class="rounded-xl border border-slate-200 p-2 text-slate-600 transition hover:bg-slate-50 lg:hidden"
                 (click)="toggleSidebar()"
                 aria-label="Abrir menú"
-              >
+                >
                 <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M4 12h16M4 17h16" />
                 </svg>
@@ -119,7 +120,7 @@ interface MenuItem {
               </div>
             </div>
           </header>
-
+    
           <main class="flex-1 overflow-y-auto p-4 lg:p-8">
             <div class="min-w-0 w-full">
               <router-outlet />
@@ -128,7 +129,7 @@ interface MenuItem {
         </div>
       </div>
     </div>
-  `,
+    `,
 })
 export class MainLayoutComponent {
   readonly sidebarOpen = signal(false);
