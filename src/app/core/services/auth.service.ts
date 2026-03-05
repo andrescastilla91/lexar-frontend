@@ -1,114 +1,123 @@
-import { Injectable, computed, effect, signal } from '@angular/core';
-import { User } from '../models/user.model';
-import { createId } from '../utils/id.util';
-
-interface RegisterPayload {
-  fullName: string;
-  email: string;
-  password: string;
-  role?: User['role'];
-}
+import { Injectable, computed, effect, signal, inject } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Router } from '@angular/router';
+import { Observable, tap, catchError, of, map } from 'rxjs';
+import { environment } from '../../../environments/environment';
+import {
+  LoginRequest,
+  LoginResponse,
+  RegisterCompanyRequest,
+  RegisterResponse,
+  AuthUser,
+  ProfileResponse,
+} from '../models/auth.model';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-  private readonly storageKey = 'lexAr-current-user';
+  private readonly http = inject(HttpClient);
+  private readonly router = inject(Router);
+  private readonly apiUrl = `${environment.apiUrl}/auth`;
 
-  private readonly usersSignal = signal<User[]>([
-    {
-      id: createId(),
-      fullName: 'Zojaira M Ribon',
-      email: 'mribon@lexar.com',
-      password: 'LexAr2025*',
-      role: 'admin',
-    },
-    {
-      id: createId(),
-      fullName: 'Juan Pablo Márquez',
-      email: 'jmarquez@lexar.com',
-      password: 'SecurePass1!',
-      role: 'advisor',
-    },
-  ]);
-
-  private readonly currentUserSignal = signal<User | null>(this.restoreSession());
+  // Solo mantener en memoria (signal), NO en localStorage
+  private readonly currentUserSignal = signal<AuthUser | null>(null);
 
   readonly currentUser = computed(() => this.currentUserSignal());
   readonly isAuthenticated = computed(() => this.currentUserSignal() !== null);
 
-  constructor() {
-    effect(() => {
-      const user = this.currentUserSignal();
-      if (typeof window === 'undefined') {
-        return;
-      }
-
-      if (user) {
-        localStorage.setItem(this.storageKey, JSON.stringify(user));
-      } else {
-        localStorage.removeItem(this.storageKey);
-      }
-    });
-  }
-
-  login(email: string, password: string): { success: boolean; message?: string } {
-    const normalizedEmail = email.trim().toLowerCase();
-    const user = this.usersSignal().find(
-      (candidate) => candidate.email.toLowerCase() === normalizedEmail && candidate.password === password
+  login(email: string, password: string): Observable<{ success: boolean; message?: string; user?: AuthUser }> {
+    const payload: LoginRequest = { email, password };
+    
+    return this.http.post<LoginResponse>(`${this.apiUrl}/login`, payload).pipe(
+      tap((response) => {
+        // Guardar usuario en estado en memoria (NO localStorage)
+        this.currentUserSignal.set(response.user);
+      }),
+      map((response) => ({
+        success: true,
+        user: response.user,
+      })),
+      catchError((error) => {
+        console.error('Error en login:', error);
+        return of({
+          success: false,
+          message: error.error?.message || 'Error al iniciar sesión. Verifica tus credenciales.',
+        });
+      })
     );
-
-    if (!user) {
-      return { success: false, message: 'Credenciales no válidas. Verifica tu correo y contraseña.' };
-    }
-
-    this.currentUserSignal.set(user);
-    return { success: true };
   }
 
-  register(payload: RegisterPayload): { success: boolean; message?: string } {
-    const normalizedEmail = payload.email.trim().toLowerCase();
-
-    const emailExists = this.usersSignal().some(
-      (candidate) => candidate.email.toLowerCase() === normalizedEmail
+  register(data: RegisterCompanyRequest): Observable<{ success: boolean; message?: string; user?: AuthUser }> {
+    return this.http.post<RegisterResponse>(`${this.apiUrl}/register`, data).pipe(
+      tap((response) => {
+        // Guardar usuario en estado en memoria (NO localStorage)
+        this.currentUserSignal.set(response.user);
+      }),
+      map((response) => ({
+        success: true,
+        message: response.message,
+        user: response.user,
+      })),
+      catchError((error) => {
+        console.error('Error en registro:', error);
+        return of({
+          success: false,
+          message: error.error?.message || 'Error al registrar la empresa. Intenta nuevamente.',
+        });
+      })
     );
-
-    if (emailExists) {
-      return { success: false, message: 'Ya existe un usuario registrado con este correo electrónico.' };
-    }
-
-    const newUser: User = {
-      id: createId(),
-      fullName: payload.fullName.trim(),
-      email: normalizedEmail,
-      password: payload.password,
-      role: payload.role ?? 'assistant',
-    };
-
-    this.usersSignal.update((users) => [...users, newUser]);
-    this.currentUserSignal.set(newUser);
-
-    return { success: true };
   }
 
-  logout(): void {
+  logout(): Observable<void> {
+    return this.http.post<{ message: string }>(`${this.apiUrl}/logout`, {}).pipe(
+      tap(() => {
+        this.clearSession();
+      }),
+      map(() => void 0),
+      catchError((error) => {
+        console.error('Error en logout:', error);
+        // Limpiar sesión aunque falle el logout en backend
+        this.clearSession();
+        return of(void 0);
+      })
+    );
+  }
+
+  getProfile(): Observable<AuthUser | null> {
+    return this.http.get<ProfileResponse>(`${this.apiUrl}/me`).pipe(
+      tap((profile) => {
+        const user: AuthUser = {
+          email: profile.email,
+          roles: profile.roles,
+          permissions: profile.permissions || [],
+        };
+        this.currentUserSignal.set(user);
+      }),
+      map((profile) => ({
+        email: profile.email,
+        roles: profile.roles,
+        permissions: profile.permissions || [],
+      })),
+      catchError((error) => {
+        console.error('Error al obtener perfil:', error);
+        this.clearSession();
+        return of(null);
+      })
+    );
+  }
+
+  refreshToken(): Observable<boolean> {
+    return this.http.post<{ message: string }>(`${this.apiUrl}/refresh`, {}).pipe(
+      map(() => true),
+      catchError((error) => {
+        console.error('Error al refrescar token:', error);
+        this.clearSession();
+        return of(false);
+      })
+    );
+  }
+
+  private clearSession(): void {
     this.currentUserSignal.set(null);
-  }
-
-  private restoreSession(): User | null {
-    if (typeof window === 'undefined') {
-      return null;
-    }
-
-    const raw = localStorage.getItem(this.storageKey);
-    if (!raw) {
-      return null;
-    }
-
-    try {
-      const parsed = JSON.parse(raw) as User;
-      return parsed ?? null;
-    } catch (error) {
-      console.error('No fue posible restaurar la sesión almacenada', error);
-      return null;
-    }
+    // NO usar localStorage para datos sensibles
   }
 }

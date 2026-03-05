@@ -137,17 +137,24 @@ export class LoginComponent implements OnInit {
     this.errorMessage.set(null);
 
     const { email, password } = this.form.getRawValue();
-    const result = this.authService.login(email, password);
+    
+    this.authService.login(email, password).subscribe({
+      next: (result) => {
+        if (!result.success) {
+          this.errorMessage.set(result.message ?? 'Ocurrió un error al iniciar sesión.');
+          this.isSubmitting.set(false);
+          return;
+        }
 
-    if (!result.success) {
-      this.errorMessage.set(result.message ?? 'Ocurrió un error al iniciar sesión.');
-      this.isSubmitting.set(false);
-      return;
-    }
-
-    const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
-    const fallback = '/dashboard';
-    this.isSubmitting.set(false);
-    this.router.navigateByUrl(returnUrl && returnUrl !== '/login' ? returnUrl : fallback);
+        const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
+        const fallback = '/dashboard';
+        this.isSubmitting.set(false);
+        this.router.navigateByUrl(returnUrl && returnUrl !== '/login' ? returnUrl : fallback);
+      },
+      error: (error) => {
+        this.errorMessage.set(error.message ?? 'Error al conectar con el servidor.');
+        this.isSubmitting.set(false);
+      },
+    });
   }
 }

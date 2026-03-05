@@ -239,7 +239,7 @@ export class DocumentsComponent {
       processId,
       title,
       category: category as LegalDocument['category'],
-      uploadedBy: this.authService.currentUser()?.fullName ?? 'Equipo LexAr',
+        uploadedBy: this.authService.currentUser()?.email ?? 'Equipo LexAr',
       uploadedAt: new Date().toISOString(),
       status: 'Pendiente',
       notes: notes ?? undefined,

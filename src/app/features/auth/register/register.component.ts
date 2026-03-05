@@ -3,7 +3,7 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
-import { UserRole } from '../../../core/models/user.model';
+import { RegisterCompanyRequest } from '../../../core/models/auth.model';
 
 @Component({
   selector: 'app-register',
@@ -38,76 +38,146 @@ import { UserRole } from '../../../core/models/user.model';
             <h2 class="text-2xl font-semibold text-slate-800">Crear cuenta LexAr</h2>
             <p class="mt-2 text-sm text-slate-500">Configura tu acceso y personaliza la experiencia de tu equipo.</p>
 
-            <form class="mt-8 space-y-6" [formGroup]="form" (ngSubmit)="onSubmit()">
-              <div class="space-y-2">
-                <label class="block text-sm font-medium text-slate-600" for="fullName">Nombre completo</label>
-                <input
-                  id="fullName"
-                  type="text"
-                  formControlName="fullName"
-                  class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base text-slate-800 shadow-sm transition focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
-                  placeholder="Nombre y apellidos"
-                />
-                @if (form.get('fullName')?.touched && form.get('fullName')?.invalid) {
-                  <p class="text-sm text-rose-500">Incluye tu nombre completo.</p>
-                }
-              </div>
-
-              <div class="space-y-2">
-                <label class="block text-sm font-medium text-slate-600" for="email">Correo corporativo</label>
-                <input
-                  id="email"
-                  type="email"
-                  formControlName="email"
-                  autocomplete="email"
-                  class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base text-slate-800 shadow-sm transition focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
-                  placeholder="nombre@empresa.com"
-                />
-                @if (form.get('email')?.touched && form.get('email')?.invalid) {
-                  <p class="text-sm text-rose-500">Ingresa un correo válido.</p>
-                }
-              </div>
-
-              <div class="grid gap-4 md:grid-cols-2">
-                <div class="space-y-2">
-                  <label class="block text-sm font-medium text-slate-600" for="password">Contraseña</label>
+            <form class="mt-8 space-y-5" [formGroup]="form" (ngSubmit)="onSubmit()">
+              <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <h3 class="text-sm font-semibold text-slate-700">Datos del administrador</h3>
+                <div class="mt-3 grid gap-3 md:grid-cols-2">
+                  <div class="space-y-1">
+                    <label class="block text-xs font-medium text-slate-600" for="firstName">Nombre</label>
+                    <input
+                      id="firstName"
+                      type="text"
+                      formControlName="firstName"
+                      class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm transition focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                      placeholder="Nombre"
+                    />
+                    @if (form.get('firstName')?.touched && form.get('firstName')?.invalid) {
+                      <p class="text-xs text-rose-500">Campo requerido</p>
+                    }
+                  </div>
+                  <div class="space-y-1">
+                    <label class="block text-xs font-medium text-slate-600" for="lastName">Apellido</label>
+                    <input
+                      id="lastName"
+                      type="text"
+                      formControlName="lastName"
+                      class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm transition focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                      placeholder="Apellido"
+                    />
+                    @if (form.get('lastName')?.touched && form.get('lastName')?.invalid) {
+                      <p class="text-xs text-rose-500">Campo requerido</p>
+                    }
+                  </div>
+                </div>
+                <div class="mt-3 space-y-1">
+                  <label class="block text-xs font-medium text-slate-600" for="email">Correo electrónico</label>
                   <input
-                    id="password"
-                    type="password"
-                    formControlName="password"
-                    class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base text-slate-800 shadow-sm transition focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
-                    placeholder="••••••••"
+                    id="email"
+                    type="email"
+                    formControlName="email"
+                    autocomplete="email"
+                    class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm transition focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                    placeholder="nombre@empresa.com"
                   />
-                  @if (form.get('password')?.touched && form.get('password')?.invalid) {
-                    <p class="text-sm text-rose-500">Usa al menos 8 caracteres.</p>
+                  @if (form.get('email')?.touched && form.get('email')?.invalid) {
+                    <p class="text-xs text-rose-500">Correo inválido</p>
                   }
                 </div>
-                <div class="space-y-2">
-                  <label class="block text-sm font-medium text-slate-600" for="confirmPassword">Confirmar contraseña</label>
-                  <input
-                    id="confirmPassword"
-                    type="password"
-                    formControlName="confirmPassword"
-                    class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base text-slate-800 shadow-sm transition focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
-                    placeholder="Repite tu contraseña"
-                  />
-                  @if (passwordMismatch()) {
-                    <p class="text-sm text-rose-500">Las contraseñas no coinciden.</p>
-                  }
+                <div class="mt-3 grid gap-3 md:grid-cols-2">
+                  <div class="space-y-1">
+                    <label class="block text-xs font-medium text-slate-600" for="password">Contraseña</label>
+                    <input
+                      id="password"
+                      type="password"
+                      formControlName="password"
+                      class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm transition focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                      placeholder="Mínimo 8 caracteres"
+                    />
+                    @if (form.get('password')?.touched && form.get('password')?.invalid) {
+                      <p class="text-xs text-rose-500">Mínimo 8 caracteres</p>
+                    }
+                  </div>
+                  <div class="space-y-1">
+                    <label class="block text-xs font-medium text-slate-600" for="confirmPassword">Confirmar</label>
+                    <input
+                      id="confirmPassword"
+                      type="password"
+                      formControlName="confirmPassword"
+                      class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm transition focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                      placeholder="Repite contraseña"
+                    />
+                    @if (passwordMismatch()) {
+                      <p class="text-xs text-rose-500">No coinciden</p>
+                    }
+                  </div>
                 </div>
               </div>
 
-              <div class="space-y-2">
-                <label class="block text-sm font-medium text-slate-600" for="role">Rol dentro del equipo</label>
-                <select
-                  id="role"
-                  formControlName="role"
-                  class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base text-slate-800 shadow-sm transition focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
-                >
-                  <option value="assistant">Asistente legal</option>
-                  <option value="advisor">Abogado / Asesor</option>
-                  <option value="admin">Director jurídico</option>
-                </select>
+              <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <h3 class="text-sm font-semibold text-slate-700">Datos de la empresa</h3>
+                <div class="mt-3 space-y-3">
+                  <div class="space-y-1">
+                    <label class="block text-xs font-medium text-slate-600" for="legalName">Razón social</label>
+                    <input
+                      id="legalName"
+                      type="text"
+                      formControlName="legalName"
+                      class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm transition focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                      placeholder="Nombre legal de la empresa"
+                    />
+                    @if (form.get('legalName')?.touched && form.get('legalName')?.invalid) {
+                      <p class="text-xs text-rose-500">Campo requerido</p>
+                    }
+                  </div>
+                  <div class="grid gap-3 md:grid-cols-2">
+                    <div class="space-y-1">
+                      <label class="block text-xs font-medium text-slate-600" for="taxId">NIT / RUT</label>
+                      <input
+                        id="taxId"
+                        type="text"
+                        formControlName="taxId"
+                        class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm transition focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                        placeholder="123456789-0"
+                      />
+                      @if (form.get('taxId')?.touched && form.get('taxId')?.invalid) {
+                        <p class="text-xs text-rose-500">Campo requerido</p>
+                      }
+                    </div>
+                    <div class="space-y-1">
+                      <label class="block text-xs font-medium text-slate-600" for="companyEmail">Email empresa</label>
+                      <input
+                        id="companyEmail"
+                        type="email"
+                        formControlName="companyEmail"
+                        class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm transition focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                        placeholder="contacto@empresa.com"
+                      />
+                      @if (form.get('companyEmail')?.touched && form.get('companyEmail')?.invalid) {
+                        <p class="text-xs text-rose-500">Email inválido</p>
+                      }
+                    </div>
+                  </div>
+                  <div class="space-y-1">
+                    <label class="block text-xs font-medium text-slate-600" for="address">Dirección (opcional)</label>
+                    <input
+                      id="address"
+                      type="text"
+                      formControlName="address"
+                      class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm transition focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                      placeholder="Dirección principal"
+                    />
+                  </div>
+                  <div class="space-y-1">
+                    <label class="block text-xs font-medium text-slate-600" for="legalRepresentative">Representante legal (opcional)</label>
+                    <input
+                      id="legalRepresentative"
+                      type="text"
+                      formControlName="legalRepresentative"
+                      class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm transition focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                      placeholder="Nombre del representante"
+                    />
+                  </div>
+                </div>
               </div>
 
               @if (errorMessage()) {
@@ -147,11 +217,16 @@ export class RegisterComponent implements OnInit {
 
   readonly form = this.fb.nonNullable.group(
     {
-      fullName: ['', [Validators.required, Validators.minLength(3)]],
+      firstName: ['', [Validators.required, Validators.minLength(2)]],
+      lastName: ['', [Validators.required, Validators.minLength(2)]],
       email: ['', [Validators.required, Validators.email]],
       password: ['', [Validators.required, Validators.minLength(8)]],
       confirmPassword: ['', Validators.required],
-      role: ['assistant', Validators.required],
+      legalName: ['', [Validators.required, Validators.minLength(3)]],
+      taxId: ['', [Validators.required]],
+      companyEmail: ['', [Validators.required, Validators.email]],
+      address: [''],
+      legalRepresentative: [''],
     },
     { validators: (control) => this.passwordsMatchValidator(control) }
   );
@@ -179,17 +254,37 @@ export class RegisterComponent implements OnInit {
     this.isSubmitting.set(true);
     this.errorMessage.set(null);
 
-  const { fullName, email, password, role } = this.form.getRawValue();
-  const result = this.authService.register({ fullName, email, password, role: role as UserRole });
+    const formValue = this.form.getRawValue();
+    const payload: RegisterCompanyRequest = {
+      firstName: formValue.firstName,
+      lastName: formValue.lastName,
+      email: formValue.email,
+      password: formValue.password,
+      company: {
+        legalName: formValue.legalName,
+        taxId: formValue.taxId,
+        email: formValue.companyEmail,
+        address: formValue.address || undefined,
+        legalRepresentative: formValue.legalRepresentative || undefined,
+      },
+    };
 
-    if (!result.success) {
-      this.errorMessage.set(result.message ?? 'No fue posible crear la cuenta.');
-      this.isSubmitting.set(false);
-      return;
-    }
+    this.authService.register(payload).subscribe({
+      next: (result) => {
+        if (!result.success) {
+          this.errorMessage.set(result.message ?? 'No fue posible crear la cuenta.');
+          this.isSubmitting.set(false);
+          return;
+        }
 
-    this.isSubmitting.set(false);
-    this.router.navigate(['/dashboard']);
+        this.isSubmitting.set(false);
+        this.router.navigate(['/dashboard']);
+      },
+      error: (error) => {
+        this.errorMessage.set(error.message ?? 'Error al conectar con el servidor.');
+        this.isSubmitting.set(false);
+      },
+    });
   }
 
   private passwordsMatchValidator(control: AbstractControl): ValidationErrors | null {

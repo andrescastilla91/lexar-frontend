@@ -1,8 +1,9 @@
 
-import { Component, Signal, computed, signal } from '@angular/core';
+import { Component, Signal, computed, signal, inject } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../core/services/auth.service';
-import { User } from '../core/models/user.model';
+import { PermissionsService } from '../core/services/permissions.service';
+import { AuthUser } from '../core/models/auth.model';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { filter } from 'rxjs';
 
@@ -11,6 +12,7 @@ interface MenuItem {
   description: string;
   icon: string;
   route: string;
+  permissions?: string[]; // Permisos requeridos para ver el menú (si no tiene, se muestra siempre)
 }
 
 @Component({
@@ -50,7 +52,7 @@ interface MenuItem {
           </div>
     
           <nav class="mt-6 flex-1 space-y-1 px-4">
-            @for (item of menuItems; track item.route) {
+            @for (item of filteredMenuItems(); track item.route) {
               <a
                 [routerLink]="item.route"
                 routerLinkActive="bg-white/10 text-white"
@@ -76,8 +78,8 @@ interface MenuItem {
                 {{ userInitials() }}
               </div>
               <div class="min-w-0 flex-1">
-                <p class="truncate text-sm font-semibold">{{ currentUser()?.fullName }}</p>
-                <p class="truncate text-xs text-slate-400">{{ currentUser()?.email }}</p>
+                <p class="truncate text-sm font-semibold">{{ currentUser()?.email }}</p>
+                <p class="truncate text-xs text-slate-400">{{ userRoleLabel() }}</p>
               </div>
               <button
                 type="button"
@@ -114,13 +116,29 @@ interface MenuItem {
                   {{ userInitials() }}
                 </span>
                 <div>
-                  <p class="text-sm font-semibold text-slate-700">{{ currentUser()?.fullName }}</p>
+                  <p class="text-sm font-semibold text-slate-700">{{ currentUser()?.email }}</p>
                   <p class="text-xs text-slate-400">{{ userRoleLabel() }}</p>
                 </div>
               </div>
             </div>
           </header>
     
+          @if (hasNoRoles()) {
+            <div class="border-l-4 border-amber-500 bg-amber-50 p-4 mx-4 mt-4 rounded-lg lg:mx-8">
+              <div class="flex items-center gap-3">
+                <svg class="h-6 w-6 text-amber-600 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                </svg>
+                <div class="flex-1">
+                  <h3 class="text-sm font-semibold text-amber-800">Sin roles asignados</h3>
+                  <p class="text-sm text-amber-700 mt-1">
+                    Tu cuenta no tiene roles ni permisos asignados. Contacta al administrador de tu empresa para que te asigne los permisos necesarios.
+                  </p>
+                </div>
+              </div>
+            </div>
+          }
+
           <main class="flex-1 overflow-y-auto p-4 lg:p-8">
             <div class="min-w-0 w-full">
               <router-outlet />
@@ -133,6 +151,9 @@ interface MenuItem {
 })
 export class MainLayoutComponent {
   readonly sidebarOpen = signal(false);
+  private readonly authService = inject(AuthService);
+  private readonly permissionsService = inject(PermissionsService);
+  private readonly router = inject(Router);
 
   readonly menuItems: MenuItem[] = [
     {
@@ -142,28 +163,46 @@ export class MainLayoutComponent {
       route: '/dashboard',
     },
     {
+      label: 'Usuarios',
+      description: 'Gestión de cuentas y equipos',
+      icon: 'M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z',
+      route: '/usuarios',
+      permissions: ['users.list'],
+    },
+    {
+      label: 'Roles',
+      description: 'Permisos y control de acceso',
+      icon: 'M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z',
+      route: '/roles',
+      permissions: ['roles.list'],
+    },
+    {
       label: 'Asesores',
       description: 'Talento y asignaciones activas',
       icon: 'M16.5 7.5 21 12l-4.5 4.5M8.25 7.5 3 12l5.25 4.5',
       route: '/asesores',
+      permissions: ['users.list'],
     },
     {
       label: 'Clientes',
       description: 'Portafolio y riesgos asociados',
       icon: 'M3 7.5l9 4.5 9-4.5M3 15l9 4.5 9-4.5',
       route: '/clientes',
+      permissions: ['clients.list'],
     },
     {
       label: 'Procesos',
       description: 'Seguimiento procesal detallado',
       icon: 'm4.5 19.5 7.5-7.5 7.5 7.5M12 12V3.75',
       route: '/procesos',
+      permissions: ['processes.list'],
     },
     {
       label: 'Documentos',
       description: 'Control y cargue seguro',
       icon: 'M9 17.25v1.125a2.625 2.625 0 0 0 2.625 2.625h6.75A2.625 2.625 0 0 0 21 18.375V9.017a2.625 2.625 0 0 0-.769-1.856l-4.266-4.266A2.625 2.625 0 0 0 14.109 2.25H8.625A2.625 2.625 0 0 0 6 4.875v1.875',
       route: '/documentos',
+      permissions: ['files.view'],
     },
     {
       label: 'Chatbot',
@@ -173,41 +212,70 @@ export class MainLayoutComponent {
     },
   ];
 
-  readonly currentUser: Signal<User | null>;
+  // Filtrar menú según permisos del usuario
+  readonly filteredMenuItems = computed(() => {
+    return this.menuItems.filter((item) => {
+      // Si no tiene permisos requeridos, se muestra siempre
+      if (!item.permissions || item.permissions.length === 0) {
+        return true;
+      }
+      // Si tiene permisos, verificar que el usuario tenga al menos uno
+      return this.permissionsService.hasAnyPermission(item.permissions);
+    });
+  });
+
+  readonly currentUser: Signal<AuthUser | null>;
   readonly currentRoute = signal('');
 
   readonly userInitials = computed(() => {
     const user = this.currentUser();
-    if (!user) {
+    if (!user || !user.email) {
       return 'LS';
     }
 
-    const [firstName, lastName] = user.fullName.split(' ');
-    const firstInitial = firstName ? firstName.charAt(0) : '';
-    const lastInitial = lastName ? lastName.charAt(0) : '';
-    return (firstInitial + lastInitial).toUpperCase();
+    // Extraer iniciales del email
+    const emailPart = user.email.split('@')[0];
+    const parts = emailPart.split('.');
+    if (parts.length >= 2) {
+      return (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase();
+    }
+    return emailPart.substring(0, 2).toUpperCase();
   });
 
   readonly userRoleLabel = computed(() => {
-    const role = this.currentUser()?.role;
-    switch (role) {
+    const user = this.currentUser();
+    if (!user || !user.roles || user.roles.length === 0) {
+      return 'Usuario';
+    }
+    
+    const role = user.roles[0]; // Tomamos el primer rol
+    switch (role.toLowerCase()) {
       case 'admin':
+      case 'administrador':
         return 'Administrador';
       case 'advisor':
+      case 'asesor':
         return 'Asesor legal';
       case 'assistant':
+      case 'asistente':
         return 'Asistente legal';
       default:
-        return 'LexAr Suite';
+        return role;
     }
   });
 
   readonly activeRouteLabel = computed(() => {
     const route = this.currentRoute();
-    return this.menuItems.find((item) => route.startsWith(item.route))?.label ?? 'Panel central';
+    return this.filteredMenuItems().find((item) => route.startsWith(item.route))?.label ?? 'Panel central';
   });
 
-  constructor(private readonly authService: AuthService, private readonly router: Router) {
+  // Detectar si el usuario no tiene roles asignados
+  readonly hasNoRoles = computed(() => {
+    const user = this.currentUser();
+    return user && (!user.roles || user.roles.length === 0);
+  });
+
+  constructor() {
     this.currentUser = this.authService.currentUser;
     this.currentRoute.set(this.router.url);
 
@@ -228,7 +296,14 @@ export class MainLayoutComponent {
   }
 
   handleLogout(): void {
-    this.authService.logout();
-    this.router.navigate(['/login']);
+    this.authService.logout().subscribe({
+      next: () => {
+        this.router.navigate(['/login']);
+      },
+      error: () => {
+        // Incluso si hay error, redirigir a login
+        this.router.navigate(['/login']);
+      },
+    });
   }
 }

@@ -191,8 +191,19 @@ export class DashboardComponent {
   readonly clients = this.dataService.clients;
 
   readonly firstName = computed(() => {
-    const fullName = this.authService.currentUser()?.fullName ?? 'Equipo';
-    return fullName.split(' ')[0];
+    const user = this.authService.currentUser();
+    if (!user) {
+      return 'Equipo';
+    }
+    
+    // Extraer nombre del email
+    const emailPart = user.email.split('@')[0];
+    const parts = emailPart.split('.');
+    if (parts.length > 0) {
+      return parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+    }
+    
+    return 'Usuario';
   });
 
   readonly statCards = computed(() => {
