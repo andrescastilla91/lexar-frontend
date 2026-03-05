@@ -229,7 +229,7 @@ export class MainLayoutComponent {
 
   readonly userInitials = computed(() => {
     const user = this.currentUser();
-    if (!user || !user.email) {
+    if (!user?.email) {
       return 'LS';
     }
 
@@ -244,7 +244,7 @@ export class MainLayoutComponent {
 
   readonly userRoleLabel = computed(() => {
     const user = this.currentUser();
-    if (!user || !user.roles || user.roles.length === 0) {
+    if (!user?.roles?.length) {
       return 'Usuario';
     }
     

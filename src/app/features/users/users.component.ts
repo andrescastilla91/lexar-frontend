@@ -7,12 +7,11 @@ import { UsersService } from '../../core/services/users.service';
 import { RolesService } from '../../core/services/roles.service';
 import { UserBackend, CreateUserRequest, UpdateUserRequest } from '../../core/models/user-backend.model';
 import { Role } from '../../core/models/role-backend.model';
-import { HasPermissionDirective } from '../../core/directives/has-permission.directive';
-
+import { HasPermissionDirective } from '../../core/directives/has-permission.directive';import { PaginationComponent } from '../../core/components/pagination.component';
 @Component({
   selector: 'app-users',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, HasPermissionDirective],
+  imports: [CommonModule, ReactiveFormsModule, HasPermissionDirective, PaginationComponent],
   template: `
     <div class="space-y-6">
       <header class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -421,29 +420,16 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
         </div>
 
         <!-- Paginación -->
-        <div class="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <p class="text-sm text-slate-600">
-            Mostrando {{ filteredUsers().length }} de {{ total() }} usuarios
-          </p>
-          <div class="flex gap-2">
-            <button
-              type="button"
-              (click)="previousPage()"
-              [disabled]="currentPage() === 1"
-              class="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
-            >
-              Anterior
-            </button>
-            <button
-              type="button"
-              (click)="nextPage()"
-              [disabled]="currentPage() >= totalPages()"
-              class="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
-            >
-              Siguiente
-            </button>
-          </div>
-        </div>
+        <app-pagination
+          [total]="total()"
+          [currentPage]="currentPage()"
+          [pageSize]="pageSize"
+          [currentItems]="filteredUsers().length"
+          [totalPages]="totalPages()"
+          itemLabel="usuarios"
+          (nextPage)="nextPage()"
+          (previousPage)="previousPage()"
+        />
       }
 
       @if (showRolesModal()) {

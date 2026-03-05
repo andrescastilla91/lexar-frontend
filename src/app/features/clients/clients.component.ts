@@ -1,23 +1,26 @@
-import { CommonModule, DatePipe } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormBuilder, ReactiveFormsModule, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { startWith } from 'rxjs';
-import { MockDataService } from '../../core/services/mock-data.service';
-import { Client } from '../../core/models/client.model';
+import { ClientsService } from '../../core/services/clients.service';
+import { ClientResponse, CreateClientRequest, UpdateClientRequest, RiskLevel, DocumentType } from '../../core/models/client-backend.model';
+import { HasPermissionDirective } from '../../core/directives/has-permission.directive';
+import { PaginationComponent } from '../../core/components/pagination.component';
 
 @Component({
   selector: 'app-clients',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, DatePipe],
+  imports: [CommonModule, ReactiveFormsModule, HasPermissionDirective, PaginationComponent],
   template: `
-    <div class="space-y-8">
+    <div class="space-y-6">
       <header class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 class="text-2xl font-semibold text-slate-800">Clientes corporativos</h2>
-          <p class="text-sm text-slate-500">Control completo de portafolio, riesgos y responsables asignados.</p>
+          <h2 class="text-2xl font-semibold text-slate-800">Gestión de clientes</h2>
+          <p class="text-sm text-slate-500">Administra la información de tus clientes.</p>
         </div>
         <button
+          *hasPermission="'clients.create'"
           type="button"
           class="flex items-center gap-2 rounded-2xl bg-[#192033] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#111728]"
           (click)="togglePanel()"
@@ -29,280 +32,684 @@ import { Client } from '../../core/models/client.model';
         </button>
       </header>
 
-      <section
-        class="relative grid gap-6 transition-all lg:min-h-[22rem]"
-        [ngClass]="panelOpen() ? 'lg:pr-[26rem] lg:pb-6 lg:min-h-[36rem]' : ''"
-      >
-        <form
-          class="w-full max-w-4xl lg:min-w-[48rem] grid gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"
-          [formGroup]="filterForm"
-        >
-          <div class="grid gap-4 md:grid-cols-3">
-            <label class="flex flex-col gap-2 text-sm text-slate-600 md:col-span-2">
-              Búsqueda
+      <!-- Filtros compactos -->
+      <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <form [formGroup]="filterForm" class="space-y-4">
+          <div class="flex flex-col gap-4 sm:flex-row">
+            <label class="flex-1 text-sm text-slate-600">
+              <span class="mb-2 block">Búsqueda</span>
               <input
-                formControlName="search"
                 type="search"
-                placeholder="Nombre, empresa o correo"
-                class="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                formControlName="search"
+                placeholder="Buscar por nombre, email o cédula/NIT"
+                class="w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
               />
             </label>
-            <label class="flex flex-col gap-2 text-sm text-slate-600">
-              Riesgo
+            <label class="w-full text-sm text-slate-600 sm:w-48">
+              <span class="mb-2 block">Estado</span>
               <select
-                formControlName="risk"
-                class="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                formControlName="status"
+                class="w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
               >
-                <option value="todos">Todos</option>
-                <option value="Alto">Alto</option>
-                <option value="Medio">Medio</option>
-                <option value="Bajo">Bajo</option>
+                <option value="all">Todos</option>
+                <option value="active">Activos</option>
+                <option value="inactive">Inactivos</option>
+              </select>
+            </label>
+            <label class="w-full text-sm text-slate-600 sm:w-48">
+              <span class="mb-2 block">Nivel de riesgo</span>
+              <select
+                formControlName="riskLevel"
+                class="w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+              >
+                <option value="all">Todos</option>
+                <option value="LOW">Bajo</option>
+                <option value="MEDIUM">Medio</option>
+                <option value="HIGH">Alto</option>
               </select>
             </label>
           </div>
-          <div class="grid gap-4 md:grid-cols-3">
-            <label class="flex flex-col gap-2 text-sm text-slate-600">
-              Asesor líder
-              <select
-                formControlName="advisorId"
-                class="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
-              >
-                <option value="todos">Todos</option>
-                @for (advisor of advisors(); track advisor.id) {
-                  <option [value]="advisor.id">{{ advisor.name }}</option>
-                }
-              </select>
-            </label>
-            <div class="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm">
-              <p class="text-slate-500">Total clientes</p>
-              <p class="text-2xl font-semibold text-slate-800">{{ clients().length }}</p>
+          
+          <div class="grid gap-4 sm:grid-cols-4">
+            <div class="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+              <p class="text-xs text-slate-500">Total clientes</p>
+              <p class="text-2xl font-semibold text-slate-800">{{ total() }}</p>
             </div>
-            <div class="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm">
-              <p class="text-slate-500">Riesgo alto</p>
+            <div class="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+              <p class="text-xs text-slate-500">Activos</p>
+              <p class="text-2xl font-semibold text-emerald-600">{{ activeCount() }}</p>
+            </div>
+            <div class="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+              <p class="text-xs text-slate-500">Riesgo alto</p>
               <p class="text-2xl font-semibold text-rose-600">{{ highRiskCount() }}</p>
+            </div>
+            <div class="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+              <p class="text-xs text-slate-500">Riesgo bajo</p>
+              <p class="text-2xl font-semibold text-emerald-600">{{ lowRiskCount() }}</p>
             </div>
           </div>
         </form>
+      </div>
 
-        @if (panelOpen()) {
-          <div class="w-full lg:absolute lg:top-0 lg:right-0 lg:w-96 xl:w-[28rem] lg:z-20">
-            <form
-              class="grid gap-3 rounded-3xl border border-slate-200 bg-white p-6 shadow-lg lg:shadow-2xl"
-              [formGroup]="newClientForm"
-              (ngSubmit)="submitClient()"
-            >
-              <h3 class="text-lg font-semibold text-slate-800">Registrar nuevo cliente</h3>
-              <div class="grid gap-3">
+      <!-- Modal para crear/editar cliente -->
+      @if (panelOpen()) {
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <form
+            class="w-full max-w-2xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl"
+            style="max-height: 90vh"
+            [formGroup]="clientForm"
+            (ngSubmit)="submitClient()"
+          >
+            <div class="mb-4 flex items-center justify-between">
+              <h3 class="text-lg font-semibold text-slate-800">
+                {{ editingClient() ? 'Editar cliente' : 'Nuevo cliente' }}
+              </h3>
+              <button
+                type="button"
+                (click)="cancelEdit()"
+                class="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              >
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div class="grid gap-4">
+              <div class="grid gap-4 sm:grid-cols-2">
                 <label class="text-sm text-slate-600">
-                  Razón social / Cliente
+                  Nombre completo *
                   <input
-                    formControlName="company"
+                    formControlName="fullName"
                     type="text"
-                    placeholder="Nombre de la organización"
+                    placeholder="Ej: María González Rodríguez"
+                    class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                  />
+                  @if (clientForm.get('fullName')?.touched && clientForm.get('fullName')?.invalid) {
+                    <p class="mt-1 text-xs text-rose-500">Campo requerido</p>
+                  }
+                </label>
+                <label class="text-sm text-slate-600">
+                  Empresa
+                  <input
+                    formControlName="companyName"
+                    type="text"
+                    placeholder="Ej: Corporación Legal S.A.S."
                     class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
                   />
                 </label>
+              </div>
+
+              <div class="grid gap-4 sm:grid-cols-2">
                 <label class="text-sm text-slate-600">
-                  Persona de contacto
-                  <input
-                    formControlName="name"
-                    type="text"
-                    placeholder="Contacto principal"
-                    class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
-                  />
-                </label>
-                <label class="text-sm text-slate-600">
-                  Correo
+                  Email *
                   <input
                     formControlName="email"
                     type="email"
-                    placeholder="contacto@empresa.com"
+                    placeholder="contacto@empresa.com.co"
                     class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
                   />
+                  @if (clientForm.get('email')?.touched && clientForm.get('email')?.invalid) {
+                    <p class="mt-1 text-xs text-rose-500">Email inválido</p>
+                  }
                 </label>
                 <label class="text-sm text-slate-600">
                   Teléfono
                   <input
                     formControlName="phone"
-                    type="text"
-                    placeholder="+57 300 000 0000"
-                    class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
-                  />
-                </label>
-                <div class="grid gap-4 md:grid-cols-2">
-                  <label class="text-sm text-slate-600">
-                    Asesor asignado
-                    <select
-                      formControlName="assignedAdvisorId"
-                      class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
-                    >
-                      @for (advisor of advisors(); track advisor.id) {
-                        <option [value]="advisor.id">{{ advisor.name }}</option>
-                      }
-                    </select>
-                  </label>
-                  <label class="text-sm text-slate-600">
-                    Nivel de riesgo
-                    <select
-                      formControlName="riskLevel"
-                      class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
-                    >
-                      <option value="Bajo">Bajo</option>
-                      <option value="Medio">Medio</option>
-                      <option value="Alto">Alto</option>
-                    </select>
-                  </label>
-                </div>
-                <label class="text-sm text-slate-600">
-                  Fecha de vinculación
-                  <input
-                    formControlName="createdAt"
-                    type="date"
+                    type="tel"
+                    placeholder="+57 300 123 4567"
                     class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
                   />
                 </label>
               </div>
-              @if (formError()) {
-                <p class="rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-600">{{ formError() }}</p>
-              }
-              <button type="submit" class="mt-2 rounded-2xl bg-[#192033] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#111728]">
-                Guardar cliente
-              </button>
-            </form>
-          </div>
-        }
-      </section>
 
-      <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        @for (client of filteredClients(); track client.id) {
-          <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div class="flex items-start justify-between gap-3">
-              <div>
-                <p class="text-xs uppercase tracking-wide text-slate-400">Cliente</p>
-                <h3 class="text-lg font-semibold text-slate-800">{{ client.company }}</h3>
-                <p class="text-sm text-slate-500">{{ client.name }}</p>
+              <div class="grid gap-4 sm:grid-cols-2">
+                <label class="text-sm text-slate-600">
+                  Tipo de documento *
+                  <select
+                    formControlName="documentType"
+                    class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                  >
+                    <option value="CC">Cédula de Ciudadanía</option>
+                    <option value="NIT">NIT</option>
+                  </select>
+                </label>
+                <label class="text-sm text-slate-600">
+                  Número de identificación *
+                  <input
+                    formControlName="identificationNumber"
+                    type="text"
+                    placeholder="Cédula, NIT, Pasaporte"
+                    class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                  />
+                  @if (clientForm.get('identificationNumber')?.touched && clientForm.get('identificationNumber')?.invalid) {
+                    <p class="mt-1 text-xs text-rose-500">Campo requerido</p>
+                  }
+                  @if (clientForm.errors?.['invalidNit']) {
+                    <p class="mt-1 text-xs text-rose-500">{{ clientForm.errors?.['invalidNit'] }}</p>
+                  }
+                  @if (clientForm.errors?.['invalidCedula']) {
+                    <p class="mt-1 text-xs text-rose-500">{{ clientForm.errors?.['invalidCedula'] }}</p>
+                  }
+                </label>
+                <label class="text-sm text-slate-600">
+                  Nivel de riesgo
+                  <select
+                    formControlName="riskLevel"
+                    class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                  >
+                    <option value="LOW">Bajo</option>
+                    <option value="MEDIUM">Medio</option>
+                    <option value="HIGH">Alto</option>
+                  </select>
+                </label>
               </div>
-              <span class="rounded-full px-3 py-1 text-xs font-semibold" [ngClass]="riskClasses(client.riskLevel)">
-                Riesgo {{ client.riskLevel }}
-              </span>
+
+              <label class="text-sm text-slate-600">
+                Dirección
+                <textarea
+                  formControlName="address"
+                  rows="3"
+                  placeholder="Ej: Calle 100 # 19-30, Bogotá D.C."
+                  class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                ></textarea>
+              </label>
             </div>
-            <dl class="mt-4 space-y-3 text-sm text-slate-600">
-              <div class="flex items-center gap-2">
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Zm0 0v4.125c0 .621.504 1.125 1.125 1.125h1.125M7.5 12 5.25 9.75M7.5 12l-2.25 2.25" />
-                </svg>
-                <span>{{ client.email }}</span>
+
+            @if (errorMessage()) {
+              <div class="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">
+                {{ errorMessage() }}
               </div>
-              <div class="flex items-center gap-2">
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.43-.108-.88.055-1.14.417l-.97 1.293c-.282.376-.769.542-1.21.401a12.035 12.035 0 0 1-7.144-7.143c-.141-.442.025-.93.401-1.211l1.293-.97a1.125 1.125 0 0 0 .417-1.139L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z" />
-                </svg>
-                <span>{{ client.phone }}</span>
-              </div>
-              <div class="flex items-center gap-2">
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5" />
-                </svg>
-                <span>Vinculado el {{ client.createdAt | date: 'dd/MM/yyyy' }}</span>
-              </div>
-            </dl>
-            <div class="mt-4 flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3 text-xs text-slate-500">
-              <span>Asesor líder</span>
-              <span class="font-semibold text-slate-700">{{ advisorName(client.assignedAdvisorId) }}</span>
+            }
+
+            <div class="mt-6 flex gap-3">
+              <button
+                type="button"
+                (click)="cancelEdit()"
+                class="flex-1 rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                class="flex-1 rounded-2xl bg-[#192033] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#111728] disabled:bg-slate-400"
+                [disabled]="isSubmitting() || clientForm.invalid"
+              >
+                {{ editingClient() ? 'Actualizar' : 'Crear cliente' }}
+              </button>
             </div>
-          </article>
-        }
-      </section>
+          </form>
+        </div>
+      }
+
+      @if (isLoading()) {
+        <div class="flex items-center justify-center py-12">
+          <div class="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-[#192033]"></div>
+        </div>
+      } @else if (filteredClients().length === 0) {
+        <div class="rounded-3xl border border-slate-200 bg-white p-12 text-center">
+          <p class="text-slate-500">No se encontraron clientes</p>
+        </div>
+      } @else {
+        <!-- Tabla para desktop -->
+        <div class="hidden overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm md:block">
+          <table class="w-full">
+            <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+              <tr>
+                <th class="px-6 py-4">Cliente</th>
+                <th class="px-6 py-4">Empresa</th>
+                <th class="px-6 py-4">Contacto</th>
+                <th class="px-6 py-4">Riesgo</th>
+                <th class="px-6 py-4">Estado</th>
+                <th class="px-6 py-4 text-right">Acciones</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200">
+              @for (client of filteredClients(); track client.id) {
+                <tr class="transition hover:bg-slate-50">
+                  <td class="px-6 py-4">
+                    <div>
+                      <p class="font-semibold text-slate-800">{{ client.fullName }}</p>
+                      <p class="text-sm text-slate-500">
+                        {{ getDocumentTypeLabel(client.documentType) }}: {{ client.identificationNumber }}
+                      </p>
+                    </div>
+                  </td>
+                  <td class="px-6 py-4 text-sm text-slate-600">
+                    {{ client.companyName || 'N/A' }}
+                  </td>
+                  <td class="px-6 py-4">
+                    <p class="text-sm text-slate-800">{{ client.email }}</p>
+                    <p class="text-sm text-slate-500">{{ client.phone || 'N/A' }}</p>
+                  </td>
+                  <td class="px-6 py-4">
+                    <span
+                      class="inline-flex rounded-full px-2 py-1 text-xs font-semibold"
+                      [class]="{
+                        'bg-emerald-100 text-emerald-700': client.riskLevel === 'LOW',
+                        'bg-amber-100 text-amber-700': client.riskLevel === 'MEDIUM',
+                        'bg-rose-100 text-rose-700': client.riskLevel === 'HIGH'
+                      }"
+                    >
+                      {{ getRiskLevelLabel(client.riskLevel) }}
+                    </span>
+                  </td>
+                  <td class="px-6 py-4">
+                    <span
+                      class="inline-flex rounded-full px-2 py-1 text-xs font-semibold"
+                      [class]="client.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'"
+                    >
+                      {{ client.isActive ? 'Activo' : 'Inactivo' }}
+                    </span>
+                  </td>
+                  <td class="px-6 py-4">
+                    <div class="flex justify-end gap-2">
+                      <button
+                        *hasPermission="'clients.edit'"
+                        type="button"
+                        (click)="editClient(client)"
+                        class="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                        title="Editar"
+                      >
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 3.487 3.65 3.65a1 1 0 0 1 0 1.415L8.96 20.104a1 1 0 0 1-.708.292H4.5a.75.75 0 0 1-.75-.75v-3.752a1 1 0 0 1 .293-.707L15.447 3.487a1 1 0 0 1 1.415 0Z" />
+                        </svg>
+                      </button>
+                      <button
+                        *hasPermission="['clients.activate', 'clients.deactivate']"
+                        type="button"
+                        (click)="toggleClientStatus(client)"
+                        class="rounded-lg p-2 transition"
+                        [class]="client.isActive ? 'text-amber-600 hover:bg-amber-50 hover:text-amber-700' : 'text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700'"
+                        [title]="client.isActive ? 'Desactivar cliente' : 'Activar cliente'"
+                      >
+                        @if (client.isActive) {
+                          <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                          </svg>
+                        } @else {
+                          <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                          </svg>
+                        }
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Cards para móvil -->
+        <div class="grid gap-4 md:hidden">
+          @for (client of filteredClients(); track client.id) {
+            <div class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div class="mb-3 flex items-start justify-between">
+                <div>
+                  <p class="font-semibold text-slate-800">{{ client.fullName }}</p>
+                  <p class="text-sm text-slate-500">
+                    {{ getDocumentTypeLabel(client.documentType) }}: {{ client.identificationNumber }}
+                  </p>
+                </div>
+                <span
+                  class="inline-flex rounded-full px-2 py-1 text-xs font-semibold"
+                  [class]="client.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'"
+                >
+                  {{ client.isActive ? 'Activo' : 'Inactivo' }}
+                </span>
+              </div>
+              
+              <div class="mb-3 space-y-2 text-sm">
+                <div>
+                  <span class="text-xs font-medium text-slate-500">Empresa:</span>
+                  <span class="ml-2 text-xs text-slate-600">{{ client.companyName || 'N/A' }}</span>
+                </div>
+                <div>
+                  <span class="text-xs font-medium text-slate-500">Email:</span>
+                  <span class="ml-2 text-xs text-slate-600">{{ client.email }}</span>
+                </div>
+                <div>
+                  <span class="text-xs font-medium text-slate-500">Teléfono:</span>
+                  <span class="ml-2 text-xs text-slate-600">{{ client.phone || 'N/A' }}</span>
+                </div>
+                <div>
+                  <span class="text-xs font-medium text-slate-500">Riesgo:</span>
+                  <span
+                    class="ml-2 inline-flex rounded-full px-2 py-1 text-xs font-semibold"
+                    [class]="{
+                      'bg-emerald-100 text-emerald-700': client.riskLevel === 'LOW',
+                      'bg-amber-100 text-amber-700': client.riskLevel === 'MEDIUM',
+                      'bg-rose-100 text-rose-700': client.riskLevel === 'HIGH'
+                    }"
+                  >
+                    {{ getRiskLevelLabel(client.riskLevel) }}
+                  </span>
+                </div>
+              </div>
+
+              <div class="flex flex-wrap gap-2">
+                <button
+                  *hasPermission="'clients.edit'"
+                  type="button"
+                  (click)="editClient(client)"
+                  class="flex-1 rounded-2xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+                >
+                  Editar
+                </button>
+                <button
+                  *hasPermission="['clients.activate', 'clients.deactivate']"
+                  type="button"
+                  (click)="toggleClientStatus(client)"
+                  class="flex-1 rounded-2xl border px-3 py-2 text-xs font-medium transition"
+                  [class]="client.isActive ? 'border-amber-200 text-amber-600 hover:bg-amber-50' : 'border-emerald-200 text-emerald-600 hover:bg-emerald-50'"
+                >
+                  {{ client.isActive ? 'Desactivar' : 'Activar' }}
+                </button>
+              </div>
+            </div>
+          }
+        </div>
+      }
+
+      <!-- Paginación -->
+      @if (!isLoading() && filteredClients().length > 0) {
+        <app-pagination
+          [total]="total()"
+          [currentPage]="currentPage()"
+          [pageSize]="pageSize"
+          [currentItems]="filteredClients().length"
+          [totalPages]="totalPages()"
+          itemLabel="clientes"
+          (nextPage)="nextPage()"
+          (previousPage)="previousPage()"
+        />
+      }
     </div>
   `,
 })
-export class ClientsComponent {
+export class ClientsComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
-  private readonly dataService = inject(MockDataService);
+  private readonly clientsService = inject(ClientsService);
 
-  readonly advisors = this.dataService.advisors;
-  readonly clients = this.dataService.clients;
+  readonly clients = signal<ClientResponse[]>([]);
+  readonly isLoading = signal(false);
+  readonly isSubmitting = signal(false);
+  readonly errorMessage = signal<string | null>(null);
+  readonly panelOpen = signal(false);
+  readonly editingClient = signal<ClientResponse | null>(null);
+  readonly total = signal(0);
+  readonly currentPage = signal(1);
+  readonly pageSize = 10;
+  readonly totalPages = computed(() => Math.ceil(this.total() / this.pageSize));
 
   readonly filterForm = this.fb.nonNullable.group({
     search: [''],
-    risk: ['todos'],
-    advisorId: ['todos'],
+    status: ['all'],
+    riskLevel: ['all'],
   });
 
-  readonly newClientForm = this.fb.nonNullable.group({
-    company: ['', [Validators.required]],
-    name: ['', [Validators.required]],
+  readonly clientForm = this.fb.nonNullable.group({
+    fullName: ['', [Validators.required, Validators.minLength(3)]],
+    companyName: [''],
+    phone: [''],
     email: ['', [Validators.required, Validators.email]],
-    phone: ['', [Validators.required]],
-    assignedAdvisorId: [this.advisors()[0]?.id ?? '', Validators.required],
-    riskLevel: ['Medio', Validators.required],
-    createdAt: [new Date().toISOString().slice(0, 10), Validators.required],
+    address: [''],
+    documentType: ['CC' as DocumentType, [Validators.required]],
+    identificationNumber: ['', [Validators.required]],
+    riskLevel: ['LOW' as RiskLevel],
+  }, {
+    validators: [this.identificationNumberValidator.bind(this)]
   });
 
-  private readonly filterValue = toSignal(
-    this.filterForm.valueChanges.pipe(startWith(this.filterForm.getRawValue())),
-    { initialValue: this.filterForm.getRawValue() }
+  readonly filterValues = toSignal(
+    this.filterForm.valueChanges.pipe(startWith(this.filterForm.value)),
+    { initialValue: this.filterForm.value }
   );
 
-  readonly filteredClients = computed(() => {
-    const filter = this.filterValue() ?? { search: '', risk: 'todos', advisorId: 'todos' };
-    const term = (filter.search ?? '').toLowerCase();
-    const risk = filter.risk ?? 'todos';
-    const advisorId = filter.advisorId ?? 'todos';
+  /**
+   * Validador personalizado para número de identificación según tipo de documento
+   */
+  private identificationNumberValidator(control: AbstractControl): ValidationErrors | null {
+    const documentType = control.get('documentType')?.value;
+    const identificationNumber = control.get('identificationNumber')?.value;
 
-    return this.clients().filter((client) => {
-      const matchesTerm = [client.company, client.name, client.email].some((value) =>
-        value.toLowerCase().includes(term)
-      );
-      const matchesRisk = risk === 'todos' || client.riskLevel === risk;
-      const matchesAdvisor = advisorId === 'todos' || client.assignedAdvisorId === advisorId;
-      return matchesTerm && matchesRisk && matchesAdvisor;
-    });
-  });
-
-  readonly highRiskCount = computed(() => this.clients().filter((client) => client.riskLevel === 'Alto').length);
-
-  readonly panelOpen = signal(false);
-  readonly formError = signal<string | null>(null);
-
-  togglePanel(): void {
-    this.panelOpen.update((value) => !value);
-  }
-
-  submitClient(): void {
-    if (this.newClientForm.invalid) {
-      this.newClientForm.markAllAsTouched();
-      this.formError.set('Completa los campos obligatorios.');
-      return;
+    if (!documentType || !identificationNumber) {
+      return null;
     }
 
-    this.formError.set(null);
-    const value = this.newClientForm.getRawValue() as Omit<Client, 'id'>;
-    this.dataService.addClient(value);
-    this.newClientForm.reset({
-      company: '',
-      name: '',
-      email: '',
-      phone: '',
-      assignedAdvisorId: this.advisors()[0]?.id ?? '',
-      riskLevel: 'Medio',
-      createdAt: new Date().toISOString().slice(0, 10),
+    // Validación para NIT: debe empezar con 8 o 9 y tener entre 9 y 10 dígitos
+    if (documentType === 'NIT') {
+      const nitPattern = /^[89]\d{8,9}$/;
+      if (!nitPattern.test(identificationNumber)) {
+        return { invalidNit: 'El NIT debe empezar con 8 o 9 y tener entre 9 y 10 dígitos' };
+      }
+    }
+
+    // Validación para Cédula: solo números, entre 6 y 10 dígitos
+    if (documentType === 'CC') {
+      const cedulaPattern = /^\d{6,10}$/;
+      if (!cedulaPattern.test(identificationNumber)) {
+        return { invalidCedula: 'La cédula debe tener entre 6 y 10 dígitos' };
+      }
+    }
+
+    return null;
+  }
+
+  readonly filteredClients = computed(() => {
+    const search = this.filterValues().search?.toLowerCase() || '';
+    const status = this.filterValues().status || 'all';
+    const riskLevel = this.filterValues().riskLevel || 'all';
+    const allClients = this.clients();
+    
+    if (!Array.isArray(allClients)) {
+      return [];
+    }
+    
+    let filtered = allClients;
+
+    if (search) {
+      filtered = filtered.filter(
+        (c) =>
+          c.fullName.toLowerCase().includes(search) ||
+          c.email.toLowerCase().includes(search) ||
+          c.identificationNumber.toLowerCase().includes(search) ||
+          c.companyName?.toLowerCase().includes(search)
+      );
+    }
+
+    if (status === 'active') {
+      filtered = filtered.filter((c) => c.isActive);
+    } else if (status === 'inactive') {
+      filtered = filtered.filter((c) => !c.isActive);
+    }
+
+    if (riskLevel !== 'all') {
+      filtered = filtered.filter((c) => c.riskLevel === riskLevel);
+    }
+
+    return filtered;
+  });
+
+  readonly activeCount = computed(() => {
+    const clients = this.clients();
+    return Array.isArray(clients) ? clients.filter((c) => c.isActive).length : 0;
+  });
+  
+  readonly highRiskCount = computed(() => {
+    const clients = this.clients();
+    return Array.isArray(clients) ? clients.filter((c) => c.riskLevel === 'HIGH').length : 0;
+  });
+  
+  readonly lowRiskCount = computed(() => {
+    const clients = this.clients();
+    return Array.isArray(clients) ? clients.filter((c) => c.riskLevel === 'LOW').length : 0;
+  });
+
+  ngOnInit(): void {
+    this.loadClients();
+  }
+
+  loadClients(): void {
+    this.isLoading.set(true);
+    this.clientsService.getClients(this.currentPage(), this.pageSize).subscribe({
+      next: (response) => {
+        this.clients.set(Array.isArray(response.clients) ? response.clients : []);
+        this.total.set(response.total || 0);
+        this.isLoading.set(false);
+      },
+      error: (error) => {
+        console.error('Error al cargar clientes:', error);
+        this.clients.set([]);
+        this.total.set(0);
+        this.isLoading.set(false);
+      },
     });
+  }
+
+  togglePanel(): void {
+    this.panelOpen.update((open) => !open);
+    if (!this.panelOpen()) {
+      this.cancelEdit();
+    }
+  }
+
+  editClient(client: ClientResponse): void {
+    this.editingClient.set(client);
+    this.clientForm.patchValue({
+      fullName: client.fullName,
+      companyName: client.companyName || '',
+      phone: client.phone || '',
+      email: client.email,
+      address: client.address || '',
+      documentType: client.documentType,
+      identificationNumber: client.identificationNumber,
+      riskLevel: client.riskLevel,
+    });
+    this.panelOpen.set(true);
+  }
+
+  cancelEdit(): void {
+    this.editingClient.set(null);
+    this.clientForm.reset({
+      fullName: '',
+      companyName: '',
+      phone: '',
+      email: '',
+      address: '',
+      documentType: 'CC',
+      identificationNumber: '',
+      riskLevel: 'LOW',
+    });
+    this.errorMessage.set(null);
     this.panelOpen.set(false);
   }
 
-  advisorName(advisorId: string): string {
-    return this.dataService.findAdvisorById(advisorId)?.name ?? 'No asignado';
+  submitClient(): void {
+    if (this.clientForm.invalid) {
+      this.clientForm.markAllAsTouched();
+      return;
+    }
+
+    this.isSubmitting.set(true);
+    this.errorMessage.set(null);
+
+    const formValue = this.clientForm.getRawValue();
+
+    if (this.editingClient()) {
+      const updateData: UpdateClientRequest = {
+        fullName: formValue.fullName,
+        companyName: formValue.companyName || undefined,
+        phone: formValue.phone || undefined,
+        email: formValue.email,
+        address: formValue.address || undefined,
+        documentType: formValue.documentType,
+        identificationNumber: formValue.identificationNumber,
+        riskLevel: formValue.riskLevel,
+      };
+
+      this.clientsService.updateClient(this.editingClient()!.id, updateData).subscribe({
+        next: () => {
+          this.loadClients();
+          this.cancelEdit();
+          this.isSubmitting.set(false);
+        },
+        error: (error) => {
+          this.errorMessage.set(error.message || 'Error al actualizar cliente');
+          this.isSubmitting.set(false);
+        },
+      });
+    } else {
+      const createData: CreateClientRequest = {
+        fullName: formValue.fullName,
+        companyName: formValue.companyName || undefined,
+        phone: formValue.phone || undefined,
+        email: formValue.email,
+        address: formValue.address || undefined,
+        documentType: formValue.documentType,
+        identificationNumber: formValue.identificationNumber,
+        riskLevel: formValue.riskLevel,
+      };
+
+      this.clientsService.createClient(createData).subscribe({
+        next: () => {
+          this.loadClients();
+          this.cancelEdit();
+          this.isSubmitting.set(false);
+        },
+        error: (error) => {
+          this.errorMessage.set(error.message || 'Error al crear cliente');
+          this.isSubmitting.set(false);
+        },
+      });
+    }
   }
 
-  riskClasses(risk: Client['riskLevel']): string {
-    switch (risk) {
-      case 'Alto':
-        return 'bg-rose-100 text-rose-700';
-      case 'Medio':
-        return 'bg-amber-100 text-amber-700';
-      default:
-        return 'bg-emerald-100 text-emerald-700';
+  toggleClientStatus(client: ClientResponse): void {
+    if (!confirm(`¿Estás seguro de ${client.isActive ? 'desactivar' : 'activar'} a ${client.fullName}?`)) {
+      return;
+    }
+
+    this.clientsService.toggleActive(client.id).subscribe({
+      next: () => {
+        this.loadClients();
+      },
+      error: (error) => {
+        alert(error.message || 'Error al cambiar estado del cliente');
+      },
+    });
+  }
+
+  getRiskLevelLabel(riskLevel: RiskLevel): string {
+    const labels: Record<RiskLevel, string> = {
+      LOW: 'Bajo',
+      MEDIUM: 'Medio',
+      HIGH: 'Alto',
+    };
+    return labels[riskLevel] || riskLevel;
+  }
+
+  getDocumentTypeLabel(documentType: DocumentType): string {
+    const labels: Record<DocumentType, string> = {
+      CC: 'Cédula',
+      NIT: 'NIT',
+    };
+    return labels[documentType] || documentType;
+  }
+
+  previousPage(): void {
+    if (this.currentPage() > 1) {
+      this.currentPage.update((p) => p - 1);
+      this.loadClients();
+    }
+  }
+
+  nextPage(): void {
+    if (this.currentPage() < this.totalPages()) {
+      this.currentPage.update((p) => p + 1);
+      this.loadClients();
     }
   }
 }

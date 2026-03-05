@@ -1,0 +1,22 @@
+# Configuración de line endings para Git en Windows
+* text=auto
+
+# TypeScript, JavaScript
+*.ts text eol=crlf
+*.js text eol=crlf
+*.mjs text eol=crlf
+*.json text eol=crlf
+
+# HTML, CSS, SCSS
+*.html text eol=crlf
+*.css text eol=crlf
+*.scss text eol=crlf
+
+# Markdown
+*.md text eol=crlf
+
+# Archivos de configuración
+.editorconfig text eol=crlf
+.prettierrc text eol=crlf
+*.yml text eol=crlf
+*.yaml text eol=crlf
