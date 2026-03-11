@@ -1,4 +1,4 @@
-import { Component, input, output, contentChild, TemplateRef } from '@angular/core';
+import { Component, input, output, contentChild, contentChildren, TemplateRef, effect, Signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { PaginationComponent } from './pagination.component';
 

@@ -1,7 +1,7 @@
 import { Injectable, computed, effect, signal, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
-import { Observable, tap, catchError, of, map } from 'rxjs';
+import { Observable, tap, catchError, of, map, switchMap } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
   LoginRequest,
@@ -107,9 +107,19 @@ export class AuthService {
 
   refreshToken(): Observable<boolean> {
     return this.http.post<{ message: string }>(`${this.apiUrl}/refresh`, {}).pipe(
-      map(() => true),
+      switchMap(() => {
+        return this.getProfile().pipe(
+          map((user) => {
+            if (user) {
+              return true;
+            }
+            console.error('❌ No se pudo obtener el perfil después del refresh');
+            return false;
+          })
+        );
+      }),
       catchError((error) => {
-        console.error('Error al refrescar token:', error);
+        console.error('❌ Error al refrescar token:', error);
         this.clearSession();
         return of(false);
       })

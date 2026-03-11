@@ -94,53 +94,57 @@ interface MenuItem {
     
         <div class="flex flex-1 flex-col">
           <header class="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-slate-200 bg-white/90 px-4 backdrop-blur lg:px-8">
-            <div class="flex items-center gap-3">
-              <button
-                type="button"
-                class="rounded-xl border border-slate-200 p-2 text-slate-600 transition hover:bg-slate-50 lg:hidden"
-                (click)="toggleSidebar()"
-                aria-label="Abrir menú"
-                >
-                <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M4 12h16M4 17h16" />
-                </svg>
-              </button>
-              <div>
-                <p class="text-sm font-medium text-slate-500">Panel central</p>
-                <p class="text-lg font-semibold text-slate-800">{{ activeRouteLabel() }}</p>
-              </div>
-            </div>
-            <div class="flex items-center gap-4">
-              <div class="hidden sm:flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2">
-                <span class="flex h-8 w-8 items-center justify-center rounded-xl bg-[#192033] text-white text-sm font-semibold">
-                  {{ userInitials() }}
-                </span>
+            <div class="flex w-full items-center justify-between gap-4">
+              <div class="flex items-center gap-3">
+                <button
+                  type="button"
+                  class="rounded-xl border border-slate-200 p-2 text-slate-600 transition hover:bg-slate-50 lg:hidden"
+                  (click)="toggleSidebar()"
+                  aria-label="Abrir menú"
+                  >
+                  <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M4 12h16M4 17h16" />
+                  </svg>
+                </button>
                 <div>
-                  <p class="text-sm font-semibold text-slate-700">{{ currentUser()?.email }}</p>
-                  <p class="text-xs text-slate-400">{{ userRoleLabel() }}</p>
+                  <p class="text-sm font-medium text-slate-500">Panel central</p>
+                  <p class="text-lg font-semibold text-slate-800">{{ activeRouteLabel() }}</p>
+                </div>
+              </div>
+              <div class="flex items-center gap-4">
+                <div class="hidden md:flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                  <span class="flex h-8 w-8 items-center justify-center rounded-xl bg-[#192033] text-white text-sm font-semibold">
+                    {{ userInitials() }}
+                  </span>
+                  <div class="min-w-0">
+                    <p class="text-sm font-semibold text-slate-700 truncate">{{ currentUser()?.email }}</p>
+                    <p class="text-xs text-slate-400 truncate">{{ userRoleLabel() }}</p>
+                  </div>
                 </div>
               </div>
             </div>
           </header>
     
           @if (hasNoRoles()) {
-            <div class="border-l-4 border-amber-500 bg-amber-50 p-4 mx-4 mt-4 rounded-lg lg:mx-8">
-              <div class="flex items-center gap-3">
-                <svg class="h-6 w-6 text-amber-600 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
-                </svg>
-                <div class="flex-1">
-                  <h3 class="text-sm font-semibold text-amber-800">Sin roles asignados</h3>
-                  <p class="text-sm text-amber-700 mt-1">
-                    Tu cuenta no tiene roles ni permisos asignados. Contacta al administrador de tu empresa para que te asigne los permisos necesarios.
-                  </p>
+            <div class="px-4 md:px-6 lg:px-8">
+              <div class="mx-auto mt-4 border-l-4 border-amber-500 bg-amber-50 p-4 rounded-lg">
+                <div class="flex items-center gap-3">
+                  <svg class="h-6 w-6 text-amber-600 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                  </svg>
+                  <div class="flex-1">
+                    <h3 class="text-sm font-semibold text-amber-800">Sin roles asignados</h3>
+                    <p class="text-sm text-amber-700 mt-1">
+                      Tu cuenta no tiene roles ni permisos asignados. Contacta al administrador de tu empresa para que te asigne los permisos necesarios.
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
           }
 
-          <main class="flex-1 overflow-y-auto p-4 lg:p-8">
-            <div class="min-w-0 w-full">
+          <main class="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 lg:p-8">
+            <div class="min-w-0 w-full max-w-[1400px] mx-auto">
               <router-outlet />
             </div>
           </main>

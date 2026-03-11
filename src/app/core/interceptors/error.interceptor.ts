@@ -10,6 +10,12 @@ export interface ApiError {
 export const errorInterceptor: HttpInterceptorFn = (req, next) => {
   return next(req).pipe(
     catchError((error: HttpErrorResponse) => {
+      // ⚠️ IMPORTANTE: NO manejar errores 401 aquí
+      // El authInterceptor se encarga del refresh de tokens
+      if (error.status === 401) {
+        return throwError(() => error);
+      }
+
       let errorMessage = 'Ha ocurrido un error inesperado';
 
       if (error.error instanceof ErrorEvent) {
@@ -31,9 +37,6 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
         switch (error.status) {
           case 400:
             errorMessage = error.error?.message || 'Solicitud inválida';
-            break;
-          case 401:
-            errorMessage = 'No autorizado. Por favor inicia sesión nuevamente';
             break;
           case 403:
             errorMessage = 'No tienes permisos para realizar esta acción';

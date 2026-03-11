@@ -7,11 +7,12 @@ import { ClientsService } from '../../core/services/clients.service';
 import { ClientResponse, CreateClientRequest, UpdateClientRequest, RiskLevel, DocumentType } from '../../core/models/client-backend.model';
 import { HasPermissionDirective } from '../../core/directives/has-permission.directive';
 import { PaginationComponent } from '../../core/components/pagination.component';
+import { EntityFilesComponent } from '../../core/components/entity-files.component';
 
 @Component({
   selector: 'app-clients',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, HasPermissionDirective, PaginationComponent],
+  imports: [CommonModule, ReactiveFormsModule, HasPermissionDirective, PaginationComponent, EntityFilesComponent],
   template: `
     <div class="space-y-6">
       <header class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -94,152 +95,171 @@ import { PaginationComponent } from '../../core/components/pagination.component'
       <!-- Modal para crear/editar cliente -->
       @if (panelOpen()) {
         <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-          <form
-            class="w-full max-w-2xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl"
+          <div
+            class="w-full max-w-xl md:max-w-4xl lg:max-w-5xl overflow-y-auto rounded-3xl border border-slate-200 bg-white shadow-2xl"
             style="max-height: 90vh"
-            [formGroup]="clientForm"
-            (ngSubmit)="submitClient()"
           >
-            <div class="mb-4 flex items-center justify-between">
-              <h3 class="text-lg font-semibold text-slate-800">
-                {{ editingClient() ? 'Editar cliente' : 'Nuevo cliente' }}
-              </h3>
-              <button
-                type="button"
-                (click)="cancelEdit()"
-                class="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            <!-- Layout de 2 columnas: Formulario + Archivos -->
+            <div class="grid gap-6 {{ editingClient() ? 'md:grid-cols-[1fr_320px]' : 'md:grid-cols-1' }}">
+              <!-- Columna izquierda: Formulario -->
+              <form
+                class="p-4 md:p-6"
+                [formGroup]="clientForm"
+                (ngSubmit)="submitClient()"
               >
-                <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            <div class="grid gap-4">
-              <div class="grid gap-4 sm:grid-cols-2">
-                <label class="text-sm text-slate-600">
-                  Nombre completo *
-                  <input
-                    formControlName="fullName"
-                    type="text"
-                    placeholder="Ej: María González Rodríguez"
-                    class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
-                  />
-                  @if (clientForm.get('fullName')?.touched && clientForm.get('fullName')?.invalid) {
-                    <p class="mt-1 text-xs text-rose-500">Campo requerido</p>
-                  }
-                </label>
-                <label class="text-sm text-slate-600">
-                  Empresa
-                  <input
-                    formControlName="companyName"
-                    type="text"
-                    placeholder="Ej: Corporación Legal S.A.S."
-                    class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
-                  />
-                </label>
-              </div>
-
-              <div class="grid gap-4 sm:grid-cols-2">
-                <label class="text-sm text-slate-600">
-                  Email *
-                  <input
-                    formControlName="email"
-                    type="email"
-                    placeholder="contacto@empresa.com.co"
-                    class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
-                  />
-                  @if (clientForm.get('email')?.touched && clientForm.get('email')?.invalid) {
-                    <p class="mt-1 text-xs text-rose-500">Email inválido</p>
-                  }
-                </label>
-                <label class="text-sm text-slate-600">
-                  Teléfono
-                  <input
-                    formControlName="phone"
-                    type="tel"
-                    placeholder="+57 300 123 4567"
-                    class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
-                  />
-                </label>
-              </div>
-
-              <div class="grid gap-4 sm:grid-cols-2">
-                <label class="text-sm text-slate-600">
-                  Tipo de documento *
-                  <select
-                    formControlName="documentType"
-                    class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                <div class="mb-4 flex items-center justify-between">
+                  <h3 class="text-lg font-semibold text-slate-800">
+                    {{ editingClient() ? 'Editar cliente' : 'Nuevo cliente' }}
+                  </h3>
+                  <button
+                    type="button"
+                    (click)="cancelEdit()"
+                    class="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
                   >
-                    <option value="CC">Cédula de Ciudadanía</option>
-                    <option value="NIT">NIT</option>
-                  </select>
-                </label>
-                <label class="text-sm text-slate-600">
-                  Número de identificación *
-                  <input
-                    formControlName="identificationNumber"
-                    type="text"
-                    placeholder="Cédula, NIT, Pasaporte"
-                    class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
-                  />
-                  @if (clientForm.get('identificationNumber')?.touched && clientForm.get('identificationNumber')?.invalid) {
-                    <p class="mt-1 text-xs text-rose-500">Campo requerido</p>
-                  }
-                  @if (clientForm.errors?.['invalidNit']) {
-                    <p class="mt-1 text-xs text-rose-500">{{ clientForm.errors?.['invalidNit'] }}</p>
-                  }
-                  @if (clientForm.errors?.['invalidCedula']) {
-                    <p class="mt-1 text-xs text-rose-500">{{ clientForm.errors?.['invalidCedula'] }}</p>
-                  }
-                </label>
-                <label class="text-sm text-slate-600">
-                  Nivel de riesgo
-                  <select
-                    formControlName="riskLevel"
-                    class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                <div class="grid gap-4">
+                  <div class="grid gap-4 sm:grid-cols-2">
+                    <label class="text-sm text-slate-600">
+                      Nombre completo *
+                      <input
+                        formControlName="fullName"
+                        type="text"
+                        placeholder="Ej: María González Rodríguez"
+                        class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                      />
+                      @if (clientForm.get('fullName')?.touched && clientForm.get('fullName')?.invalid) {
+                        <p class="mt-1 text-xs text-rose-500">Campo requerido</p>
+                      }
+                    </label>
+                    <label class="text-sm text-slate-600">
+                      Empresa
+                      <input
+                        formControlName="companyName"
+                        type="text"
+                        placeholder="Ej: Corporación Legal S.A.S."
+                        class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                      />
+                    </label>
+                  </div>
+
+                  <div class="grid gap-4 sm:grid-cols-2">
+                    <label class="text-sm text-slate-600">
+                      Email *
+                      <input
+                        formControlName="email"
+                        type="email"
+                        placeholder="contacto@empresa.com.co"
+                        class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                      />
+                      @if (clientForm.get('email')?.touched && clientForm.get('email')?.invalid) {
+                        <p class="mt-1 text-xs text-rose-500">Email inválido</p>
+                      }
+                    </label>
+                    <label class="text-sm text-slate-600">
+                      Teléfono
+                      <input
+                        formControlName="phone"
+                        type="tel"
+                        placeholder="+57 300 123 4567"
+                        class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                      />
+                    </label>
+                  </div>
+
+                  <div class="grid gap-4 sm:grid-cols-2">
+                    <label class="text-sm text-slate-600">
+                      Tipo de documento *
+                      <select
+                        formControlName="documentType"
+                        class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                      >
+                        <option value="CC">Cédula de Ciudadanía</option>
+                        <option value="NIT">NIT</option>
+                      </select>
+                    </label>
+                    <label class="text-sm text-slate-600">
+                      Número de identificación *
+                      <input
+                        formControlName="identificationNumber"
+                        type="text"
+                        placeholder="Cédula, NIT, Pasaporte"
+                        class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                      />
+                      @if (clientForm.get('identificationNumber')?.touched && clientForm.get('identificationNumber')?.invalid) {
+                        <p class="mt-1 text-xs text-rose-500">Campo requerido</p>
+                      }
+                      @if (clientForm.errors?.['invalidNit']) {
+                        <p class="mt-1 text-xs text-rose-500">{{ clientForm.errors?.['invalidNit'] }}</p>
+                      }
+                      @if (clientForm.errors?.['invalidCedula']) {
+                        <p class="mt-1 text-xs text-rose-500">{{ clientForm.errors?.['invalidCedula'] }}</p>
+                      }
+                    </label>
+                    <label class="text-sm text-slate-600">
+                      Nivel de riesgo
+                      <select
+                        formControlName="riskLevel"
+                        class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                      >
+                        <option value="LOW">Bajo</option>
+                        <option value="MEDIUM">Medio</option>
+                        <option value="HIGH">Alto</option>
+                      </select>
+                    </label>
+                  </div>
+
+                  <label class="text-sm text-slate-600">
+                    Dirección
+                    <textarea
+                      formControlName="address"
+                      rows="3"
+                      placeholder="Ej: Calle 100 # 19-30, Bogotá D.C."
+                      class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                    ></textarea>
+                  </label>
+                </div>
+
+                @if (errorMessage()) {
+                  <div class="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">
+                    {{ errorMessage() }}
+                  </div>
+                }
+
+                <div class="mt-6 flex gap-3">
+                  <button
+                    type="button"
+                    (click)="cancelEdit()"
+                    class="flex-1 rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
                   >
-                    <option value="LOW">Bajo</option>
-                    <option value="MEDIUM">Medio</option>
-                    <option value="HIGH">Alto</option>
-                  </select>
-                </label>
-              </div>
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    class="flex-1 rounded-2xl bg-[#192033] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#111728] disabled:bg-slate-400"
+                    [disabled]="isSubmitting() || clientForm.invalid"
+                  >
+                    {{ editingClient() ? 'Actualizar' : 'Crear cliente' }}
+                  </button>
+                </div>
+              </form>
 
-              <label class="text-sm text-slate-600">
-                Dirección
-                <textarea
-                  formControlName="address"
-                  rows="3"
-                  placeholder="Ej: Calle 100 # 19-30, Bogotá D.C."
-                  class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
-                ></textarea>
-              </label>
+              <!-- Columna derecha: Archivos (solo en edición) -->
+              @if (editingClient()) {
+                <div class="border-l border-slate-200 bg-slate-50 p-4 md:p-6 overflow-y-auto" style="max-height: 90vh">
+                  <h4 class="mb-4 text-sm font-semibold text-slate-700">Archivos del cliente</h4>
+                  <app-entity-files
+                    entityType="client"
+                    [entityId]="editingClient()!.id"
+                  />
+                </div>
+              }
             </div>
-
-            @if (errorMessage()) {
-              <div class="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">
-                {{ errorMessage() }}
-              </div>
-            }
-
-            <div class="mt-6 flex gap-3">
-              <button
-                type="button"
-                (click)="cancelEdit()"
-                class="flex-1 rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                class="flex-1 rounded-2xl bg-[#192033] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#111728] disabled:bg-slate-400"
-                [disabled]="isSubmitting() || clientForm.invalid"
-              >
-                {{ editingClient() ? 'Actualizar' : 'Crear cliente' }}
-              </button>
-            </div>
-          </form>
+          </div>
         </div>
       }
 
@@ -253,8 +273,9 @@ import { PaginationComponent } from '../../core/components/pagination.component'
         </div>
       } @else {
         <!-- Tabla para desktop -->
-        <div class="hidden overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm md:block">
-          <table class="w-full">
+        <div class="hidden md:block rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full">
             <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
               <tr>
                 <th class="px-6 py-4">Cliente</th>
@@ -340,6 +361,7 @@ import { PaginationComponent } from '../../core/components/pagination.component'
               }
             </tbody>
           </table>
+          </div>
         </div>
 
         <!-- Cards para móvil -->

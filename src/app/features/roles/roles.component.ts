@@ -53,7 +53,7 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
       @if (panelOpen()) {
         <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
           <form
-            class="w-full max-w-lg overflow-y-auto rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl"
+            class="w-full max-w-sm md:max-w-lg overflow-y-auto rounded-3xl border border-slate-200 bg-white p-4 md:p-6 shadow-2xl"
             style="max-height: 90vh"
             [formGroup]="roleForm"
             (ngSubmit)="submitRole()"
@@ -201,7 +201,7 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
 
       @if (showPermissionsModal()) {
         <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-          <div class="w-full max-w-3xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl" style="max-height: 90vh">
+          <div class="w-full max-w-xl md:max-w-2xl lg:max-w-3xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-4 md:p-6 shadow-2xl" style="max-height: 90vh">
             <div class="mb-4 flex items-center justify-between">
               <h3 class="text-lg font-semibold text-slate-800">Gestionar permisos</h3>
               <button

@@ -79,7 +79,7 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
       @if (panelOpen()) {
         <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
           <form
-            class="w-full max-w-lg overflow-y-auto rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl"
+            class="w-full max-w-sm md:max-w-lg overflow-y-auto rounded-3xl border border-slate-200 bg-white p-4 md:p-6 shadow-2xl"
             style="max-height: 90vh"
             [formGroup]="userForm"
             (ngSubmit)="submitUser()"
@@ -227,8 +227,9 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
         </div>
       } @else {
         <!-- Tabla para desktop -->
-        <div class="hidden overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm md:block">
-          <table class="w-full">
+        <div class="hidden md:block rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full">
             <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
               <tr>
                 <th class="px-6 py-4">Usuario</th>
@@ -336,6 +337,7 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
               }
             </tbody>
           </table>
+          </div>
         </div>
 
         <!-- Cards para móvil -->
@@ -434,7 +436,7 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
 
       @if (showRolesModal()) {
         <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-          <div class="w-full max-w-md overflow-y-auto rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl" style="max-height: 90vh">
+          <div class="w-full max-w-sm md:max-w-md overflow-y-auto rounded-3xl border border-slate-200 bg-white p-4 md:p-6 shadow-2xl" style="max-height: 90vh">
             <div class="mb-4 flex items-center justify-between">
               <h3 class="text-lg font-semibold text-slate-800">Asignar roles</h3>
               <button
@@ -494,7 +496,7 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
 
       @if (generatedPasswordData()) {
         <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-          <div class="w-full max-w-md rounded-3xl border-2 border-emerald-200 bg-white p-6 shadow-2xl">
+          <div class="w-full max-w-sm md:max-w-md rounded-3xl border-2 border-emerald-200 bg-white p-4 md:p-6 shadow-2xl">
             <div class="mb-4 flex items-center gap-3">
               <div class="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100">
                 <svg class="h-6 w-6 text-emerald-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
