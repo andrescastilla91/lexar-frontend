@@ -1,0 +1,37 @@
+name: CI — Frontend
+
+# Validación de calidad en cada push y PR.
+# El DEPLOY NO ocurre aquí: lo hace la integración nativa Railway ↔ GitHub
+# (webhook al hacer push a main, con "Wait for CI" activado en Railway
+# para que solo despliegue si este workflow queda en verde).
+
+on:
+  push:
+  pull_request:
+    branches: [main, stage]
+
+concurrency:
+  group: ci-frontend-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: Build de verificación
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Build producción
+        run: npx ng build --configuration production
+
+      # Activar cuando existan specs reales (requiere Chrome headless):
+      # - name: Tests
+      #   run: npx ng test --watch=false --browsers=ChromeHeadless
