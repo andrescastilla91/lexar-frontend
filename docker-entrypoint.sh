@@ -5,8 +5,13 @@
 #
 # En Railway el resolver DNS del private networking es IPv6 y debe ir con
 # corchetes; en Docker local es 127.0.0.11.
-
-if [ -n "${RAILWAY_ENVIRONMENT:-}" ]; then
+#
+# Railway NO provee una variable llamada RAILWAY_ENVIRONMENT (verificado en
+# docs.railway.com/variables/reference, 2026-07-14) — la variable real es
+# RAILWAY_ENVIRONMENT_NAME. Con el nombre viejo este chequeo nunca era
+# verdadero en Railway y NAMESERVER quedaba en 127.0.0.11 (inexistente ahí),
+# causando timeouts al resolver *.railway.internal.
+if [ -n "${RAILWAY_ENVIRONMENT_NAME:-}" ]; then
   export NAMESERVER="${NAMESERVER:-[fd12::10]}"
 else
   export NAMESERVER="${NAMESERVER:-127.0.0.11}"

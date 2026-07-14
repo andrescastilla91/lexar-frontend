@@ -49,4 +49,11 @@ ENV PORT=80 \
 
 EXPOSE 80
 
+# Pega a /api/health (proxeado al backend), no solo a "/" — "/" siempre
+# devuelve 200 (sirve el index.html estático) aunque el proxy al backend
+# esté roto (p.ej. el resolver DNS mal configurado), así que no detecta
+# ese tipo de fallo. /api/health sí ejercita la cadena completa nginx→backend.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider "http://localhost:${PORT:-80}/api/health" || exit 1
+
 CMD ["nginx", "-g", "daemon off;"]
