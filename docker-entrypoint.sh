@@ -6,16 +6,18 @@
 # En Railway el resolver DNS del private networking es IPv6 y debe ir con
 # corchetes; en Docker local es 127.0.0.11.
 #
-# Railway NO provee una variable llamada RAILWAY_ENVIRONMENT (verificado en
-# docs.railway.com/variables/reference, 2026-07-14) — la variable real es
-# RAILWAY_ENVIRONMENT_NAME. Con el nombre viejo este chequeo nunca era
-# verdadero en Railway y NAMESERVER quedaba en 127.0.0.11 (inexistente ahí),
-# causando timeouts al resolver *.railway.internal.
-if [ -n "${RAILWAY_ENVIRONMENT_NAME:-}" ]; then
-  export NAMESERVER="${NAMESERVER:-[fd12::10]}"
-else
-  export NAMESERVER="${NAMESERVER:-127.0.0.11}"
-fi
+# Historial (2026-07-14): se intentó detectar Railway chequeando primero
+# RAILWAY_ENVIRONMENT (no existe como variable, ver
+# docs.railway.com/variables/reference) y después RAILWAY_ENVIRONMENT_NAME
+# (documentada como provista "a todos los builds y deployments", pero en la
+# práctica no estaba presente en runtime cuando corrió este script — log del
+# incidente en memoria de proyecto). En vez de seguir apostando a detectar
+# una variable específica de Railway, invertimos el default: asumimos
+# Railway (`[fd12::10]`) salvo que NAMESERVER ya venga seteado desde afuera.
+# El entorno local (infra/docker-compose.yml) fija NAMESERVER=127.0.0.11
+# explícitamente en el `environment:` del servicio, así que ese valor externo
+# siempre gana sobre este default y el fallback de abajo nunca se usa ahí.
+export NAMESERVER="${NAMESERVER:-[fd12::10]}"
 
 export PORT="${PORT:-80}"
 
