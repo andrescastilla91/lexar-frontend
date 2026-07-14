@@ -38,8 +38,6 @@ Build: `npx ng build` (configuración production por defecto) · Tests: `npm tes
 
 El contenedor sirve la SPA con **nginx** y proxya `/api/*` al backend por red privada (local y Railway) — el backend nunca se expone públicamente y las cookies son first-party. Producción en **Railway** vía integración nativa con GitHub: push a `main` → workflow `ci.yml` (build de verificación) → si queda en verde, Railway construye el `Dockerfile` y despliega ("Wait for CI"). Detalle: [`../docs/04-plan-remediacion/I3-railway-cicd.md`](../docs/04-plan-remediacion/I3-railway-cicd.md).
 
-> Nota: la configuración de Firebase Hosting que aún existe en el repo está en retirada — se elimina al completar la tarea [I4](../docs/04-plan-remediacion/I4-eliminar-firebase.md), una vez validado el despliegue en Railway.
-
 ## Documentación
 
 Auditoría técnica, design system, infraestructura y plan de remediación: [`../docs/`](../docs/README.md).

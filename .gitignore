@@ -40,12 +40,3 @@ testem.log
 # System files
 .DS_Store
 Thumbs.db
-
-# Firebase (hosting queda eliminado por completo en I4 — mientras tanto, no
-# committear caché ni config local del CLI; ver docs/04-plan-remediacion/I4-eliminar-firebase.md)
-.firebase/
-firebase-debug.log
-firestore-debug.log
-ui-debug.log
-.firebaserc
-firebase.json
