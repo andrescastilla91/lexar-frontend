@@ -2,7 +2,6 @@ node_modules
 dist
 .angular
 .git
-.firebase
 .vscode
 coverage
 *.md
