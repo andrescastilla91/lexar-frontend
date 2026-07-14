@@ -43,9 +43,15 @@ COPY docker-entrypoint.sh /docker-entrypoint.d/15-lexar-env.envsh
 RUN chmod +x /docker-entrypoint.d/15-lexar-env.envsh && rm -f /etc/nginx/conf.d/default.conf
 
 # PORT: 80 local / dinámico en Railway
+# NAMESERVER NO se hornea aquí a propósito: si se fija como ENV, la variable
+# ya existe al arrancar el contenedor y el fallback "${NAMESERVER:-[fd12::10]}"
+# de docker-entrypoint.sh nunca se activa (ni en Railway ni en ningún lado) —
+# esta fue la causa real del incidente DNS de 2026-07-14, no la detección de
+# variables de Railway. El entorno local (infra/docker-compose.yml) sigue
+# fijando NAMESERVER=127.0.0.11 explícitamente en su `environment:`, y
+# Railway usa el default [fd12::10] del entrypoint.
 ENV PORT=80 \
-    BACKEND_HOST=lexar_backend:3000 \
-    NAMESERVER=127.0.0.11
+    BACKEND_HOST=lexar_backend:3000
 
 EXPOSE 80
 
