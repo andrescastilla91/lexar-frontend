@@ -17,13 +17,13 @@ import { EntityFilesComponent } from '../../core/components/entity-files.compone
     <div class="space-y-6">
       <header class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 class="text-2xl font-semibold text-slate-800">Gestión de clientes</h2>
-          <p class="text-sm text-slate-500">Administra la información de tus clientes.</p>
+          <h2 class="text-2xl font-semibold text-text">Gestión de clientes</h2>
+          <p class="text-sm text-subtle">Administra la información de tus clientes.</p>
         </div>
         <button
           *hasPermission="'clients.create'"
           type="button"
-          class="flex items-center gap-2 rounded-2xl bg-[#192033] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#111728]"
+          class="flex items-center gap-2 rounded-md bg-navy-900 px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:bg-navy-950"
           (click)="togglePanel()"
         >
           <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
@@ -34,34 +34,34 @@ import { EntityFilesComponent } from '../../core/components/entity-files.compone
       </header>
 
       <!-- Filtros compactos -->
-      <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="rounded-lg border border-default bg-surface p-6 shadow-card">
         <form [formGroup]="filterForm" class="space-y-4">
           <div class="flex flex-col gap-4 sm:flex-row">
-            <label class="flex-1 text-sm text-slate-600">
+            <label class="flex-1 text-sm text-muted">
               <span class="mb-2 block">Búsqueda</span>
               <input
                 type="search"
                 formControlName="search"
                 placeholder="Buscar por nombre, email o cédula/NIT"
-                class="w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                class="w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
               />
             </label>
-            <label class="w-full text-sm text-slate-600 sm:w-48">
+            <label class="w-full text-sm text-muted sm:w-48">
               <span class="mb-2 block">Estado</span>
               <select
                 formControlName="status"
-                class="w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                class="w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
               >
                 <option value="all">Todos</option>
                 <option value="active">Activos</option>
                 <option value="inactive">Inactivos</option>
               </select>
             </label>
-            <label class="w-full text-sm text-slate-600 sm:w-48">
+            <label class="w-full text-sm text-muted sm:w-48">
               <span class="mb-2 block">Nivel de riesgo</span>
               <select
                 formControlName="riskLevel"
-                class="w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                class="w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
               >
                 <option value="all">Todos</option>
                 <option value="LOW">Bajo</option>
@@ -72,21 +72,21 @@ import { EntityFilesComponent } from '../../core/components/entity-files.compone
           </div>
           
           <div class="grid gap-4 sm:grid-cols-4">
-            <div class="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-              <p class="text-xs text-slate-500">Total clientes</p>
-              <p class="text-2xl font-semibold text-slate-800">{{ total() }}</p>
+            <div class="rounded-md border border-default bg-surface-muted px-4 py-3">
+              <p class="text-xs text-subtle">Total clientes</p>
+              <p class="text-2xl font-semibold text-text">{{ total() }}</p>
             </div>
-            <div class="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-              <p class="text-xs text-slate-500">Activos</p>
-              <p class="text-2xl font-semibold text-emerald-600">{{ activeCount() }}</p>
+            <div class="rounded-md border border-default bg-surface-muted px-4 py-3">
+              <p class="text-xs text-subtle">Activos</p>
+              <p class="text-2xl font-semibold text-success">{{ activeCount() }}</p>
             </div>
-            <div class="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-              <p class="text-xs text-slate-500">Riesgo alto</p>
-              <p class="text-2xl font-semibold text-rose-600">{{ highRiskCount() }}</p>
+            <div class="rounded-md border border-default bg-surface-muted px-4 py-3">
+              <p class="text-xs text-subtle">Riesgo alto</p>
+              <p class="text-2xl font-semibold text-danger">{{ highRiskCount() }}</p>
             </div>
-            <div class="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-              <p class="text-xs text-slate-500">Riesgo bajo</p>
-              <p class="text-2xl font-semibold text-emerald-600">{{ lowRiskCount() }}</p>
+            <div class="rounded-md border border-default bg-surface-muted px-4 py-3">
+              <p class="text-xs text-subtle">Riesgo bajo</p>
+              <p class="text-2xl font-semibold text-success">{{ lowRiskCount() }}</p>
             </div>
           </div>
         </form>
@@ -96,7 +96,7 @@ import { EntityFilesComponent } from '../../core/components/entity-files.compone
       @if (panelOpen()) {
         <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
           <div
-            class="w-full max-w-xl md:max-w-4xl lg:max-w-5xl overflow-y-auto rounded-3xl border border-slate-200 bg-white shadow-2xl"
+            class="w-full max-w-xl md:max-w-4xl lg:max-w-5xl overflow-y-auto rounded-lg border border-default bg-surface shadow-2xl"
             style="max-height: 90vh"
           >
             <!-- Layout de 2 columnas: Formulario + Archivos -->
@@ -108,13 +108,13 @@ import { EntityFilesComponent } from '../../core/components/entity-files.compone
                 (ngSubmit)="submitClient()"
               >
                 <div class="mb-4 flex items-center justify-between">
-                  <h3 class="text-lg font-semibold text-slate-800">
+                  <h3 class="text-lg font-semibold text-text">
                     {{ editingClient() ? 'Editar cliente' : 'Nuevo cliente' }}
                   </h3>
                   <button
                     type="button"
                     (click)="cancelEdit()"
-                    class="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                    class="rounded-lg p-1 text-subtle hover:bg-surface-muted hover:text-muted"
                   >
                     <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -124,87 +124,87 @@ import { EntityFilesComponent } from '../../core/components/entity-files.compone
 
                 <div class="grid gap-4">
                   <div class="grid gap-4 sm:grid-cols-2">
-                    <label class="text-sm text-slate-600">
+                    <label class="text-sm text-muted">
                       Nombre completo *
                       <input
                         formControlName="fullName"
                         type="text"
                         placeholder="Ej: María González Rodríguez"
-                        class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                        class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
                       />
                       @if (clientForm.get('fullName')?.touched && clientForm.get('fullName')?.invalid) {
-                        <p class="mt-1 text-xs text-rose-500">Campo requerido</p>
+                        <p class="mt-1 text-xs text-danger">Campo requerido</p>
                       }
                     </label>
-                    <label class="text-sm text-slate-600">
+                    <label class="text-sm text-muted">
                       Empresa
                       <input
                         formControlName="companyName"
                         type="text"
                         placeholder="Ej: Corporación Legal S.A.S."
-                        class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                        class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
                       />
                     </label>
                   </div>
 
                   <div class="grid gap-4 sm:grid-cols-2">
-                    <label class="text-sm text-slate-600">
+                    <label class="text-sm text-muted">
                       Email *
                       <input
                         formControlName="email"
                         type="email"
                         placeholder="contacto@empresa.com.co"
-                        class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                        class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
                       />
                       @if (clientForm.get('email')?.touched && clientForm.get('email')?.invalid) {
-                        <p class="mt-1 text-xs text-rose-500">Email inválido</p>
+                        <p class="mt-1 text-xs text-danger">Email inválido</p>
                       }
                     </label>
-                    <label class="text-sm text-slate-600">
+                    <label class="text-sm text-muted">
                       Teléfono
                       <input
                         formControlName="phone"
                         type="tel"
                         placeholder="+57 300 123 4567"
-                        class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                        class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
                       />
                     </label>
                   </div>
 
                   <div class="grid gap-4 sm:grid-cols-2">
-                    <label class="text-sm text-slate-600">
+                    <label class="text-sm text-muted">
                       Tipo de documento *
                       <select
                         formControlName="documentType"
-                        class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                        class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
                       >
                         <option value="CC">Cédula de Ciudadanía</option>
                         <option value="NIT">NIT</option>
                       </select>
                     </label>
-                    <label class="text-sm text-slate-600">
+                    <label class="text-sm text-muted">
                       Número de identificación *
                       <input
                         formControlName="identificationNumber"
                         type="text"
                         placeholder="Cédula, NIT, Pasaporte"
-                        class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                        class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
                       />
                       @if (clientForm.get('identificationNumber')?.touched && clientForm.get('identificationNumber')?.invalid) {
-                        <p class="mt-1 text-xs text-rose-500">Campo requerido</p>
+                        <p class="mt-1 text-xs text-danger">Campo requerido</p>
                       }
                       @if (clientForm.errors?.['invalidNit']) {
-                        <p class="mt-1 text-xs text-rose-500">{{ clientForm.errors?.['invalidNit'] }}</p>
+                        <p class="mt-1 text-xs text-danger">{{ clientForm.errors?.['invalidNit'] }}</p>
                       }
                       @if (clientForm.errors?.['invalidCedula']) {
-                        <p class="mt-1 text-xs text-rose-500">{{ clientForm.errors?.['invalidCedula'] }}</p>
+                        <p class="mt-1 text-xs text-danger">{{ clientForm.errors?.['invalidCedula'] }}</p>
                       }
                     </label>
-                    <label class="text-sm text-slate-600">
+                    <label class="text-sm text-muted">
                       Nivel de riesgo
                       <select
                         formControlName="riskLevel"
-                        class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                        class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
                       >
                         <option value="LOW">Bajo</option>
                         <option value="MEDIUM">Medio</option>
@@ -213,19 +213,19 @@ import { EntityFilesComponent } from '../../core/components/entity-files.compone
                     </label>
                   </div>
 
-                  <label class="text-sm text-slate-600">
+                  <label class="text-sm text-muted">
                     Dirección
                     <textarea
                       formControlName="address"
                       rows="3"
                       placeholder="Ej: Calle 100 # 19-30, Bogotá D.C."
-                      class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                      class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
                     ></textarea>
                   </label>
                 </div>
 
                 @if (errorMessage()) {
-                  <div class="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">
+                  <div class="mt-4 rounded-md border border-danger bg-danger-tint px-4 py-3 text-sm text-danger">
                     {{ errorMessage() }}
                   </div>
                 }
@@ -234,13 +234,13 @@ import { EntityFilesComponent } from '../../core/components/entity-files.compone
                   <button
                     type="button"
                     (click)="cancelEdit()"
-                    class="flex-1 rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                    class="flex-1 rounded-md border border-default px-4 py-2.5 text-sm font-semibold text-muted transition hover:bg-surface-muted"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
-                    class="flex-1 rounded-2xl bg-[#192033] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#111728] disabled:bg-slate-400"
+                    class="flex-1 rounded-md bg-navy-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-navy-950 disabled:bg-strong"
                     [disabled]="isSubmitting() || clientForm.invalid"
                   >
                     {{ editingClient() ? 'Actualizar' : 'Crear cliente' }}
@@ -250,8 +250,8 @@ import { EntityFilesComponent } from '../../core/components/entity-files.compone
 
               <!-- Columna derecha: Archivos (solo en edición) -->
               @if (editingClient()) {
-                <div class="border-l border-slate-200 bg-slate-50 p-4 md:p-6 overflow-y-auto" style="max-height: 90vh">
-                  <h4 class="mb-4 text-sm font-semibold text-slate-700">Archivos del cliente</h4>
+                <div class="border-l border-default bg-surface-muted p-4 md:p-6 overflow-y-auto" style="max-height: 90vh">
+                  <h4 class="mb-4 text-sm font-semibold text-text">Archivos del cliente</h4>
                   <app-entity-files
                     entityType="client"
                     [entityId]="editingClient()!.id"
@@ -265,18 +265,18 @@ import { EntityFilesComponent } from '../../core/components/entity-files.compone
 
       @if (isLoading()) {
         <div class="flex items-center justify-center py-12">
-          <div class="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-[#192033]"></div>
+          <div class="h-8 w-8 animate-spin rounded-full border-4 border-default border-t-navy-900"></div>
         </div>
       } @else if (filteredClients().length === 0) {
-        <div class="rounded-3xl border border-slate-200 bg-white p-12 text-center">
-          <p class="text-slate-500">No se encontraron clientes</p>
+        <div class="rounded-lg border border-default bg-surface p-12 text-center">
+          <p class="text-subtle">No se encontraron clientes</p>
         </div>
       } @else {
         <!-- Tabla para desktop -->
-        <div class="hidden md:block rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div class="hidden md:block rounded-lg border border-default bg-surface shadow-card overflow-hidden">
           <div class="overflow-x-auto">
             <table class="w-full">
-            <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+            <thead class="bg-surface-muted text-left text-xs font-semibold uppercase tracking-wide text-muted">
               <tr>
                 <th class="px-6 py-4">Cliente</th>
                 <th class="px-6 py-4">Empresa</th>
@@ -286,31 +286,31 @@ import { EntityFilesComponent } from '../../core/components/entity-files.compone
                 <th class="px-6 py-4 text-right">Acciones</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-200">
+            <tbody class="divide-y divide-default">
               @for (client of filteredClients(); track client.id) {
-                <tr class="transition hover:bg-slate-50">
+                <tr class="transition hover:bg-surface-muted">
                   <td class="px-6 py-4">
                     <div>
-                      <p class="font-semibold text-slate-800">{{ client.fullName }}</p>
-                      <p class="text-sm text-slate-500">
+                      <p class="font-semibold text-text">{{ client.fullName }}</p>
+                      <p class="text-sm text-subtle">
                         {{ getDocumentTypeLabel(client.documentType) }}: {{ client.identificationNumber }}
                       </p>
                     </div>
                   </td>
-                  <td class="px-6 py-4 text-sm text-slate-600">
+                  <td class="px-6 py-4 text-sm text-muted">
                     {{ client.companyName || 'N/A' }}
                   </td>
                   <td class="px-6 py-4">
-                    <p class="text-sm text-slate-800">{{ client.email }}</p>
-                    <p class="text-sm text-slate-500">{{ client.phone || 'N/A' }}</p>
+                    <p class="text-sm text-text">{{ client.email }}</p>
+                    <p class="text-sm text-subtle">{{ client.phone || 'N/A' }}</p>
                   </td>
                   <td class="px-6 py-4">
                     <span
                       class="inline-flex rounded-full px-2 py-1 text-xs font-semibold"
                       [class]="{
-                        'bg-emerald-100 text-emerald-700': client.riskLevel === 'LOW',
-                        'bg-amber-100 text-amber-700': client.riskLevel === 'MEDIUM',
-                        'bg-rose-100 text-rose-700': client.riskLevel === 'HIGH'
+                        'bg-success-tint text-success': client.riskLevel === 'LOW',
+                        'bg-warning-tint text-warning': client.riskLevel === 'MEDIUM',
+                        'bg-danger-tint text-danger': client.riskLevel === 'HIGH'
                       }"
                     >
                       {{ getRiskLevelLabel(client.riskLevel) }}
@@ -319,7 +319,7 @@ import { EntityFilesComponent } from '../../core/components/entity-files.compone
                   <td class="px-6 py-4">
                     <span
                       class="inline-flex rounded-full px-2 py-1 text-xs font-semibold"
-                      [class]="client.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'"
+                      [class]="client.isActive ? 'bg-success-tint text-success' : 'bg-surface-muted text-muted'"
                     >
                       {{ client.isActive ? 'Activo' : 'Inactivo' }}
                     </span>
@@ -330,7 +330,7 @@ import { EntityFilesComponent } from '../../core/components/entity-files.compone
                         *hasPermission="'clients.edit'"
                         type="button"
                         (click)="editClient(client)"
-                        class="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                        class="rounded-lg p-2 text-subtle hover:bg-surface-muted hover:text-text"
                         title="Editar"
                       >
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
@@ -342,7 +342,7 @@ import { EntityFilesComponent } from '../../core/components/entity-files.compone
                         type="button"
                         (click)="toggleClientStatus(client)"
                         class="rounded-lg p-2 transition"
-                        [class]="client.isActive ? 'text-amber-600 hover:bg-amber-50 hover:text-amber-700' : 'text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700'"
+                        [class]="client.isActive ? 'text-warning hover:bg-warning-tint hover:text-warning' : 'text-success hover:bg-success-tint hover:text-success'"
                         [title]="client.isActive ? 'Desactivar cliente' : 'Activar cliente'"
                       >
                         @if (client.isActive) {
@@ -367,17 +367,17 @@ import { EntityFilesComponent } from '../../core/components/entity-files.compone
         <!-- Cards para móvil -->
         <div class="grid gap-4 md:hidden">
           @for (client of filteredClients(); track client.id) {
-            <div class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div class="rounded-lg border border-default bg-surface p-4 shadow-card">
               <div class="mb-3 flex items-start justify-between">
                 <div>
-                  <p class="font-semibold text-slate-800">{{ client.fullName }}</p>
-                  <p class="text-sm text-slate-500">
+                  <p class="font-semibold text-text">{{ client.fullName }}</p>
+                  <p class="text-sm text-subtle">
                     {{ getDocumentTypeLabel(client.documentType) }}: {{ client.identificationNumber }}
                   </p>
                 </div>
                 <span
                   class="inline-flex rounded-full px-2 py-1 text-xs font-semibold"
-                  [class]="client.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'"
+                  [class]="client.isActive ? 'bg-success-tint text-success' : 'bg-surface-muted text-muted'"
                 >
                   {{ client.isActive ? 'Activo' : 'Inactivo' }}
                 </span>
@@ -385,25 +385,25 @@ import { EntityFilesComponent } from '../../core/components/entity-files.compone
               
               <div class="mb-3 space-y-2 text-sm">
                 <div>
-                  <span class="text-xs font-medium text-slate-500">Empresa:</span>
-                  <span class="ml-2 text-xs text-slate-600">{{ client.companyName || 'N/A' }}</span>
+                  <span class="text-xs font-medium text-subtle">Empresa:</span>
+                  <span class="ml-2 text-xs text-muted">{{ client.companyName || 'N/A' }}</span>
                 </div>
                 <div>
-                  <span class="text-xs font-medium text-slate-500">Email:</span>
-                  <span class="ml-2 text-xs text-slate-600">{{ client.email }}</span>
+                  <span class="text-xs font-medium text-subtle">Email:</span>
+                  <span class="ml-2 text-xs text-muted">{{ client.email }}</span>
                 </div>
                 <div>
-                  <span class="text-xs font-medium text-slate-500">Teléfono:</span>
-                  <span class="ml-2 text-xs text-slate-600">{{ client.phone || 'N/A' }}</span>
+                  <span class="text-xs font-medium text-subtle">Teléfono:</span>
+                  <span class="ml-2 text-xs text-muted">{{ client.phone || 'N/A' }}</span>
                 </div>
                 <div>
-                  <span class="text-xs font-medium text-slate-500">Riesgo:</span>
+                  <span class="text-xs font-medium text-subtle">Riesgo:</span>
                   <span
                     class="ml-2 inline-flex rounded-full px-2 py-1 text-xs font-semibold"
                     [class]="{
-                      'bg-emerald-100 text-emerald-700': client.riskLevel === 'LOW',
-                      'bg-amber-100 text-amber-700': client.riskLevel === 'MEDIUM',
-                      'bg-rose-100 text-rose-700': client.riskLevel === 'HIGH'
+                      'bg-success-tint text-success': client.riskLevel === 'LOW',
+                      'bg-warning-tint text-warning': client.riskLevel === 'MEDIUM',
+                      'bg-danger-tint text-danger': client.riskLevel === 'HIGH'
                     }"
                   >
                     {{ getRiskLevelLabel(client.riskLevel) }}
@@ -416,7 +416,7 @@ import { EntityFilesComponent } from '../../core/components/entity-files.compone
                   *hasPermission="'clients.edit'"
                   type="button"
                   (click)="editClient(client)"
-                  class="flex-1 rounded-2xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+                  class="flex-1 rounded-md border border-default px-3 py-2 text-xs font-medium text-muted transition hover:bg-surface-muted"
                 >
                   Editar
                 </button>
@@ -424,8 +424,8 @@ import { EntityFilesComponent } from '../../core/components/entity-files.compone
                   *hasPermission="['clients.activate', 'clients.deactivate']"
                   type="button"
                   (click)="toggleClientStatus(client)"
-                  class="flex-1 rounded-2xl border px-3 py-2 text-xs font-medium transition"
-                  [class]="client.isActive ? 'border-amber-200 text-amber-600 hover:bg-amber-50' : 'border-emerald-200 text-emerald-600 hover:bg-emerald-50'"
+                  class="flex-1 rounded-md border px-3 py-2 text-xs font-medium transition"
+                  [class]="client.isActive ? 'border-warning text-warning hover:bg-warning-tint' : 'border-success text-success hover:bg-success-tint'"
                 >
                   {{ client.isActive ? 'Desactivar' : 'Activar' }}
                 </button>

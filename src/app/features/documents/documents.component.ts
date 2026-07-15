@@ -17,14 +17,14 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
       <!-- Header con botón de carga -->
       <header class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 class="text-2xl font-semibold text-slate-800">Gestión Documental</h2>
-          <p class="text-sm text-slate-500">Control de archivos asociados a procesos y clientes.</p>
+          <h2 class="text-2xl font-semibold text-text">Gestión Documental</h2>
+          <p class="text-sm text-subtle">Control de archivos asociados a procesos y clientes.</p>
         </div>
         <button
           *hasPermission="['files.upload']"
           type="button"
           (click)="toggleUploadPanel()"
-          class="flex items-center gap-2 rounded-2xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+          class="flex items-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-card transition hover:bg-primary-hover"
         >
           @if (uploadPanelOpen()) {
             <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -42,27 +42,27 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
 
       <!-- Panel de carga (colapsable y compacto) -->
       @if (uploadPanelOpen()) {
-        <section class="rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 to-white p-4 shadow-sm">
+        <section class="rounded-md border border-default bg-gradient-to-br from-primary-tint to-surface p-4 shadow-card">
           <form [formGroup]="uploadForm" (ngSubmit)="handleUpload()" class="space-y-3">
             <!-- Row 1: Tipo + Entidad -->
             <div class="grid gap-3 md:grid-cols-3">
-              <label class="text-sm font-medium text-slate-700">
+              <label class="text-sm font-medium text-text">
                 Tipo
                 <select
                   formControlName="entityType"
                   (change)="onEntityTypeChange()"
-                  class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  class="mt-1.5 w-full rounded-md border border-default bg-surface px-3 py-2 text-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                 >
                   <option value="legal_process">Proceso Legal</option>
                   <option value="client">Cliente</option>
                 </select>
               </label>
 
-              <label class="text-sm font-medium text-slate-700 md:col-span-2">
+              <label class="text-sm font-medium text-text md:col-span-2">
                 {{ uploadForm.value.entityType === 'legal_process' ? 'Proceso' : 'Cliente' }}
                 <select
                   formControlName="entityId"
-                  class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  class="mt-1.5 w-full rounded-md border border-default bg-surface px-3 py-2 text-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                 >
                   <option value="">Seleccione...</option>
                   @if (uploadForm.value.entityType === 'legal_process') {
@@ -81,19 +81,19 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
             <!-- Row 2: Archivo + Botón Subir -->
             <div class="flex flex-col sm:flex-row items-stretch gap-2">
               <label class="flex-1 cursor-pointer">
-                <div class="h-full flex items-center gap-3 rounded-xl border-2 border-dashed {{ selectedFile() ? 'border-blue-400 bg-blue-100' : 'border-slate-300 bg-white' }} px-4 py-3 transition hover:border-blue-400 hover:bg-blue-50">
-                  <svg class="h-6 w-6 {{ selectedFile() ? 'text-blue-600' : 'text-slate-400' }}" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                <div class="h-full flex items-center gap-3 rounded-md border-2 border-dashed {{ selectedFile() ? 'border-primary bg-info-tint' : 'border-strong bg-surface' }} px-4 py-3 transition hover:border-primary hover:bg-primary-tint">
+                  <svg class="h-6 w-6 {{ selectedFile() ? 'text-primary' : 'text-subtle' }}" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m6.75 12H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
                   </svg>
                   <div class="flex-1 min-w-0">
-                    <p class="text-sm font-medium text-slate-700 truncate">
+                    <p class="text-sm font-medium text-text truncate">
                       @if (selectedFile()) {
                         {{ selectedFile()?.name }}
                       } @else {
                         Seleccionar archivo
                       }
                     </p>
-                    <p class="text-xs text-slate-500">
+                    <p class="text-xs text-subtle">
                       @if (selectedFile()) {
                         {{ formatFileSize(selectedFile()!.size) }}
                       } @else {
@@ -112,7 +112,7 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
               <button
                 type="submit"
                 [disabled]="uploadForm.invalid || !selectedFile() || isUploading()"
-                class="rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+                class="rounded-md bg-primary px-6 py-3 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-strong"
               >
                 @if (isUploading()) {
                   <div class="flex items-center gap-2">
@@ -130,7 +130,7 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
 
             <!-- Error -->
             @if (uploadError()) {
-              <div class="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+              <div class="rounded-md border border-danger bg-danger-tint px-3 py-2 text-sm text-danger">
                 {{ uploadError() }}
               </div>
             }
@@ -141,9 +141,9 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
       <!-- Lista de archivos (PRIORIDAD) -->
       <section *hasPermission="['files.view']" class="space-y-4">
         <!-- Filtros compactos -->
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3">
-          <div class="flex items-center gap-2 text-sm font-medium text-slate-700">
-            <svg class="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-md border border-default bg-surface px-4 py-3">
+          <div class="flex items-center gap-2 text-sm font-medium text-text">
+            <svg class="h-4 w-4 text-subtle" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" />
             </svg>
             <span>{{ files().length }} archivo{{ files().length !== 1 ? 's' : '' }}</span>
@@ -153,7 +153,7 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
             <select
               [(ngModel)]="filterEntityType"
               (change)="loadFiles()"
-              class="rounded-xl border border-slate-200 px-3 py-1.5 text-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              class="rounded-md border border-default px-3 py-1.5 text-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
             >
               <option value="">Todos</option>
               <option value="legal_process">Procesos</option>
@@ -162,7 +162,7 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
 
             <button
               (click)="loadFiles()"
-              class="rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              class="rounded-md border border-default px-3 py-1.5 text-sm font-medium text-text transition hover:bg-surface-muted"
               title="Actualizar"
             >
               <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -174,42 +174,44 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
 
         <!-- Grid de archivos -->
         @if (loading()) {
-          <div class="flex items-center justify-center rounded-3xl border border-slate-200 bg-white p-12">
-            <svg class="h-8 w-8 animate-spin text-slate-400" fill="none" viewBox="0 0 24 24">
+          <div class="flex items-center justify-center rounded-lg border border-default bg-surface p-12">
+            <svg class="h-8 w-8 animate-spin text-subtle" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4l3.5-3.5L12 1v4a7 7 0 0 0-7 7h-1z"></path>
             </svg>
           </div>
         } @else if (files().length === 0) {
-          <div class="rounded-3xl border border-slate-200 bg-white p-12 text-center">
-            <svg class="mx-auto h-12 w-12 text-slate-300" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+          <div class="rounded-lg border border-default bg-surface p-12 text-center">
+            <svg class="mx-auto h-12 w-12 text-subtle" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
             </svg>
-            <p class="mt-4 text-sm font-medium text-slate-700">No hay archivos</p>
-            <p class="mt-1 text-sm text-slate-500">Sube tu primer archivo para comenzar</p>
+            <p class="mt-4 text-sm font-medium text-text">No hay archivos</p>
+            <p class="mt-1 text-sm text-subtle">Sube tu primer archivo para comenzar</p>
           </div>
         } @else {
           <div class="space-y-2">
             @for (file of files(); track file.id) {
-              <div class="group rounded-2xl border border-slate-200 bg-white p-4 shadow-sm hover:shadow-md transition-all">
+              <div class="group rounded-md border border-default bg-surface p-4 shadow-card hover:shadow-card transition-all">
                 <div class="flex items-center justify-between gap-4">
                   <!-- Info del archivo -->
                   <div class="flex items-center gap-3 flex-1 min-w-0">
-                    <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-xl flex-shrink-0">
-                      {{ getFileIcon(file.contentType) }}
+                    <div class="flex h-10 w-10 items-center justify-center rounded-md bg-surface-muted flex-shrink-0">
+                      <svg class="h-5 w-5 text-subtle" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                        <path [attr.d]="getFileIcon(file.contentType)" stroke-linecap="round" stroke-linejoin="round" />
+                      </svg>
                     </div>
                     <div class="flex-1 min-w-0">
-                      <h3 class="font-semibold text-slate-800 truncate">{{ file.originalFilename }}</h3>
-                      <div class="flex flex-wrap items-center gap-2 mt-0.5 text-xs text-slate-500">
-                        <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5">
+                      <h3 class="font-semibold text-text truncate">{{ file.originalFilename }}</h3>
+                      <div class="flex flex-wrap items-center gap-2 mt-0.5 text-xs text-subtle">
+                        <span class="inline-flex items-center gap-1 rounded-full bg-surface-muted px-2 py-0.5">
                           <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026m-16.5 0a2.25 2.25 0 0 0-1.883 2.542l.857 6a2.25 2.25 0 0 0 2.227 1.932H19.05a2.25 2.25 0 0 0 2.227-1.932l.857-6a2.25 2.25 0 0 0-1.883-2.542m-16.5 0V6A2.25 2.25 0 0 1 6 3.75h3.879a1.5 1.5 0 0 1 1.06.44l2.122 2.12a1.5 1.5 0 0 0 1.06.44H18A2.25 2.25 0 0 1 20.25 9v.776" />
                           </svg>
                           {{ getEntityTypeLabel(file.entityType) }}
                         </span>
-                        <span class="font-medium text-slate-700">{{ getEntityName(file) }}</span>
+                        <span class="font-medium text-text">{{ getEntityName(file) }}</span>
                       </div>
-                      <div class="flex flex-wrap items-center gap-2 mt-1 text-xs text-slate-400">
+                      <div class="flex flex-wrap items-center gap-2 mt-1 text-xs text-subtle">
                         <span>{{ file.formattedSize }}</span>
                         <span>•</span>
                         <span>{{ formatDate(file.createdAt) }}</span>
@@ -224,7 +226,7 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
                     @if (file.isPreviewable) {
                       <button
                         (click)="previewFile(file)"
-                        class="rounded-lg p-2 text-blue-600 transition hover:bg-blue-50"
+                        class="rounded-lg p-2 text-primary transition hover:bg-primary-tint"
                         title="Vista previa"
                       >
                         <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
@@ -236,7 +238,7 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
 
                     <button
                       (click)="downloadFile(file)"
-                      class="rounded-lg p-2 text-emerald-600 transition hover:bg-emerald-50"
+                      class="rounded-lg p-2 text-success transition hover:bg-success-tint"
                       title="Descargar"
                     >
                       <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
@@ -247,7 +249,7 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
                     <button
                       *hasPermission="['files.delete']"
                       (click)="deleteFile(file)"
-                      class="rounded-lg p-2 text-rose-600 transition hover:bg-rose-50"
+                      class="rounded-lg p-2 text-danger transition hover:bg-danger-tint"
                       title="Eliminar"
                     >
                       <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
@@ -269,13 +271,13 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
         (click)="closePreview()"
       >
-        <div class="relative max-h-[90vh] max-w-6xl w-full overflow-auto rounded-3xl bg-white" (click)="$event.stopPropagation()">
+        <div class="relative max-h-[90vh] max-w-6xl w-full overflow-auto rounded-lg bg-surface" (click)="$event.stopPropagation()">
           <!-- Header -->
-          <div class="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
-            <h3 class="text-lg font-semibold text-slate-800">{{ previewingFile()?.originalFilename }}</h3>
+          <div class="sticky top-0 z-10 flex items-center justify-between border-b border-default bg-surface px-6 py-4">
+            <h3 class="text-lg font-semibold text-text">{{ previewingFile()?.originalFilename }}</h3>
             <button
               (click)="closePreview()"
-              class="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100"
+              class="rounded-lg p-2 text-subtle transition hover:bg-surface-muted"
             >
               <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -286,18 +288,18 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
           <!-- Content -->
           <div class="p-6">
             @if (previewingFile()?.isImage) {
-              <img [src]="previewUrl()!" [alt]="previewingFile()!.originalFilename" class="mx-auto max-w-full rounded-2xl" />
+              <img [src]="previewUrl()!" [alt]="previewingFile()!.originalFilename" class="mx-auto max-w-full rounded-md" />
             } @else if (previewingFile()?.isPdf) {
-              <iframe [src]="previewUrl()!" class="h-[70vh] w-full rounded-2xl border border-slate-200"></iframe>
+              <iframe [src]="previewUrl()!" class="h-[70vh] w-full rounded-md border border-default"></iframe>
             } @else {
               <div class="flex flex-col items-center justify-center py-12">
-                <svg class="h-16 w-16 text-slate-300" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                <svg class="h-16 w-16 text-subtle" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
                 </svg>
-                <p class="mt-4 text-sm text-slate-500">Vista previa no disponible</p>
+                <p class="mt-4 text-sm text-subtle">Vista previa no disponible</p>
                 <button
                   (click)="downloadFile(previewingFile()!)"
-                  class="mt-4 rounded-2xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                  class="mt-4 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover"
                 >
                   Descargar archivo
                 </button>

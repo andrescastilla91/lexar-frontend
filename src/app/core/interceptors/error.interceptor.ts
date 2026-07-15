@@ -10,7 +10,7 @@ export interface ApiError {
 export const errorInterceptor: HttpInterceptorFn = (req, next) => {
   return next(req).pipe(
     catchError((error: HttpErrorResponse) => {
-      // ⚠️ IMPORTANTE: NO manejar errores 401 aquí
+      // IMPORTANTE: NO manejar errores 401 aquí
       // El authInterceptor se encarga del refresh de tokens
       if (error.status === 401) {
         return throwError(() => error);

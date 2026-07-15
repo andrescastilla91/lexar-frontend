@@ -10,170 +10,170 @@ import { RegisterCompanyRequest } from '../../../core/models/auth.model';
   standalone: true,
   imports: [ReactiveFormsModule, RouterLink],
   template: `
-    <div class="min-h-screen bg-slate-100">
+    <div class="min-h-screen bg-surface-muted">
       <div class="grid min-h-screen grid-cols-1 lg:grid-cols-2">
-        <section class="relative hidden items-center justify-center bg-[#192033] p-12 lg:flex">
+        <section class="relative hidden items-center justify-center bg-navy-900 p-12 lg:flex">
           <div class="relative z-10 max-w-md text-white">
-            <p class="text-sm uppercase tracking-[0.3em] text-slate-300">LexAr Suite</p>
+            <p class="text-sm uppercase tracking-[0.3em] text-white/70">LexAr Suite</p>
             <h1 class="mt-6 text-3xl font-semibold leading-tight lg:text-4xl">Construye operaciones legales centradas en la evidencia</h1>
-            <p class="mt-4 text-sm text-slate-300">
+            <p class="mt-4 text-sm text-white/70">
               Integra gestión de clientes, procesos y analítica predictiva en una única plataforma diseñada para equipos legales corporativos.
             </p>
-            <div class="mt-10 space-y-4 text-sm text-slate-200">
-              <div class="rounded-2xl bg-white/10 p-4">
-                <p class="text-xs uppercase tracking-wide text-slate-300">Beneficio</p>
+            <div class="mt-10 space-y-4 text-sm text-white/80">
+              <div class="rounded-md bg-white/10 p-4">
+                <p class="text-xs uppercase tracking-wide text-white/70">Beneficio</p>
                 <p class="mt-2 text-lg font-semibold">Automatiza informes regulatorios en minutos.</p>
               </div>
-              <div class="rounded-2xl bg-white/10 p-4">
-                <p class="text-xs uppercase tracking-wide text-slate-300">Confianza</p>
+              <div class="rounded-md bg-white/10 p-4">
+                <p class="text-xs uppercase tracking-wide text-white/70">Confianza</p>
                 <p class="mt-2 text-lg font-semibold">Cumplimiento ISO 27001 &amp; auditoría integrada.</p>
               </div>
             </div>
           </div>
-          <div class="absolute inset-0 bg-gradient-to-br from-[#192033] via-slate-900/80 to-[#192033] opacity-90"></div>
+          <div class="absolute inset-0 bg-gradient-to-br from-navy-900 via-navy-950/80 to-navy-900 opacity-90"></div>
         </section>
 
         <section class="flex items-center justify-center px-6 py-12 lg:px-12">
-          <div class="w-full max-w-md rounded-3xl border border-slate-200 bg-white px-8 py-10 shadow-xl">
-            <h2 class="text-2xl font-semibold text-slate-800">Crear cuenta LexAr</h2>
-            <p class="mt-2 text-sm text-slate-500">Configura tu acceso y personaliza la experiencia de tu equipo.</p>
+          <div class="w-full max-w-md rounded-lg border border-default bg-surface px-8 py-10 shadow-raised">
+            <h2 class="text-2xl font-semibold text-text">Crear cuenta LexAr</h2>
+            <p class="mt-2 text-sm text-subtle">Configura tu acceso y personaliza la experiencia de tu equipo.</p>
 
             <form class="mt-8 space-y-5" [formGroup]="form" (ngSubmit)="onSubmit()">
-              <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <h3 class="text-sm font-semibold text-slate-700">Datos del administrador</h3>
+              <div class="rounded-md border border-default bg-surface-muted p-4">
+                <h3 class="text-sm font-semibold text-text">Datos del administrador</h3>
                 <div class="mt-3 grid gap-3 md:grid-cols-2">
                   <div class="space-y-1">
-                    <label class="block text-xs font-medium text-slate-600" for="firstName">Nombre</label>
+                    <label class="block text-xs font-medium text-muted" for="firstName">Nombre</label>
                     <input
                       id="firstName"
                       type="text"
                       formControlName="firstName"
-                      class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm transition focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                      class="w-full rounded-md border border-default px-3 py-2 text-sm text-text shadow-card transition focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
                       placeholder="Nombre"
                     />
                     @if (form.get('firstName')?.touched && form.get('firstName')?.invalid) {
-                      <p class="text-xs text-rose-500">Campo requerido</p>
+                      <p class="text-xs text-danger">Campo requerido</p>
                     }
                   </div>
                   <div class="space-y-1">
-                    <label class="block text-xs font-medium text-slate-600" for="lastName">Apellido</label>
+                    <label class="block text-xs font-medium text-muted" for="lastName">Apellido</label>
                     <input
                       id="lastName"
                       type="text"
                       formControlName="lastName"
-                      class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm transition focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                      class="w-full rounded-md border border-default px-3 py-2 text-sm text-text shadow-card transition focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
                       placeholder="Apellido"
                     />
                     @if (form.get('lastName')?.touched && form.get('lastName')?.invalid) {
-                      <p class="text-xs text-rose-500">Campo requerido</p>
+                      <p class="text-xs text-danger">Campo requerido</p>
                     }
                   </div>
                 </div>
                 <div class="mt-3 space-y-1">
-                  <label class="block text-xs font-medium text-slate-600" for="email">Correo electrónico</label>
+                  <label class="block text-xs font-medium text-muted" for="email">Correo electrónico</label>
                   <input
                     id="email"
                     type="email"
                     formControlName="email"
                     autocomplete="email"
-                    class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm transition focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                    class="w-full rounded-md border border-default px-3 py-2 text-sm text-text shadow-card transition focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
                     placeholder="nombre@empresa.com"
                   />
                   @if (form.get('email')?.touched && form.get('email')?.invalid) {
-                    <p class="text-xs text-rose-500">Correo inválido</p>
+                    <p class="text-xs text-danger">Correo inválido</p>
                   }
                 </div>
                 <div class="mt-3 grid gap-3 md:grid-cols-2">
                   <div class="space-y-1">
-                    <label class="block text-xs font-medium text-slate-600" for="password">Contraseña</label>
+                    <label class="block text-xs font-medium text-muted" for="password">Contraseña</label>
                     <input
                       id="password"
                       type="password"
                       formControlName="password"
-                      class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm transition focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                      class="w-full rounded-md border border-default px-3 py-2 text-sm text-text shadow-card transition focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
                       placeholder="Mínimo 8 caracteres"
                     />
                     @if (form.get('password')?.touched && form.get('password')?.invalid) {
-                      <p class="text-xs text-rose-500">Mínimo 8 caracteres</p>
+                      <p class="text-xs text-danger">Mínimo 8 caracteres</p>
                     }
                   </div>
                   <div class="space-y-1">
-                    <label class="block text-xs font-medium text-slate-600" for="confirmPassword">Confirmar</label>
+                    <label class="block text-xs font-medium text-muted" for="confirmPassword">Confirmar</label>
                     <input
                       id="confirmPassword"
                       type="password"
                       formControlName="confirmPassword"
-                      class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm transition focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                      class="w-full rounded-md border border-default px-3 py-2 text-sm text-text shadow-card transition focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
                       placeholder="Repite contraseña"
                     />
                     @if (passwordMismatch()) {
-                      <p class="text-xs text-rose-500">No coinciden</p>
+                      <p class="text-xs text-danger">No coinciden</p>
                     }
                   </div>
                 </div>
               </div>
 
-              <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <h3 class="text-sm font-semibold text-slate-700">Datos de la empresa</h3>
+              <div class="rounded-md border border-default bg-surface-muted p-4">
+                <h3 class="text-sm font-semibold text-text">Datos de la empresa</h3>
                 <div class="mt-3 space-y-3">
                   <div class="space-y-1">
-                    <label class="block text-xs font-medium text-slate-600" for="legalName">Razón social</label>
+                    <label class="block text-xs font-medium text-muted" for="legalName">Razón social</label>
                     <input
                       id="legalName"
                       type="text"
                       formControlName="legalName"
-                      class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm transition focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                      class="w-full rounded-md border border-default px-3 py-2 text-sm text-text shadow-card transition focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
                       placeholder="Nombre legal de la empresa"
                     />
                     @if (form.get('legalName')?.touched && form.get('legalName')?.invalid) {
-                      <p class="text-xs text-rose-500">Campo requerido</p>
+                      <p class="text-xs text-danger">Campo requerido</p>
                     }
                   </div>
                   <div class="grid gap-3 md:grid-cols-2">
                     <div class="space-y-1">
-                      <label class="block text-xs font-medium text-slate-600" for="taxId">NIT / RUT</label>
+                      <label class="block text-xs font-medium text-muted" for="taxId">NIT / RUT</label>
                       <input
                         id="taxId"
                         type="text"
                         formControlName="taxId"
-                        class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm transition focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                        class="w-full rounded-md border border-default px-3 py-2 text-sm text-text shadow-card transition focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
                         placeholder="123456789-0"
                       />
                       @if (form.get('taxId')?.touched && form.get('taxId')?.invalid) {
-                        <p class="text-xs text-rose-500">Campo requerido</p>
+                        <p class="text-xs text-danger">Campo requerido</p>
                       }
                     </div>
                     <div class="space-y-1">
-                      <label class="block text-xs font-medium text-slate-600" for="companyEmail">Email empresa</label>
+                      <label class="block text-xs font-medium text-muted" for="companyEmail">Email empresa</label>
                       <input
                         id="companyEmail"
                         type="email"
                         formControlName="companyEmail"
-                        class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm transition focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                        class="w-full rounded-md border border-default px-3 py-2 text-sm text-text shadow-card transition focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
                         placeholder="contacto@empresa.com"
                       />
                       @if (form.get('companyEmail')?.touched && form.get('companyEmail')?.invalid) {
-                        <p class="text-xs text-rose-500">Email inválido</p>
+                        <p class="text-xs text-danger">Email inválido</p>
                       }
                     </div>
                   </div>
                   <div class="space-y-1">
-                    <label class="block text-xs font-medium text-slate-600" for="address">Dirección (opcional)</label>
+                    <label class="block text-xs font-medium text-muted" for="address">Dirección (opcional)</label>
                     <input
                       id="address"
                       type="text"
                       formControlName="address"
-                      class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm transition focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                      class="w-full rounded-md border border-default px-3 py-2 text-sm text-text shadow-card transition focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
                       placeholder="Dirección principal"
                     />
                   </div>
                   <div class="space-y-1">
-                    <label class="block text-xs font-medium text-slate-600" for="legalRepresentative">Representante legal (opcional)</label>
+                    <label class="block text-xs font-medium text-muted" for="legalRepresentative">Representante legal (opcional)</label>
                     <input
                       id="legalRepresentative"
                       type="text"
                       formControlName="legalRepresentative"
-                      class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm transition focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                      class="w-full rounded-md border border-default px-3 py-2 text-sm text-text shadow-card transition focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
                       placeholder="Nombre del representante"
                     />
                   </div>
@@ -181,14 +181,14 @@ import { RegisterCompanyRequest } from '../../../core/models/auth.model';
               </div>
 
               @if (errorMessage()) {
-                <div class="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">
+                <div class="rounded-md border border-danger bg-danger-tint px-4 py-3 text-sm text-danger">
                   {{ errorMessage() }}
                 </div>
               }
 
               <button
                 type="submit"
-                class="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#192033] px-4 py-3 text-base font-semibold text-white transition focus:outline-none focus:ring-2 focus:ring-[#192033]/40 disabled:cursor-not-allowed disabled:bg-slate-400"
+                class="flex w-full items-center justify-center gap-2 rounded-md bg-navy-900 px-4 py-3 text-base font-semibold text-white transition focus:outline-none focus:ring-2 focus:ring-navy-900/40 disabled:cursor-not-allowed disabled:bg-strong"
                 [disabled]="isSubmitting()"
               >
                 <span>Crear cuenta</span>
@@ -201,8 +201,8 @@ import { RegisterCompanyRequest } from '../../../core/models/auth.model';
               </button>
             </form>
 
-            <p class="mt-8 text-center text-sm text-slate-500">
-              ¿Ya tienes acceso? <a routerLink="/login" class="font-semibold text-[#192033] hover:underline">Inicia sesión</a>
+            <p class="mt-8 text-center text-sm text-subtle">
+              ¿Ya tienes acceso? <a routerLink="/login" class="font-semibold text-navy-900 hover:underline">Inicia sesión</a>
             </p>
           </div>
         </section>

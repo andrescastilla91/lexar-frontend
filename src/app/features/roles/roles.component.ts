@@ -15,13 +15,13 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
     <div class="space-y-6">
       <header class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 class="text-2xl font-semibold text-slate-800">Gestión de roles</h2>
-          <p class="text-sm text-slate-500">Define roles y asigna permisos específicos a cada equipo.</p>
+          <h2 class="text-2xl font-semibold text-text">Gestión de roles</h2>
+          <p class="text-sm text-subtle">Define roles y asigna permisos específicos a cada equipo.</p>
         </div>
         <button
           *hasPermission="'roles.create'"
           type="button"
-          class="flex items-center gap-2 rounded-2xl bg-[#192033] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#111728]"
+          class="flex items-center gap-2 rounded-md bg-navy-900 px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:bg-navy-950"
           (click)="togglePanel()"
         >
           <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
@@ -32,19 +32,19 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
       </header>
 
       <!-- Stats -->
-      <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="rounded-lg border border-default bg-surface p-6 shadow-card">
         <div class="grid gap-4 sm:grid-cols-3">
-          <div class="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-            <p class="text-xs text-slate-500">Total roles</p>
-            <p class="text-2xl font-semibold text-slate-800">{{ roles().length }}</p>
+          <div class="rounded-md border border-default bg-surface-muted px-4 py-3">
+            <p class="text-xs text-subtle">Total roles</p>
+            <p class="text-2xl font-semibold text-text">{{ roles().length }}</p>
           </div>
-          <div class="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-            <p class="text-xs text-slate-500">Roles del sistema</p>
-            <p class="text-2xl font-semibold text-sky-600">{{ systemRolesCount() }}</p>
+          <div class="rounded-md border border-default bg-surface-muted px-4 py-3">
+            <p class="text-xs text-subtle">Roles del sistema</p>
+            <p class="text-2xl font-semibold text-info">{{ systemRolesCount() }}</p>
           </div>
-          <div class="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-            <p class="text-xs text-slate-500">Roles personalizados</p>
-            <p class="text-2xl font-semibold text-emerald-600">{{ customRolesCount() }}</p>
+          <div class="rounded-md border border-default bg-surface-muted px-4 py-3">
+            <p class="text-xs text-subtle">Roles personalizados</p>
+            <p class="text-2xl font-semibold text-success">{{ customRolesCount() }}</p>
           </div>
         </div>
       </div>
@@ -53,19 +53,19 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
       @if (panelOpen()) {
         <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
           <form
-            class="w-full max-w-sm md:max-w-lg overflow-y-auto rounded-3xl border border-slate-200 bg-white p-4 md:p-6 shadow-2xl"
+            class="w-full max-w-sm md:max-w-lg overflow-y-auto rounded-lg border border-default bg-surface p-4 md:p-6 shadow-2xl"
             style="max-height: 90vh"
             [formGroup]="roleForm"
             (ngSubmit)="submitRole()"
           >
             <div class="mb-4 flex items-center justify-between">
-              <h3 class="text-lg font-semibold text-slate-800">
+              <h3 class="text-lg font-semibold text-text">
                 {{ editingRole() ? 'Editar rol' : 'Nuevo rol' }}
               </h3>
               <button
                 type="button"
                 (click)="cancelEdit()"
-                class="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                class="rounded-lg p-1 text-subtle hover:bg-surface-muted hover:text-muted"
               >
                 <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -74,32 +74,32 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
             </div>
 
             <div class="grid gap-4">
-              <label class="text-sm text-slate-600">
+              <label class="text-sm text-muted">
                 Nombre del rol
                 <input
                   formControlName="name"
                   type="text"
                   placeholder="Ej: Coordinador Legal"
-                  class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                  class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
                 />
                 @if (roleForm.get('name')?.touched && roleForm.get('name')?.invalid) {
-                  <p class="mt-1 text-xs text-rose-500">Campo requerido</p>
+                  <p class="mt-1 text-xs text-danger">Campo requerido</p>
                 }
               </label>
 
-              <label class="text-sm text-slate-600">
+              <label class="text-sm text-muted">
                 Descripción (opcional)
                 <textarea
                   formControlName="description"
                   rows="3"
                   placeholder="Describe las responsabilidades de este rol"
-                  class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                  class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
                 ></textarea>
               </label>
             </div>
 
             @if (errorMessage()) {
-              <div class="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">
+              <div class="mt-4 rounded-md border border-danger bg-danger-tint px-4 py-3 text-sm text-danger">
                 {{ errorMessage() }}
               </div>
             }
@@ -108,13 +108,13 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
               <button
                 type="button"
                 (click)="cancelEdit()"
-                class="flex-1 rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                class="flex-1 rounded-md border border-default px-4 py-2.5 text-sm font-semibold text-muted transition hover:bg-surface-muted"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
-                class="flex-1 rounded-2xl bg-[#192033] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#111728] disabled:bg-slate-400"
+                class="flex-1 rounded-md bg-navy-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-navy-950 disabled:bg-strong"
                 [disabled]="isSubmitting() || roleForm.invalid"
               >
                 {{ editingRole() ? 'Actualizar' : 'Crear rol' }}
@@ -126,21 +126,21 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
 
       @if (isLoading()) {
         <div class="flex items-center justify-center py-12">
-          <div class="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-[#192033]"></div>
+          <div class="h-8 w-8 animate-spin rounded-full border-4 border-default border-t-navy-900"></div>
         </div>
       } @else if (roles().length === 0) {
-        <div class="rounded-3xl border border-slate-200 bg-white p-12 text-center">
-          <p class="text-slate-500">No se encontraron roles</p>
+        <div class="rounded-lg border border-default bg-surface p-12 text-center">
+          <p class="text-subtle">No se encontraron roles</p>
         </div>
       } @else {
         <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           @for (role of roles(); track role.id) {
-            <article class="flex min-h-[280px] flex-col rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md">
+            <article class="flex min-h-[280px] flex-col rounded-lg border border-default bg-surface p-6 shadow-card transition hover:shadow-card">
               <div class="mb-3">
                 <div class="flex items-center gap-2">
-                  <h3 class="text-lg font-semibold text-slate-800">{{ role.name }}</h3>
+                  <h3 class="text-lg font-semibold text-text">{{ role.name }}</h3>
                   @if (role.isSystem) {
-                    <span class="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-semibold text-sky-700">
+                    <span class="rounded-full bg-info-tint px-2 py-0.5 text-xs font-semibold text-info">
                       Sistema
                     </span>
                   }
@@ -149,15 +149,15 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
 
               <div class="mb-4 flex-grow">
                 @if (role.description) {
-                  <p class="text-sm text-slate-500">{{ role.description }}</p>
+                  <p class="text-sm text-subtle">{{ role.description }}</p>
                 } @else {
-                  <p class="text-sm italic text-slate-400">Sin descripción</p>
+                  <p class="text-sm italic text-subtle">Sin descripción</p>
                 }
               </div>
 
-              <div class="mb-4 rounded-2xl border border-slate-100 bg-slate-50 p-3">
-                <p class="text-xs font-medium text-slate-600">Permisos asignados</p>
-                <p class="mt-1 text-2xl font-semibold text-slate-800">
+              <div class="mb-4 rounded-md border border-default bg-surface-muted p-3">
+                <p class="text-xs font-medium text-muted">Permisos asignados</p>
+                <p class="mt-1 text-2xl font-semibold text-text">
                   {{ role.permissions?.length || 0 }}
                 </p>
               </div>
@@ -167,7 +167,7 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
                   *hasPermission="'roles.edit'"
                   type="button"
                   (click)="editRole(role)"
-                  class="flex-1 rounded-2xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+                  class="flex-1 rounded-md border border-default px-3 py-2 text-sm font-medium text-muted transition hover:bg-surface-muted"
                   [disabled]="role.isSystem"
                   [class.opacity-50]="role.isSystem"
                   [class.cursor-not-allowed]="role.isSystem"
@@ -178,7 +178,7 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
                   *hasPermission="'roles.assign-permissions'"
                   type="button"
                   (click)="managePermissions(role)"
-                  class="flex-1 rounded-2xl bg-[#192033] px-3 py-2 text-sm font-medium text-white transition hover:bg-[#111728]"
+                  class="flex-1 rounded-md bg-navy-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-navy-950"
                 >
                   Permisos
                 </button>
@@ -186,7 +186,7 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
                   *hasPermission="'roles.delete'"
                   type="button"
                   (click)="deleteRole(role)"
-                  class="rounded-2xl border border-rose-200 px-3 py-2 text-sm font-medium text-rose-600 transition hover:bg-rose-50"
+                  class="rounded-md border border-danger px-3 py-2 text-sm font-medium text-danger transition hover:bg-danger-tint"
                   [disabled]="role.isSystem"
                   [class.opacity-50]="role.isSystem"
                   [class.cursor-not-allowed]="role.isSystem"
@@ -201,13 +201,13 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
 
       @if (showPermissionsModal()) {
         <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-          <div class="w-full max-w-xl md:max-w-2xl lg:max-w-3xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-4 md:p-6 shadow-2xl" style="max-height: 90vh">
+          <div class="w-full max-w-xl md:max-w-2xl lg:max-w-3xl overflow-y-auto rounded-lg border border-default bg-surface p-4 md:p-6 shadow-2xl" style="max-height: 90vh">
             <div class="mb-4 flex items-center justify-between">
-              <h3 class="text-lg font-semibold text-slate-800">Gestionar permisos</h3>
+              <h3 class="text-lg font-semibold text-text">Gestionar permisos</h3>
               <button
                 type="button"
                 (click)="closePermissionsModal()"
-                class="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                class="rounded-lg p-1 text-subtle hover:bg-surface-muted hover:text-muted"
               >
                 <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -215,27 +215,27 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
               </button>
             </div>
 
-            <p class="mb-4 text-sm text-slate-600">
+            <p class="mb-4 text-sm text-muted">
               Rol: <strong>{{ selectedRole()?.name }}</strong>
             </p>
 
             <div class="mb-6 space-y-4">
               @for (module of permissionsByModule(); track module.name) {
-                <div class="rounded-2xl border border-slate-200 p-4">
-                  <h4 class="mb-3 font-semibold text-slate-800">{{ module.name }}</h4>
+                <div class="rounded-md border border-default p-4">
+                  <h4 class="mb-3 font-semibold text-text">{{ module.name }}</h4>
                   <div class="grid gap-2 sm:grid-cols-2">
                     @for (permission of module.permissions; track permission.id) {
-                      <label class="flex items-start gap-2 rounded-xl border border-slate-100 p-3 transition hover:bg-slate-50 cursor-pointer">
+                      <label class="flex items-start gap-2 rounded-md border border-default p-3 transition hover:bg-surface-muted cursor-pointer">
                         <input
                           type="checkbox"
                           [checked]="isPermissionSelected(permission.id)"
                           (change)="togglePermission(permission.id)"
-                          class="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#192033] focus:ring-[#192033]"
+                          class="mt-0.5 h-4 w-4 rounded border-strong text-navy-900 focus:ring-navy-900"
                         />
                         <div class="flex-1">
-                          <p class="text-sm font-medium text-slate-700">{{ permission.code }}</p>
+                          <p class="text-sm font-medium text-text">{{ permission.code }}</p>
                           @if (permission.description) {
-                            <p class="text-xs text-slate-500">{{ permission.description }}</p>
+                            <p class="text-xs text-subtle">{{ permission.description }}</p>
                           }
                         </div>
                       </label>
@@ -249,14 +249,14 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
               <button
                 type="button"
                 (click)="closePermissionsModal()"
-                class="flex-1 rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                class="flex-1 rounded-md border border-default px-4 py-2.5 text-sm font-semibold text-muted transition hover:bg-surface-muted"
               >
                 Cancelar
               </button>
               <button
                 type="button"
                 (click)="savePermissions()"
-                class="flex-1 rounded-2xl bg-[#192033] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#111728]"
+                class="flex-1 rounded-md bg-navy-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-navy-950"
                 [disabled]="isSubmitting()"
               >
                 Guardar permisos

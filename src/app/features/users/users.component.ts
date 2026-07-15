@@ -16,13 +16,13 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
     <div class="space-y-6">
       <header class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 class="text-2xl font-semibold text-slate-800">Gestión de usuarios</h2>
-          <p class="text-sm text-slate-500">Administra cuentas, roles y permisos del equipo.</p>
+          <h2 class="text-2xl font-semibold text-text">Gestión de usuarios</h2>
+          <p class="text-sm text-subtle">Administra cuentas, roles y permisos del equipo.</p>
         </div>
         <button
           *hasPermission="'users.create'"
           type="button"
-          class="flex items-center gap-2 rounded-2xl bg-[#192033] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#111728]"
+          class="flex items-center gap-2 rounded-md bg-navy-900 px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:bg-navy-950"
           (click)="togglePanel()"
         >
           <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
@@ -33,23 +33,23 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
       </header>
 
       <!-- Filtros compactos -->
-      <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="rounded-lg border border-default bg-surface p-6 shadow-card">
         <form [formGroup]="filterForm" class="space-y-4">
           <div class="flex flex-col gap-4 sm:flex-row">
-            <label class="flex-1 text-sm text-slate-600">
+            <label class="flex-1 text-sm text-muted">
               <span class="mb-2 block">Búsqueda</span>
               <input
                 type="search"
                 formControlName="search"
                 placeholder="Nombre, apellido o email"
-                class="w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                class="w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
               />
             </label>
-            <label class="w-full text-sm text-slate-600 sm:w-48">
+            <label class="w-full text-sm text-muted sm:w-48">
               <span class="mb-2 block">Estado</span>
               <select
                 formControlName="status"
-                class="w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                class="w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
               >
                 <option value="all">Todos</option>
                 <option value="active">Activos</option>
@@ -59,17 +59,17 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
           </div>
           
           <div class="grid gap-4 sm:grid-cols-3">
-            <div class="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-              <p class="text-xs text-slate-500">Total usuarios</p>
-              <p class="text-2xl font-semibold text-slate-800">{{ total() }}</p>
+            <div class="rounded-md border border-default bg-surface-muted px-4 py-3">
+              <p class="text-xs text-subtle">Total usuarios</p>
+              <p class="text-2xl font-semibold text-text">{{ total() }}</p>
             </div>
-            <div class="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-              <p class="text-xs text-slate-500">Activos</p>
-              <p class="text-2xl font-semibold text-emerald-600">{{ activeCount() }}</p>
+            <div class="rounded-md border border-default bg-surface-muted px-4 py-3">
+              <p class="text-xs text-subtle">Activos</p>
+              <p class="text-2xl font-semibold text-success">{{ activeCount() }}</p>
             </div>
-            <div class="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-              <p class="text-xs text-slate-500">Inactivos</p>
-              <p class="text-2xl font-semibold text-slate-600">{{ inactiveCount() }}</p>
+            <div class="rounded-md border border-default bg-surface-muted px-4 py-3">
+              <p class="text-xs text-subtle">Inactivos</p>
+              <p class="text-2xl font-semibold text-muted">{{ inactiveCount() }}</p>
             </div>
           </div>
         </form>
@@ -79,19 +79,19 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
       @if (panelOpen()) {
         <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
           <form
-            class="w-full max-w-sm md:max-w-lg overflow-y-auto rounded-3xl border border-slate-200 bg-white p-4 md:p-6 shadow-2xl"
+            class="w-full max-w-sm md:max-w-lg overflow-y-auto rounded-lg border border-default bg-surface p-4 md:p-6 shadow-2xl"
             style="max-height: 90vh"
             [formGroup]="userForm"
             (ngSubmit)="submitUser()"
           >
             <div class="mb-4 flex items-center justify-between">
-              <h3 class="text-lg font-semibold text-slate-800">
+              <h3 class="text-lg font-semibold text-text">
                 {{ editingUser() ? 'Editar usuario' : 'Nuevo usuario' }}
               </h3>
               <button
                 type="button"
                 (click)="cancelEdit()"
-                class="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                class="rounded-lg p-1 text-subtle hover:bg-surface-muted hover:text-muted"
               >
                 <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -101,53 +101,53 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
 
             <div class="grid gap-4">
               <div class="grid gap-4 sm:grid-cols-2">
-                <label class="text-sm text-slate-600">
+                <label class="text-sm text-muted">
                   Nombre
                   <input
                     formControlName="firstName"
                     type="text"
                     placeholder="Nombre"
-                    class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                    class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
                   />
                   @if (userForm.get('firstName')?.touched && userForm.get('firstName')?.invalid) {
-                    <p class="mt-1 text-xs text-rose-500">Campo requerido</p>
+                    <p class="mt-1 text-xs text-danger">Campo requerido</p>
                   }
                 </label>
-                <label class="text-sm text-slate-600">
+                <label class="text-sm text-muted">
                   Apellido
                   <input
                     formControlName="lastName"
                     type="text"
                     placeholder="Apellido"
-                    class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                    class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
                   />
                   @if (userForm.get('lastName')?.touched && userForm.get('lastName')?.invalid) {
-                    <p class="mt-1 text-xs text-rose-500">Campo requerido</p>
+                    <p class="mt-1 text-xs text-danger">Campo requerido</p>
                   }
                 </label>
               </div>
 
-              <label class="text-sm text-slate-600">
+              <label class="text-sm text-muted">
                 Email
                 <input
                   formControlName="email"
                   type="email"
                   placeholder="usuario@empresa.com"
                   [disabled]="editingUser()?.isActive ?? false"
-                  class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30 disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
+                  class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30 disabled:bg-surface-muted disabled:text-subtle disabled:cursor-not-allowed"
                 />
                 @if (userForm.get('email')?.touched && userForm.get('email')?.invalid) {
-                  <p class="mt-1 text-xs text-rose-500">Email inválido</p>
+                  <p class="mt-1 text-xs text-danger">Email inválido</p>
                 }
                 @if (editingUser()?.isActive) {
-                  <p class="mt-1 text-xs text-slate-500">
+                  <p class="mt-1 text-xs text-subtle">
                     <svg class="inline h-3 w-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
                     </svg>
                     El email no puede modificarse en usuarios activos (se usa para login)
                   </p>
                 } @else if (editingUser() && !editingUser()?.isActive) {
-                  <p class="mt-1 text-xs text-emerald-600">
+                  <p class="mt-1 text-xs text-success">
                     <svg class="inline h-3 w-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                     </svg>
@@ -157,17 +157,17 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
               </label>
 
               @if (!editingUser()) {
-                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div class="rounded-md border border-default bg-surface-muted p-4">
                   <label class="flex items-center gap-3 cursor-pointer">
                     <input
                       type="checkbox"
                       [checked]="autoGeneratePassword()"
                       (change)="toggleAutoGeneratePassword()"
-                      class="h-4 w-4 rounded border-slate-300 text-[#192033] focus:ring-2 focus:ring-[#192033]/30"
+                      class="h-4 w-4 rounded border-strong text-navy-900 focus:ring-2 focus:ring-navy-900/30"
                     />
                     <div class="flex-1">
-                      <span class="text-sm font-semibold text-slate-700">Generar contraseña automáticamente</span>
-                      <p class="text-xs text-slate-500 mt-0.5">
+                      <span class="text-sm font-semibold text-text">Generar contraseña automáticamente</span>
+                      <p class="text-xs text-subtle mt-0.5">
                         Se creará una contraseña segura de 16 caracteres. El usuario la recibirá por email.
                       </p>
                     </div>
@@ -175,16 +175,16 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
                 </div>
 
                 @if (!autoGeneratePassword()) {
-                  <label class="text-sm text-slate-600">
+                  <label class="text-sm text-muted">
                     Contraseña
                     <input
                       formControlName="password"
                       type="password"
                       placeholder="Mínimo 8 caracteres"
-                      class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                      class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
                     />
                     @if (userForm.get('password')?.touched && userForm.get('password')?.invalid) {
-                      <p class="mt-1 text-xs text-rose-500">Mínimo 8 caracteres</p>
+                      <p class="mt-1 text-xs text-danger">Mínimo 8 caracteres</p>
                     }
                   </label>
                 }
@@ -192,7 +192,7 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
             </div>
 
             @if (errorMessage()) {
-              <div class="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">
+              <div class="mt-4 rounded-md border border-danger bg-danger-tint px-4 py-3 text-sm text-danger">
                 {{ errorMessage() }}
               </div>
             }
@@ -201,13 +201,13 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
               <button
                 type="button"
                 (click)="cancelEdit()"
-                class="flex-1 rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                class="flex-1 rounded-md border border-default px-4 py-2.5 text-sm font-semibold text-muted transition hover:bg-surface-muted"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
-                class="flex-1 rounded-2xl bg-[#192033] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#111728] disabled:bg-slate-400"
+                class="flex-1 rounded-md bg-navy-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-navy-950 disabled:bg-strong"
                 [disabled]="isSubmitting() || userForm.invalid"
               >
                 {{ editingUser() ? 'Actualizar' : 'Crear usuario' }}
@@ -219,18 +219,18 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
 
       @if (isLoading()) {
         <div class="flex items-center justify-center py-12">
-          <div class="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-[#192033]"></div>
+          <div class="h-8 w-8 animate-spin rounded-full border-4 border-default border-t-navy-900"></div>
         </div>
       } @else if (filteredUsers().length === 0) {
-        <div class="rounded-3xl border border-slate-200 bg-white p-12 text-center">
-          <p class="text-slate-500">No se encontraron usuarios</p>
+        <div class="rounded-lg border border-default bg-surface p-12 text-center">
+          <p class="text-subtle">No se encontraron usuarios</p>
         </div>
       } @else {
         <!-- Tabla para desktop -->
-        <div class="hidden md:block rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div class="hidden md:block rounded-lg border border-default bg-surface shadow-card overflow-hidden">
           <div class="overflow-x-auto">
             <table class="w-full">
-            <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+            <thead class="bg-surface-muted text-left text-xs font-semibold uppercase tracking-wide text-muted">
               <tr>
                 <th class="px-6 py-4">Usuario</th>
                 <th class="px-6 py-4">Roles</th>
@@ -239,41 +239,41 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
                 <th class="px-6 py-4 text-right">Acciones</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-200">
+            <tbody class="divide-y divide-default">
               @for (user of filteredUsers(); track user.id) {
-                <tr class="transition hover:bg-slate-50">
+                <tr class="transition hover:bg-surface-muted">
                   <td class="px-6 py-4">
                     <div class="flex items-center gap-3">
-                      <div class="flex h-10 w-10 items-center justify-center rounded-full bg-[#192033] text-sm font-semibold text-white">
+                      <div class="flex h-10 w-10 items-center justify-center rounded-full bg-navy-900 text-sm font-semibold text-white">
                         {{ getUserInitials(user) }}
                       </div>
                       <div>
-                        <p class="font-semibold text-slate-800">{{ user.firstName }} {{ user.lastName }}</p>
-                        <p class="text-sm text-slate-500">{{ user.email }}</p>
+                        <p class="font-semibold text-text">{{ user.firstName }} {{ user.lastName }}</p>
+                        <p class="text-sm text-subtle">{{ user.email }}</p>
                       </div>
                     </div>
                   </td>
                   <td class="px-6 py-4">
                     <div class="flex flex-wrap gap-1">
                       @for (role of user.roles; track role.id) {
-                        <span class="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
+                        <span class="rounded-full bg-surface-muted px-2 py-1 text-xs font-medium text-text">
                           {{ role.name }}
                         </span>
                       }
                       @if (user.roles.length === 0) {
-                        <span class="text-sm text-slate-400">Sin roles</span>
+                        <span class="text-sm text-subtle">Sin roles</span>
                       }
                     </div>
                   </td>
                   <td class="px-6 py-4">
                     <span
                       class="inline-flex rounded-full px-2 py-1 text-xs font-semibold"
-                      [class]="user.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'"
+                      [class]="user.isActive ? 'bg-success-tint text-success' : 'bg-surface-muted text-muted'"
                     >
                       {{ user.isActive ? 'Activo' : 'Inactivo' }}
                     </span>
                   </td>
-                  <td class="px-6 py-4 text-sm text-slate-600">
+                  <td class="px-6 py-4 text-sm text-muted">
                     {{ user.createdAt | date: 'dd/MM/yyyy' }}
                   </td>
                   <td class="px-6 py-4">
@@ -282,7 +282,7 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
                         *hasPermission="'users.edit'"
                         type="button"
                         (click)="editUser(user)"
-                        class="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                        class="rounded-lg p-2 text-subtle hover:bg-surface-muted hover:text-text"
                         title="Editar"
                       >
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
@@ -294,7 +294,7 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
                         type="button"
                         (click)="toggleUserStatus(user)"
                         class="rounded-lg p-2 transition"
-                        [class]="user.isActive ? 'text-amber-600 hover:bg-amber-50 hover:text-amber-700' : 'text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700'"
+                        [class]="user.isActive ? 'text-warning hover:bg-warning-tint hover:text-warning' : 'text-success hover:bg-success-tint hover:text-success'"
                         [title]="user.isActive ? 'Desactivar usuario' : 'Activar usuario'"
                       >
                         @if (user.isActive) {
@@ -313,7 +313,7 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
                         *hasPermission="'users.assign-roles'"
                         type="button"
                         (click)="assignRoles(user)"
-                        class="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                        class="rounded-lg p-2 text-subtle hover:bg-surface-muted hover:text-text"
                         title="Asignar roles"
                       >
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
@@ -324,7 +324,7 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
                         *hasPermission="'users.delete'"
                         type="button"
                         (click)="deleteUser(user)"
-                        class="rounded-lg p-2 text-rose-500 hover:bg-rose-50 hover:text-rose-700"
+                        class="rounded-lg p-2 text-danger hover:bg-danger-tint hover:text-danger"
                         title="Eliminar"
                       >
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
@@ -343,20 +343,20 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
         <!-- Cards para móvil -->
         <div class="grid gap-4 md:hidden">
           @for (user of filteredUsers(); track user.id) {
-            <div class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div class="rounded-lg border border-default bg-surface p-4 shadow-card">
               <div class="mb-3 flex items-start justify-between">
                 <div class="flex items-center gap-3">
-                  <div class="flex h-10 w-10 items-center justify-center rounded-full bg-[#192033] text-sm font-semibold text-white">
+                  <div class="flex h-10 w-10 items-center justify-center rounded-full bg-navy-900 text-sm font-semibold text-white">
                     {{ getUserInitials(user) }}
                   </div>
                   <div>
-                    <p class="font-semibold text-slate-800">{{ user.firstName }} {{ user.lastName }}</p>
-                    <p class="text-sm text-slate-500">{{ user.email }}</p>
+                    <p class="font-semibold text-text">{{ user.firstName }} {{ user.lastName }}</p>
+                    <p class="text-sm text-subtle">{{ user.email }}</p>
                   </div>
                 </div>
                 <span
                   class="inline-flex rounded-full px-2 py-1 text-xs font-semibold"
-                  [class]="user.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'"
+                  [class]="user.isActive ? 'bg-success-tint text-success' : 'bg-surface-muted text-muted'"
                 >
                   {{ user.isActive ? 'Activo' : 'Inactivo' }}
                 </span>
@@ -364,21 +364,21 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
               
               <div class="mb-3 space-y-2 text-sm">
                 <div>
-                  <span class="text-xs font-medium text-slate-500">Roles:</span>
+                  <span class="text-xs font-medium text-subtle">Roles:</span>
                   <div class="mt-1 flex flex-wrap gap-1">
                     @for (role of user.roles; track role.id) {
-                      <span class="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
+                      <span class="rounded-full bg-surface-muted px-2 py-1 text-xs font-medium text-text">
                         {{ role.name }}
                       </span>
                     }
                     @if (user.roles.length === 0) {
-                      <span class="text-xs text-slate-400">Sin roles</span>
+                      <span class="text-xs text-subtle">Sin roles</span>
                     }
                   </div>
                 </div>
                 <div>
-                  <span class="text-xs font-medium text-slate-500">Fecha creación:</span>
-                  <span class="ml-2 text-xs text-slate-600">{{ user.createdAt | date: 'dd/MM/yyyy' }}</span>
+                  <span class="text-xs font-medium text-subtle">Fecha creación:</span>
+                  <span class="ml-2 text-xs text-muted">{{ user.createdAt | date: 'dd/MM/yyyy' }}</span>
                 </div>
               </div>
 
@@ -387,7 +387,7 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
                   *hasPermission="'users.edit'"
                   type="button"
                   (click)="editUser(user)"
-                  class="flex-1 rounded-2xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+                  class="flex-1 rounded-md border border-default px-3 py-2 text-xs font-medium text-muted transition hover:bg-surface-muted"
                 >
                   Editar
                 </button>
@@ -395,7 +395,7 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
                   *hasPermission="'users.assign-roles'"
                   type="button"
                   (click)="assignRoles(user)"
-                  class="flex-1 rounded-2xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+                  class="flex-1 rounded-md border border-default px-3 py-2 text-xs font-medium text-muted transition hover:bg-surface-muted"
                 >
                   Roles
                 </button>
@@ -403,8 +403,8 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
                   *hasPermission="['users.activate', 'users.deactivate']"
                   type="button"
                   (click)="toggleUserStatus(user)"
-                  class="rounded-2xl px-3 py-2 text-xs font-medium transition"
-                  [class]="user.isActive ? 'border border-amber-200 text-amber-600 hover:bg-amber-50' : 'border border-emerald-200 text-emerald-600 hover:bg-emerald-50'"
+                  class="rounded-md px-3 py-2 text-xs font-medium transition"
+                  [class]="user.isActive ? 'border border-warning text-warning hover:bg-warning-tint' : 'border border-success text-success hover:bg-success-tint'"
                 >
                   {{ user.isActive ? 'Desactivar' : 'Activar' }}
                 </button>
@@ -412,7 +412,7 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
                   *hasPermission="'users.delete'"
                   type="button"
                   (click)="deleteUser(user)"
-                  class="rounded-2xl border border-rose-200 px-3 py-2 text-xs font-medium text-rose-600 transition hover:bg-rose-50"
+                  class="rounded-md border border-danger px-3 py-2 text-xs font-medium text-danger transition hover:bg-danger-tint"
                 >
                   Eliminar
                 </button>
@@ -436,13 +436,13 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
 
       @if (showRolesModal()) {
         <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-          <div class="w-full max-w-sm md:max-w-md overflow-y-auto rounded-3xl border border-slate-200 bg-white p-4 md:p-6 shadow-2xl" style="max-height: 90vh">
+          <div class="w-full max-w-sm md:max-w-md overflow-y-auto rounded-lg border border-default bg-surface p-4 md:p-6 shadow-2xl" style="max-height: 90vh">
             <div class="mb-4 flex items-center justify-between">
-              <h3 class="text-lg font-semibold text-slate-800">Asignar roles</h3>
+              <h3 class="text-lg font-semibold text-text">Asignar roles</h3>
               <button
                 type="button"
                 (click)="closeRolesModal()"
-                class="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                class="rounded-lg p-1 text-subtle hover:bg-surface-muted hover:text-muted"
               >
                 <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -450,23 +450,23 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
               </button>
             </div>
 
-            <p class="mb-4 text-sm text-slate-600">
+            <p class="mb-4 text-sm text-muted">
               Usuario: <strong>{{ selectedUser()?.firstName }} {{ selectedUser()?.lastName }}</strong>
             </p>
 
             <div class="mb-6 space-y-2">
               @for (role of availableRoles(); track role.id) {
-                <label class="flex items-center gap-3 rounded-2xl border border-slate-200 p-3 transition hover:bg-slate-50 cursor-pointer">
+                <label class="flex items-center gap-3 rounded-md border border-default p-3 transition hover:bg-surface-muted cursor-pointer">
                   <input
                     type="checkbox"
                     [checked]="isRoleSelected(role.id)"
                     (change)="toggleRole(role.id)"
-                    class="h-4 w-4 rounded border-slate-300 text-[#192033] focus:ring-[#192033]"
+                    class="h-4 w-4 rounded border-strong text-navy-900 focus:ring-navy-900"
                   />
                   <div class="flex-1">
-                    <p class="font-medium text-slate-800">{{ role.name }}</p>
+                    <p class="font-medium text-text">{{ role.name }}</p>
                     @if (role.description) {
-                      <p class="text-xs text-slate-500">{{ role.description }}</p>
+                      <p class="text-xs text-subtle">{{ role.description }}</p>
                     }
                   </div>
                 </label>
@@ -477,14 +477,14 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
               <button
                 type="button"
                 (click)="closeRolesModal()"
-                class="flex-1 rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                class="flex-1 rounded-md border border-default px-4 py-2.5 text-sm font-semibold text-muted transition hover:bg-surface-muted"
               >
                 Cancelar
               </button>
               <button
                 type="button"
                 (click)="saveRoles()"
-                class="flex-1 rounded-2xl bg-[#192033] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#111728]"
+                class="flex-1 rounded-md bg-navy-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-navy-950"
                 [disabled]="isSubmitting()"
               >
                 Guardar roles
@@ -496,25 +496,25 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
 
       @if (generatedPasswordData()) {
         <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-          <div class="w-full max-w-sm md:max-w-md rounded-3xl border-2 border-emerald-200 bg-white p-4 md:p-6 shadow-2xl">
+          <div class="w-full max-w-sm md:max-w-md rounded-lg border-2 border-success bg-surface p-4 md:p-6 shadow-2xl">
             <div class="mb-4 flex items-center gap-3">
-              <div class="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100">
-                <svg class="h-6 w-6 text-emerald-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <div class="flex h-12 w-12 items-center justify-center rounded-full bg-success-tint">
+                <svg class="h-6 w-6 text-success" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                 </svg>
               </div>
               <div class="flex-1">
-                <h3 class="text-lg font-semibold text-emerald-800">¡Usuario creado exitosamente!</h3>
-                <p class="text-sm text-emerald-600">Contraseña generada automáticamente</p>
+                <h3 class="text-lg font-semibold text-success">¡Usuario creado exitosamente!</h3>
+                <p class="text-sm text-success">Contraseña generada automáticamente</p>
               </div>
             </div>
 
-            <div class="mb-4 rounded-2xl bg-amber-50 border border-amber-200 p-4">
+            <div class="mb-4 rounded-md bg-warning-tint border border-warning p-4">
               <div class="flex items-start gap-2">
-                <svg class="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <svg class="h-5 w-5 text-warning flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
                 </svg>
-                <div class="text-sm text-amber-800">
+                <div class="text-sm text-warning">
                   <strong>¡IMPORTANTE!</strong> Esta contraseña solo se mostrará una vez. Guárdala de forma segura antes de cerrar esta ventana.
                 </div>
               </div>
@@ -522,20 +522,20 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
 
             <div class="mb-4 space-y-3">
               <div>
-                <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Email del usuario</label>
-                <p class="mt-1 text-sm font-medium text-slate-700">{{ generatedPasswordData()?.email }}</p>
+                <label class="text-xs font-semibold uppercase tracking-wide text-subtle">Email del usuario</label>
+                <p class="mt-1 text-sm font-medium text-text">{{ generatedPasswordData()?.email }}</p>
               </div>
 
               <div>
-                <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Contraseña temporal</label>
+                <label class="text-xs font-semibold uppercase tracking-wide text-subtle">Contraseña temporal</label>
                 <div class="mt-1 flex items-center gap-2">
-                  <code class="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-mono text-sm font-semibold text-slate-800 select-all">
+                  <code class="flex-1 rounded-md border border-default bg-surface-muted px-4 py-3 font-mono text-sm font-semibold text-text select-all">
                     {{ generatedPasswordData()?.password }}
                   </code>
                   <button
                     type="button"
                     (click)="copyPasswordToClipboard()"
-                    class="rounded-xl bg-[#192033] p-3 text-white transition hover:bg-[#111728]"
+                    class="rounded-md bg-navy-900 p-3 text-white transition hover:bg-navy-950"
                     title="Copiar al portapapeles"
                   >
                     <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -546,7 +546,7 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
               </div>
             </div>
 
-            <div class="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+            <div class="mb-4 rounded-md border border-default bg-surface-muted p-3 text-xs text-muted">
               <strong>Próximos pasos:</strong>
               <ol class="mt-2 ml-4 list-decimal space-y-1">
                 <li>Copia la contraseña usando el botón de copiar</li>
@@ -558,7 +558,7 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
             <button
               type="button"
               (click)="closeGeneratedPasswordModal()"
-              class="w-full rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700"
+              class="w-full rounded-md bg-success px-4 py-3 text-sm font-semibold text-white transition hover:bg-success"
             >
               Entendido, he guardado la contraseña
             </button>

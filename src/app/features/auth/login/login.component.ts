@@ -9,81 +9,81 @@ import { AuthService } from '../../../core/services/auth.service';
   standalone: true,
   imports: [ReactiveFormsModule, RouterLink],
   template: `
-    <div class="min-h-screen bg-gradient-to-br from-slate-100 via-white to-slate-200">
+    <div class="min-h-screen bg-gradient-to-br from-surface-muted via-surface to-surface-sunken">
       <div class="flex min-h-screen flex-col lg:flex-row">
-        <section class="flex flex-1 flex-col justify-between bg-[#192033] p-8 text-white">
+        <section class="flex flex-1 flex-col justify-between bg-navy-900 p-8 text-white">
           <div>
-            <p class="text-sm uppercase tracking-[0.3em] text-slate-300">LexAr Suite</p>
+            <p class="text-sm uppercase tracking-[0.3em] text-white/70">LexAr Suite</p>
             <h1 class="mt-4 text-3xl font-semibold lg:text-4xl">Gestión Jurídica Inteligente</h1>
-            <p class="mt-4 max-w-sm text-sm text-slate-300">
+            <p class="mt-4 max-w-sm text-sm text-white/70">
               Orquesta tus equipos legales, centraliza evidencia y anticipa riesgos con analítica en tiempo real.
             </p>
           </div>
-          <div class="mt-12 grid gap-4 text-sm text-slate-200">
-            <div class="rounded-2xl bg-white/10 p-4">
-              <p class="text-xs uppercase tracking-wide text-slate-300">KPIs 2024</p>
+          <div class="mt-12 grid gap-4 text-sm text-white/80">
+            <div class="rounded-md bg-white/10 p-4">
+              <p class="text-xs uppercase tracking-wide text-white/70">KPIs 2024</p>
               <p class="mt-2 text-lg font-semibold">+37% procesos resueltos en etapa temprana</p>
             </div>
-            <div class="rounded-2xl bg-white/10 p-4">
-              <p class="text-xs uppercase tracking-wide text-slate-300">Confianza</p>
+            <div class="rounded-md bg-white/10 p-4">
+              <p class="text-xs uppercase tracking-wide text-white/70">Confianza</p>
               <p class="mt-2 text-lg font-semibold">Cifrado, trazabilidad y flujos auditables en 100% de casos</p>
             </div>
           </div>
         </section>
 
         <section class="flex flex-1 items-center justify-center px-6 py-12 lg:px-12">
-          <div class="w-full max-w-md rounded-3xl border border-slate-200 bg-white/80 p-8 shadow-xl backdrop-blur">
-            <h2 class="text-2xl font-semibold text-slate-800">Bienvenido de nuevo</h2>
-            <p class="mt-2 text-sm text-slate-500">Ingresa tu correo corporativo para continuar.</p>
+          <div class="w-full max-w-md rounded-lg border border-default bg-white/80 p-8 shadow-raised backdrop-blur">
+            <h2 class="text-2xl font-semibold text-text">Bienvenido de nuevo</h2>
+            <p class="mt-2 text-sm text-subtle">Ingresa tu correo corporativo para continuar.</p>
 
             <form class="mt-8 space-y-6" [formGroup]="form" (ngSubmit)="onSubmit()">
               <div class="space-y-2">
-                <label class="block text-sm font-medium text-slate-600" for="email">Correo electrónico</label>
+                <label class="block text-sm font-medium text-muted" for="email">Correo electrónico</label>
                 <input
                   id="email"
                   type="email"
                   formControlName="email"
                   autocomplete="email"
-                  class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base text-slate-800 shadow-sm transition focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                  class="w-full rounded-md border border-default bg-surface px-4 py-3 text-base text-text shadow-card transition focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
                   placeholder="tucorreo@lexar.com"
                 />
                 @if (form.get('email')?.touched && form.get('email')?.invalid) {
-                  <p class="text-sm text-rose-500">Incluye un correo corporativo válido.</p>
+                  <p class="text-sm text-danger">Incluye un correo corporativo válido.</p>
                 }
               </div>
 
               <div class="space-y-2">
-                <label class="block text-sm font-medium text-slate-600" for="password">Contraseña</label>
+                <label class="block text-sm font-medium text-muted" for="password">Contraseña</label>
                 <input
                   id="password"
                   type="password"
                   formControlName="password"
                   autocomplete="current-password"
-                  class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base text-slate-800 shadow-sm transition focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                  class="w-full rounded-md border border-default bg-surface px-4 py-3 text-base text-text shadow-card transition focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
                   placeholder="••••••••"
                 />
                 @if (form.get('password')?.touched && form.get('password')?.invalid) {
-                  <p class="text-sm text-rose-500">La contraseña es obligatoria.</p>
+                  <p class="text-sm text-danger">La contraseña es obligatoria.</p>
                 }
               </div>
 
               <div class="flex items-center justify-between">
-                <label class="flex items-center gap-2 text-sm text-slate-600">
-                  <input type="checkbox" formControlName="remember" class="h-4 w-4 rounded border-slate-300 text-[#192033]" />
+                <label class="flex items-center gap-2 text-sm text-muted">
+                  <input type="checkbox" formControlName="remember" class="h-4 w-4 rounded border-strong text-navy-900" />
                   Recordar sesión
                 </label>
-                <a href="#" class="text-sm font-medium text-[#192033] hover:underline">¿Olvidaste tu contraseña?</a>
+                <a href="#" class="text-sm font-medium text-navy-900 hover:underline">¿Olvidaste tu contraseña?</a>
               </div>
 
               @if (errorMessage()) {
-                <div class="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">
+                <div class="rounded-md border border-danger bg-danger-tint px-4 py-3 text-sm text-danger">
                   {{ errorMessage() }}
                 </div>
               }
 
               <button
                 type="submit"
-                class="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#192033] px-4 py-3 text-base font-semibold text-white transition focus:outline-none focus:ring-2 focus:ring-[#192033]/40 disabled:cursor-not-allowed disabled:bg-slate-400"
+                class="flex w-full items-center justify-center gap-2 rounded-md bg-navy-900 px-4 py-3 text-base font-semibold text-white transition focus:outline-none focus:ring-2 focus:ring-navy-900/40 disabled:cursor-not-allowed disabled:bg-strong"
                 [disabled]="isSubmitting()"
               >
                 <span>Iniciar sesión</span>
@@ -96,8 +96,8 @@ import { AuthService } from '../../../core/services/auth.service';
               </button>
             </form>
 
-            <p class="mt-8 text-center text-sm text-slate-500">
-              ¿Aún no tienes acceso? <a routerLink="/registro" class="font-semibold text-[#192033] hover:underline">Crear cuenta</a>
+            <p class="mt-8 text-center text-sm text-subtle">
+              ¿Aún no tienes acceso? <a routerLink="/registro" class="font-semibold text-navy-900 hover:underline">Crear cuenta</a>
             </p>
           </div>
         </section>
