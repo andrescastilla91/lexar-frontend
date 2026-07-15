@@ -1,7 +1,18 @@
 import { CommonModule, DatePipe } from '@angular/common';
-import { Component, computed, inject } from '@angular/core';
-import { MockDataService } from '../../core/services/mock-data.service';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { DashboardService } from '../../core/services/dashboard.service';
 import { AuthService } from '../../core/services/auth.service';
+import { DashboardSummary } from '../../core/models/dashboard.model';
+
+const STATUS_LABELS: Record<string, string> = {
+  DRAFT: 'Borrador',
+  ACTIVE: 'Activo',
+  UNDER_REVIEW: 'En revisión',
+  SUSPENDED: 'Suspendido',
+  COMPLETED: 'Completado',
+  CANCELLED: 'Cancelado',
+  ARCHIVED: 'Archivado',
+};
 
 @Component({
   selector: 'app-dashboard',
@@ -9,7 +20,7 @@ import { AuthService } from '../../core/services/auth.service';
   imports: [CommonModule, DatePipe],
   template: `
     <div class="space-y-10">
-      <section class="rounded-3xl bg-gradient-to-br from-[#192033] via-[#1f2740] to-[#192033] px-8 py-10 text-white shadow-xl">
+      <section class="rounded-lg bg-gradient-to-br from-navy-900 via-navy-800 to-navy-950 px-8 py-10 text-white shadow-card">
         <div class="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p class="text-sm uppercase tracking-[0.3em] text-white/70">Tablero ejecutivo</p>
@@ -19,18 +30,26 @@ import { AuthService } from '../../core/services/auth.service';
             </p>
           </div>
           <div class="grid gap-3 text-sm text-white/70">
-            <div class="flex items-center gap-4 rounded-2xl bg-white/10 px-5 py-4">
-              <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 text-2xl font-semibold">
-                {{ snapshot().totalClients }}
+            <div class="flex items-center gap-4 rounded-lg bg-white/10 px-5 py-4">
+              <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-white/15 text-2xl font-semibold tabular-data">
+                @if (isLoading()) {
+                  <span class="inline-block h-6 w-8 animate-pulse rounded bg-white/20"></span>
+                } @else {
+                  {{ summary()?.activeClients ?? 0 }}
+                }
               </div>
               <div>
                 <p class="text-xs uppercase tracking-wide">Clientes activos</p>
                 <p class="text-base font-semibold text-white">Relaciones vigentes bajo tu gestión</p>
               </div>
             </div>
-            <div class="flex items-center gap-4 rounded-2xl bg-white/10 px-5 py-4">
-              <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 text-2xl font-semibold">
-                {{ snapshot().totalProcesses }}
+            <div class="flex items-center gap-4 rounded-lg bg-white/10 px-5 py-4">
+              <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-white/15 text-2xl font-semibold tabular-data">
+                @if (isLoading()) {
+                  <span class="inline-block h-6 w-8 animate-pulse rounded bg-white/20"></span>
+                } @else {
+                  {{ summary()?.totalProcesses ?? 0 }}
+                }
               </div>
               <div>
                 <p class="text-xs uppercase tracking-wide">Procesos monitorizados</p>
@@ -41,236 +60,333 @@ import { AuthService } from '../../core/services/auth.service';
         </div>
       </section>
 
+      @if (errorMessage()) {
+        <div class="flex items-center justify-between rounded-lg border border-default bg-danger-tint px-6 py-4 text-sm text-danger">
+          <span>{{ errorMessage() }}</span>
+          <button
+            type="button"
+            class="rounded-md bg-danger px-3 py-1.5 text-xs font-semibold text-white transition hover:opacity-90"
+            (click)="loadSummary()"
+          >
+            Reintentar
+          </button>
+        </div>
+      }
+
+      @if (!isLoading() && summary()?.processesByStatus?.length) {
+        <section class="flex flex-wrap gap-3">
+          @for (item of summary()!.processesByStatus; track item.status) {
+            <span class="rounded-md border border-default bg-surface px-4 py-2 text-xs font-semibold text-muted">
+              {{ statusLabel(item.status) }}
+              <span class="ml-1 tabular-data text-text">{{ item.count }}</span>
+            </span>
+          }
+        </section>
+      }
+
       <section class="grid gap-6 lg:grid-cols-4">
-        @for (card of statCards(); track card.title) {
-          <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div class="flex items-center justify-between">
-              <h3 class="text-sm font-semibold text-slate-600">{{ card.title }}</h3>
-              <span class="text-xs font-semibold" [class]="card.trendClass">{{ card.trend }}</span>
-            </div>
-            <p class="mt-4 text-3xl font-semibold text-slate-900">{{ card.value }}</p>
-            <p class="mt-2 text-sm text-slate-500">{{ card.description }}</p>
-          </article>
+        @if (isLoading()) {
+          @for (i of [1, 2, 3, 4]; track i) {
+            <article class="rounded-lg border border-default bg-surface p-6 shadow-card">
+              <div class="h-4 w-24 animate-pulse rounded bg-surface-sunken"></div>
+              <div class="mt-4 h-8 w-16 animate-pulse rounded bg-surface-sunken"></div>
+              <div class="mt-3 h-3 w-32 animate-pulse rounded bg-surface-sunken"></div>
+            </article>
+          }
+        } @else {
+          @for (card of statCards(); track card.title) {
+            <article class="rounded-lg border border-default bg-surface p-6 shadow-card">
+              <div class="flex items-center justify-between">
+                <h3 class="text-sm font-semibold text-muted">{{ card.title }}</h3>
+                <span class="text-xs font-semibold" [class]="card.trendClass">{{ card.trend }}</span>
+              </div>
+              <p class="mt-4 text-3xl font-semibold text-text tabular-data">{{ card.value }}</p>
+              <p class="mt-2 text-sm text-subtle">{{ card.description }}</p>
+            </article>
+          }
         }
       </section>
 
       <section class="grid gap-6 lg:grid-cols-5">
-        <article class="lg:col-span-3 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <article class="lg:col-span-3 rounded-lg border border-default bg-surface p-6 shadow-card">
           <header class="mb-4 flex items-center justify-between">
             <div>
-              <h3 class="text-lg font-semibold text-slate-800">Procesos con riesgo alto</h3>
-              <p class="text-sm text-slate-500">Prioriza tareas preventivas para mitigar contingencias.</p>
+              <h3 class="text-lg font-semibold text-text">Procesos con riesgo alto</h3>
+              <p class="text-sm text-subtle">Prioriza tareas preventivas para mitigar contingencias.</p>
             </div>
-            <span class="rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-600">
-              {{ highRiskProcesses().length }} activos
-            </span>
+            @if (!isLoading()) {
+              <span class="rounded-full bg-danger-tint px-3 py-1 text-xs font-semibold text-danger tabular-data">
+                {{ summary()?.highRiskProcessesCount ?? 0 }} activos
+              </span>
+            }
           </header>
-          <div class="space-y-4">
-            @for (process of highRiskProcesses(); track process.id) {
-              <div class="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-4 text-sm text-rose-700">
-                <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <p class="text-base font-semibold text-rose-700">{{ process.title }}</p>
-                    <p class="text-xs uppercase tracking-wide text-rose-500">{{ process.court }}</p>
-                  </div>
-                  <div class="flex gap-6 text-xs text-rose-600/90">
-                    <span class="flex items-center gap-2">
-                      <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2" />
-                      </svg>
-                      Audiencia {{ process.nextHearingDate | date: 'longDate' }}
-                    </span>
-                    <span class="flex items-center gap-2">
-                      <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="m12 6 7.5 12h-15L12 6z" />
-                      </svg>
-                      Riesgo {{ process.riskLevel }}
-                    </span>
+
+          @if (isLoading()) {
+            <div class="space-y-4">
+              @for (i of [1, 2, 3]; track i) {
+                <div class="h-16 animate-pulse rounded-lg bg-surface-sunken"></div>
+              }
+            </div>
+          } @else if (!summary()?.highRiskProcesses?.length) {
+            <p class="rounded-lg border border-default bg-surface-muted px-4 py-6 text-center text-sm text-subtle">
+              No hay procesos de riesgo alto en este momento.
+            </p>
+          } @else {
+            <div class="space-y-4">
+              @for (process of summary()!.highRiskProcesses; track process.id) {
+                <div class="rounded-lg bg-danger-tint px-4 py-4 text-sm text-danger">
+                  <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <p class="text-base font-semibold text-danger">{{ process.title }}</p>
+                      <p class="text-xs uppercase tracking-wide text-danger/80">{{ process.court || 'Sin jurisdicción asignada' }}</p>
+                    </div>
+                    <div class="flex gap-6 text-xs text-danger/90">
+                      @if (process.nextHearingDate) {
+                        <span class="flex items-center gap-2">
+                          <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2" />
+                          </svg>
+                          Audiencia {{ process.nextHearingDate | date: 'longDate' }}
+                        </span>
+                      }
+                      <span class="flex items-center gap-2">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="m12 6 7.5 12h-15L12 6z" />
+                        </svg>
+                        Riesgo {{ process.riskLevel }}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            }
-          </div>
+              }
+            </div>
+          }
         </article>
 
-        <article class="lg:col-span-2 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <article class="lg:col-span-2 rounded-lg border border-default bg-surface p-6 shadow-card">
           <header class="mb-4 flex items-center justify-between">
             <div>
-              <h3 class="text-lg font-semibold text-slate-800">Próximas audiencias</h3>
-              <p class="text-sm text-slate-500">Agenda semanal con responsables asignados.</p>
+              <h3 class="text-lg font-semibold text-text">Próximas audiencias</h3>
+              <p class="text-sm text-subtle">Agenda de los próximos 30 días.</p>
             </div>
-            <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-              {{ upcomingHearings().length }} eventos
-            </span>
-          </header>
-          <div class="space-y-4">
-            @for (hearing of upcomingHearings(); track hearing.id) {
-              <div class="flex items-start justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700">
-                <div>
-                  <p class="text-base font-semibold text-slate-800">{{ hearing.title }}</p>
-                  <p class="text-xs uppercase tracking-wide text-slate-500">{{ hearing.court }}</p>
-                  <p class="mt-1 text-xs text-slate-500">{{ advisorInitials(hearing.advisorId) }} • {{ clientName(hearing.clientId) }}</p>
-                </div>
-                <span class="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600">
-                  {{ hearing.nextHearingDate | date: 'dd/MM' }}
-                </span>
-              </div>
+            @if (!isLoading()) {
+              <span class="rounded-full bg-surface-muted px-3 py-1 text-xs font-semibold text-muted tabular-data">
+                {{ summary()?.upcomingHearingsCount ?? 0 }} eventos
+              </span>
             }
-          </div>
+          </header>
+
+          @if (isLoading()) {
+            <div class="space-y-4">
+              @for (i of [1, 2, 3]; track i) {
+                <div class="h-16 animate-pulse rounded-lg bg-surface-sunken"></div>
+              }
+            </div>
+          } @else if (!summary()?.upcomingHearings?.length) {
+            <p class="rounded-lg border border-default bg-surface-muted px-4 py-6 text-center text-sm text-subtle">
+              No hay audiencias programadas en los próximos 30 días.
+            </p>
+          } @else {
+            <div class="space-y-4">
+              @for (hearing of summary()!.upcomingHearings; track hearing.id) {
+                <div class="flex items-start justify-between rounded-lg border border-default bg-surface-muted px-4 py-4 text-sm text-muted">
+                  <div>
+                    <p class="text-base font-semibold text-text">{{ hearing.title }}</p>
+                    <p class="text-xs uppercase tracking-wide text-subtle">{{ hearing.court || 'Sin jurisdicción asignada' }}</p>
+                    <p class="mt-1 text-xs text-subtle">{{ advisorInitials(hearing.advisors) }} • {{ hearing.client?.fullName ?? 'Cliente sin asignar' }}</p>
+                  </div>
+                  @if (hearing.nextHearingDate) {
+                    <span class="rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted tabular-data">
+                      {{ hearing.nextHearingDate | date: 'dd/MM' }}
+                    </span>
+                  }
+                </div>
+              }
+            </div>
+          }
         </article>
       </section>
 
       <section class="grid gap-6 lg:grid-cols-2">
-        <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <article class="rounded-lg border border-default bg-surface p-6 shadow-card">
           <header class="mb-4 flex items-center justify-between">
             <div>
-              <h3 class="text-lg font-semibold text-slate-800">Documentos recientes</h3>
-              <p class="text-sm text-slate-500">Archivos subidos durante los últimos 10 días.</p>
+              <h3 class="text-lg font-semibold text-text">Documentos recientes</h3>
+              <p class="text-sm text-subtle">{{ summary()?.documentsThisMonth ?? 0 }} archivos subidos este mes.</p>
             </div>
-            <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
-              {{ recentDocuments().length }} cargados
-            </span>
-          </header>
-          <div class="space-y-4">
-            @for (document of recentDocuments(); track document.id) {
-              <div class="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-700">
-                <div>
-                  <p class="font-semibold text-slate-800">{{ document.title }}</p>
-                  <p class="text-xs text-slate-500">{{ document.category }} • {{ document.uploadedBy }}</p>
-                </div>
-                <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-                  {{ document.uploadedAt | date: 'dd/MM' }}
-                </span>
-              </div>
+            @if (!isLoading()) {
+              <span class="rounded-full bg-success-tint px-3 py-1 text-xs font-semibold text-success tabular-data">
+                {{ summary()?.documentsThisMonth ?? 0 }} este mes
+              </span>
             }
-          </div>
+          </header>
+
+          @if (isLoading()) {
+            <div class="space-y-4">
+              @for (i of [1, 2, 3]; track i) {
+                <div class="h-12 animate-pulse rounded-lg bg-surface-sunken"></div>
+              }
+            </div>
+          } @else if (!summary()?.recentDocuments?.length) {
+            <p class="rounded-lg border border-default bg-surface-muted px-4 py-6 text-center text-sm text-subtle">
+              Aún no se han subido documentos.
+            </p>
+          } @else {
+            <div class="space-y-4">
+              @for (document of summary()!.recentDocuments; track document.id) {
+                <div class="flex items-center justify-between rounded-lg border border-default px-4 py-3 text-sm text-muted">
+                  <div>
+                    <p class="font-semibold text-text">{{ document.filename }}</p>
+                    <p class="text-xs text-subtle">{{ document.entityType }} • {{ document.uploadedBy }}</p>
+                  </div>
+                  <span class="rounded-full bg-surface-muted px-3 py-1 text-xs font-semibold text-muted tabular-data">
+                    {{ document.createdAt | date: 'dd/MM' }}
+                  </span>
+                </div>
+              }
+            </div>
+          }
         </article>
 
-        <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <article class="rounded-lg border border-default bg-surface p-6 shadow-card">
           <header class="mb-4 flex items-center justify-between">
             <div>
-              <h3 class="text-lg font-semibold text-slate-800">Asesores destacados</h3>
-              <p class="text-sm text-slate-500">Tiempo de respuesta y satisfacción promedio.</p>
+              <h3 class="text-lg font-semibold text-text">Asesores destacados</h3>
+              <p class="text-sm text-subtle">Calificación y experiencia de tu equipo activo.</p>
             </div>
-            <span class="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
-              {{ topAdvisors().length }} perfiles
-            </span>
-          </header>
-          <div class="space-y-4">
-            @for (advisor of topAdvisors(); track advisor.id) {
-              <div class="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-700">
-                <div>
-                  <p class="font-semibold text-slate-800">{{ advisor.name }}</p>
-                  <p class="text-xs text-slate-500">{{ advisor.specialty }}</p>
-                </div>
-                <div class="flex items-center gap-3 text-xs text-slate-500">
-                  <span class="flex items-center gap-1 text-amber-500">
-                    <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="m10 15.27 5.18 3.05-1.64-5.81L18 8.97l-6-.21L10 3l-2 5.76-6 .21 4.46 3.54L6.82 18z" />
-                    </svg>
-                    {{ advisor.rating }}
-                  </span>
-                  <span>{{ advisor.experienceYears }} años exp.</span>
-                </div>
-              </div>
+            @if (!isLoading()) {
+              <span class="rounded-full bg-accent-tint px-3 py-1 text-xs font-semibold text-accent tabular-data">
+                {{ summary()?.topAdvisors?.length ?? 0 }} perfiles
+              </span>
             }
-          </div>
+          </header>
+
+          @if (isLoading()) {
+            <div class="space-y-4">
+              @for (i of [1, 2, 3]; track i) {
+                <div class="h-12 animate-pulse rounded-lg bg-surface-sunken"></div>
+              }
+            </div>
+          } @else if (!summary()?.topAdvisors?.length) {
+            <p class="rounded-lg border border-default bg-surface-muted px-4 py-6 text-center text-sm text-subtle">
+              No hay asesores activos registrados.
+            </p>
+          } @else {
+            <div class="space-y-4">
+              @for (advisor of summary()!.topAdvisors; track advisor.id) {
+                <div class="flex items-center justify-between rounded-lg border border-default px-4 py-3 text-sm text-muted">
+                  <div>
+                    <p class="font-semibold text-text">{{ advisor.name }}</p>
+                    <p class="text-xs text-subtle">{{ advisor.specialty }}</p>
+                  </div>
+                  <div class="flex items-center gap-3 text-xs text-subtle">
+                    <span class="flex items-center gap-1 text-accent">
+                      <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="m10 15.27 5.18 3.05-1.64-5.81L18 8.97l-6-.21L10 3l-2 5.76-6 .21 4.46 3.54L6.82 18z" />
+                      </svg>
+                      <span class="tabular-data">{{ advisor.rating }}</span>
+                    </span>
+                    <span class="tabular-data">{{ advisor.experienceYears }} años exp.</span>
+                  </div>
+                </div>
+              }
+            </div>
+          }
         </article>
       </section>
     </div>
   `,
 })
-export class DashboardComponent {
-  private readonly dataService = inject(MockDataService);
+export class DashboardComponent implements OnInit {
+  private readonly dashboardService = inject(DashboardService);
   private readonly authService = inject(AuthService);
 
-  readonly snapshot = this.dataService.dashboardSnapshot;
-  readonly documents = this.dataService.documents;
-  readonly advisors = this.dataService.advisors;
-  readonly processes = this.dataService.processes;
-  readonly clients = this.dataService.clients;
+  readonly summary = signal<DashboardSummary | null>(null);
+  readonly isLoading = signal(true);
+  readonly errorMessage = signal<string | null>(null);
 
   readonly firstName = computed(() => {
     const user = this.authService.currentUser();
     if (!user) {
       return 'Equipo';
     }
-    
-    // Extraer nombre del email
+
     const emailPart = user.email.split('@')[0];
     const parts = emailPart.split('.');
     if (parts.length > 0) {
       return parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
     }
-    
+
     return 'Usuario';
   });
 
   readonly statCards = computed(() => {
-    const snapshot = this.snapshot();
-    const urgencies = snapshot.highRiskProcesses.length;
-    const hearings = snapshot.hearingsThisMonth.length;
+    const summary = this.summary();
+    if (!summary) {
+      return [];
+    }
 
     return [
       {
-        title: 'Procesos activos',
-        value: snapshot.totalProcesses,
-        description: 'Casos en curso across todas las áreas jurídicas.',
-        trend: '+12% eficiencia',
-        trendClass: 'text-xs font-semibold text-emerald-600',
+        title: 'Procesos totales',
+        value: summary.totalProcesses,
+        description: 'Casos monitorizados en todas las áreas jurídicas.',
+        trend: 'Actualizado',
+        trendClass: 'text-xs font-semibold text-success',
       },
       {
-        title: 'Clientes corporativos',
-        value: snapshot.totalClients,
-        description: 'Cuentas activas con planes estratégicos vigentes.',
-        trend: '+3 nuevas cuentas',
-        trendClass: 'text-xs font-semibold text-sky-600',
+        title: 'Clientes activos',
+        value: summary.activeClients,
+        description: 'Cuentas activas con relación vigente.',
+        trend: 'En gestión',
+        trendClass: 'text-xs font-semibold text-info',
       },
       {
-        title: 'Audiencias del mes',
-        value: hearings,
-        description: 'Eventos confirmados con agenda y responsables.',
-        trend: 'Semana crítica',
-        trendClass: 'text-xs font-semibold text-amber-600',
+        title: 'Audiencias próximas',
+        value: summary.upcomingHearingsCount,
+        description: 'Eventos confirmados en los próximos 30 días.',
+        trend: summary.upcomingHearingsCount > 0 ? 'Agenda activa' : 'Sin eventos',
+        trendClass: 'text-xs font-semibold text-warning',
       },
       {
         title: 'Alertas de riesgo',
-        value: urgencies,
-        description: 'Procesos que requieren acciones preventivas inmediatas.',
-        trend: 'Prioriza hoy',
-        trendClass: 'text-xs font-semibold text-rose-600',
+        value: summary.highRiskProcessesCount,
+        description: 'Procesos que requieren acciones preventivas.',
+        trend: summary.highRiskProcessesCount > 0 ? 'Prioriza hoy' : 'Sin alertas',
+        trendClass: 'text-xs font-semibold text-danger',
       },
     ];
   });
 
-  readonly highRiskProcesses = computed(() => this.snapshot().highRiskProcesses);
-
-  readonly upcomingHearings = computed(() =>
-    this.snapshot()
-      .hearingsThisMonth.slice()
-      .sort((a, b) => new Date(a.nextHearingDate).getTime() - new Date(b.nextHearingDate).getTime())
-  );
-
-  readonly recentDocuments = computed(() =>
-    this.documents()
-      .slice()
-      .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())
-      .slice(0, 4)
-  );
-
-  readonly topAdvisors = computed(() =>
-    this.advisors()
-      .slice()
-      .sort((a, b) => b.rating - a.rating)
-      .slice(0, 4)
-  );
-
-  advisorInitials(advisorId: string): string {
-    const advisor = this.dataService.findAdvisorById(advisorId);
-    return advisor ? advisor.name.split(' ').map((part) => part.charAt(0)).join('').slice(0, 2).toUpperCase() : 'NA';
+  ngOnInit(): void {
+    this.loadSummary();
   }
 
-  clientName(clientId: string): string {
-    return this.dataService.findClientById(clientId)?.company ?? 'Cliente sin asignar';
+  loadSummary(): void {
+    this.isLoading.set(true);
+    this.errorMessage.set(null);
+
+    this.dashboardService.getSummary().subscribe({
+      next: (summary) => {
+        this.summary.set(summary);
+        this.isLoading.set(false);
+      },
+      error: (error) => {
+        this.errorMessage.set(error.message || 'No se pudo cargar el tablero');
+        this.isLoading.set(false);
+      },
+    });
+  }
+
+  statusLabel(status: string): string {
+    return STATUS_LABELS[status] ?? status;
+  }
+
+  advisorInitials(advisors: { firstName: string; lastName: string }[]): string {
+    if (!advisors.length) {
+      return 'NA';
+    }
+    const advisor = advisors[0];
+    return `${advisor.firstName.charAt(0)}${advisor.lastName.charAt(0)}`.toUpperCase();
   }
 }

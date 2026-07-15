@@ -13,4 +13,9 @@ export const environment = {
   // Backend local: `npm run start:dev` (puerto 3000) o el contenedor con
   // puerto debug expuesto (3030). Incluye el prefijo global /api.
   apiUrl: 'http://localhost:3000/api',
+  features: {
+    // El chatbot consume MockDataService (sin backend real). Ver A2 en
+    // docs/04-plan-remediacion/A-arquitectura-y-ui.md.
+    chatbot: false,
+  },
 };

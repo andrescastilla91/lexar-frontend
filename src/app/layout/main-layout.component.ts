@@ -6,6 +6,7 @@ import { PermissionsService } from '../core/services/permissions.service';
 import { AuthUser } from '../core/models/auth.model';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { filter } from 'rxjs';
+import { environment } from '../../environments/environment';
 
 interface MenuItem {
   label: string;
@@ -218,14 +219,16 @@ export class MainLayoutComponent {
 
   // Filtrar menú según permisos del usuario
   readonly filteredMenuItems = computed(() => {
-    return this.menuItems.filter((item) => {
-      // Si no tiene permisos requeridos, se muestra siempre
-      if (!item.permissions || item.permissions.length === 0) {
-        return true;
-      }
-      // Si tiene permisos, verificar que el usuario tenga al menos uno
-      return this.permissionsService.hasAnyPermission(item.permissions);
-    });
+    return this.menuItems
+      .filter((item) => item.route !== '/chatbot' || environment.features.chatbot)
+      .filter((item) => {
+        // Si no tiene permisos requeridos, se muestra siempre
+        if (!item.permissions || item.permissions.length === 0) {
+          return true;
+        }
+        // Si tiene permisos, verificar que el usuario tenga al menos uno
+        return this.permissionsService.hasAnyPermission(item.permissions);
+      });
   });
 
   readonly currentUser: Signal<AuthUser | null>;

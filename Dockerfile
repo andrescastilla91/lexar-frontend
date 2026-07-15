@@ -27,6 +27,7 @@ RUN printf '%s\n' \
   "  environment: 'production'," \
   "  version: '${APP_VERSION}'," \
   "  apiUrl: '${API_URL}'," \
+  "  features: { chatbot: false }," \
   "};" \
   > src/environments/environment.ts
 

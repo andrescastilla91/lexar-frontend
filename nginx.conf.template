@@ -27,7 +27,11 @@ server {
     client_max_body_size 25m;   # subida de documentos legales
 
     # --- API: proxy al backend interno (nunca expuesto públicamente) ---
-    location /api/ {
+    # ^~ evita que el bloque regex de cache de assets (más abajo) le robe
+    # rutas como /api/docs/swagger-ui.css — sin esto, nginx prioriza
+    # cualquier location regex sobre un prefix location, sin importar
+    # cuál es más específico.
+    location ^~ /api/ {
         resolver ${NAMESERVER} valid=30s;
         set $upstream http://${BACKEND_HOST};
         proxy_pass $upstream$request_uri;

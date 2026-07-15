@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/guards/auth.guard';
+import { chatbotFeatureGuard } from './core/guards/feature-flag.guard';
 import { MainLayoutComponent } from './layout/main-layout.component';
 
 export const routes: Routes = [
@@ -51,6 +52,7 @@ export const routes: Routes = [
 			},
 			{
 				path: 'chatbot',
+				canActivate: [chatbotFeatureGuard],
 				loadComponent: () => import('./features/chatbot/chatbot.component').then((m) => m.ChatbotComponent),
 			},
 			{
