@@ -3,4 +3,4 @@ export { DataTableComponent, type TableColumn, type TableAction } from './data-t
 export { ConfirmDialogComponent } from './confirm-dialog.component';
 export { CatalogAssignModalComponent, type CatalogAssignItem } from './catalog-assign-modal.component';
 export { FormModalShellComponent } from './form-modal-shell.component';
-export { FilePreviewModalComponent } from './file-preview-modal.component';
+export { FilePreviewModalComponent, type FilePreviewInfo } from './file-preview-modal.component';
