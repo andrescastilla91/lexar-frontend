@@ -7,6 +7,7 @@ import { AuthUser } from '../core/models/auth.model';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { filter } from 'rxjs';
 import { environment } from '../../environments/environment';
+import { ConfirmDialogComponent } from '../core/components/confirm-dialog.component';
 
 interface MenuItem {
   label: string;
@@ -19,7 +20,7 @@ interface MenuItem {
 @Component({
   selector: 'app-main-layout',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, ConfirmDialogComponent],
   template: `
     <div class="min-h-screen bg-surface-muted text-text">
       <div class="flex h-screen overflow-hidden">
@@ -151,6 +152,7 @@ interface MenuItem {
           </main>
         </div>
       </div>
+      <app-confirm-dialog />
     </div>
     `,
 })

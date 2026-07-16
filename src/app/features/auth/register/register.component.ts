@@ -75,7 +75,7 @@ import { RegisterCompanyRequest } from '../../../core/models/auth.model';
                     id="email"
                     type="email"
                     formControlName="email"
-                    autocomplete="email"
+                    autocomplete="off"
                     class="w-full rounded-md border border-default px-3 py-2 text-sm text-text shadow-card transition focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
                     placeholder="nombre@empresa.com"
                   />
@@ -90,6 +90,7 @@ import { RegisterCompanyRequest } from '../../../core/models/auth.model';
                       id="password"
                       type="password"
                       formControlName="password"
+                      autocomplete="new-password"
                       class="w-full rounded-md border border-default px-3 py-2 text-sm text-text shadow-card transition focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
                       placeholder="Mínimo 8 caracteres"
                     />
@@ -103,6 +104,7 @@ import { RegisterCompanyRequest } from '../../../core/models/auth.model';
                       id="confirmPassword"
                       type="password"
                       formControlName="confirmPassword"
+                      autocomplete="new-password"
                       class="w-full rounded-md border border-default px-3 py-2 text-sm text-text shadow-card transition focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
                       placeholder="Repite contraseña"
                     />
@@ -149,6 +151,7 @@ import { RegisterCompanyRequest } from '../../../core/models/auth.model';
                         id="companyEmail"
                         type="email"
                         formControlName="companyEmail"
+                        autocomplete="off"
                         class="w-full rounded-md border border-default px-3 py-2 text-sm text-text shadow-card transition focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
                         placeholder="contacto@empresa.com"
                       />
@@ -246,6 +249,10 @@ export class RegisterComponent implements OnInit {
   }
 
   onSubmit(): void {
+    if (this.isSubmitting()) {
+      return;
+    }
+
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;

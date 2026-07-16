@@ -43,7 +43,7 @@ import { AuthService } from '../../../core/services/auth.service';
                   id="email"
                   type="email"
                   formControlName="email"
-                  autocomplete="email"
+                  autocomplete="off"
                   class="w-full rounded-md border border-default bg-surface px-4 py-3 text-base text-text shadow-card transition focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
                   placeholder="tucorreo@lexar.com"
                 />
@@ -58,7 +58,7 @@ import { AuthService } from '../../../core/services/auth.service';
                   id="password"
                   type="password"
                   formControlName="password"
-                  autocomplete="current-password"
+                  autocomplete="new-password"
                   class="w-full rounded-md border border-default bg-surface px-4 py-3 text-base text-text shadow-card transition focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
                   placeholder="••••••••"
                 />
@@ -128,6 +128,10 @@ export class LoginComponent implements OnInit {
   }
 
   onSubmit(): void {
+    if (this.isSubmitting()) {
+      return;
+    }
+
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;

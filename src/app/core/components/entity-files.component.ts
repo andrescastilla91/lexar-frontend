@@ -1,8 +1,11 @@
 import { Component, Input, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { FilesService } from '../services/files.service';
 import { FileModel } from '../models/file.model';
 import { HasPermissionDirective } from '../directives/has-permission.directive';
+import { ConfirmDialogService } from '../services/confirm-dialog.service';
+import { FilePreviewModalComponent } from './file-preview-modal.component';
 
 /**
  * Componente reutilizable para mostrar y gestionar archivos de una entidad
@@ -11,7 +14,7 @@ import { HasPermissionDirective } from '../directives/has-permission.directive';
 @Component({
   selector: 'app-entity-files',
   standalone: true,
-  imports: [CommonModule, HasPermissionDirective],
+  imports: [CommonModule, HasPermissionDirective, FilePreviewModalComponent],
   template: `
     <div class="space-y-4">
       <!-- Header con botón de carga -->
@@ -127,35 +130,12 @@ import { HasPermissionDirective } from '../directives/has-permission.directive';
       }
     </div>
 
-    <!-- Modal de preview (simple) -->
-    @if (previewUrl()) {
-      <div
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-        (click)="closePreview()"
-      >
-        <div class="relative max-h-[90vh] max-w-4xl w-full overflow-hidden rounded-lg bg-surface" (click)="$event.stopPropagation()">
-          <div class="flex items-center justify-between border-b border-default px-6 py-4">
-            <h3 class="text-lg font-semibold text-text">{{ previewingFile()?.originalFilename }}</h3>
-            <button
-              (click)="closePreview()"
-              class="rounded-lg p-2 text-subtle hover:bg-surface-muted"
-            >
-              <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          <div class="max-h-[80vh] overflow-auto p-6">
-            @if (previewingFile()?.isImage) {
-              <img [src]="previewUrl()!" [alt]="previewingFile()!.originalFilename" class="mx-auto max-w-full rounded-md" />
-            } @else if (previewingFile()?.isPdf) {
-              <iframe [src]="previewUrl()!" class="h-[70vh] w-full rounded-md border"></iframe>
-            }
-          </div>
-        </div>
-      </div>
-    }
+    <app-file-preview-modal
+      [file]="previewingFile()"
+      [url]="previewUrl()"
+      (close)="closePreview()"
+      (download)="downloadFile(previewingFile()!)"
+    />
   `,
 })
 export class EntityFilesComponent implements OnInit {
@@ -163,12 +143,14 @@ export class EntityFilesComponent implements OnInit {
   @Input({ required: true }) entityId!: string;
 
   private readonly filesService = inject(FilesService);
+  private readonly confirmDialog = inject(ConfirmDialogService);
+  private readonly sanitizer = inject(DomSanitizer);
 
   readonly files = signal<FileModel[]>([]);
   readonly loading = signal(false);
   readonly uploading = signal(false);
   readonly uploadError = signal<string | null>(null);
-  readonly previewUrl = signal<string | null>(null);
+  readonly previewUrl = signal<SafeResourceUrl | null>(null);
   readonly previewingFile = signal<FileModel | null>(null);
 
   ngOnInit(): void {
@@ -217,7 +199,7 @@ export class EntityFilesComponent implements OnInit {
   previewFile(file: FileModel): void {
     this.filesService.previewFile(file.id).subscribe({
       next: (url) => {
-        this.previewUrl.set(url);
+        this.previewUrl.set(this.sanitizer.bypassSecurityTrustResourceUrl(url));
         this.previewingFile.set(file);
       },
       error: (err) => console.error('Error generating preview URL:', err),
@@ -233,8 +215,13 @@ export class EntityFilesComponent implements OnInit {
     this.filesService.downloadFile(file.id).subscribe();
   }
 
-  deleteFile(file: FileModel): void {
-    if (!confirm(`¿Eliminar "${file.originalFilename}"?`)) {
+  async deleteFile(file: FileModel): Promise<void> {
+    const confirmed = await this.confirmDialog.confirm({
+      title: 'Eliminar documento',
+      message: `¿Eliminar "${file.originalFilename}"?`,
+      danger: true,
+    });
+    if (!confirmed) {
       return;
     }
 

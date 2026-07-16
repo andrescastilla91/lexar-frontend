@@ -21,6 +21,7 @@ import {
   UpdateProcessStatusRequest
 } from '../../core/models/legal-process.model';
 import { ProcessEvent, ProcessEventType } from '../../core/models/process-event.model';
+import { ConfirmDialogService } from '../../core/services/confirm-dialog.service';
 
 @Component({
   selector: 'app-processes',
@@ -988,6 +989,7 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   private readonly clientsService = inject(ClientsService);
   private readonly filesService = inject(FilesService);
   private readonly sanitizer = inject(DomSanitizer);
+  private readonly confirmDialog = inject(ConfirmDialogService);
 
   private fileDeletedSubscription?: Subscription;
 
@@ -1211,6 +1213,10 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   }
 
   submitProcess(): void {
+    if (this.isLoading()) {
+      return;
+    }
+
     if (this.processForm.invalid) {
       this.processForm.markAllAsTouched();
       this.formError.set('Completa los campos obligatorios.');
@@ -1378,6 +1384,10 @@ export class ProcessesComponent implements OnInit, OnDestroy {
 
   // HU-16: Crear anotación y subir archivos
   submitAnnotation(): void {
+    if (this.isLoading()) {
+      return;
+    }
+
     if (this.annotationForm.invalid || !this.editingProcess()) {
       return;
     }
@@ -1424,6 +1434,10 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   }
 
   updateStatus(): void {
+    if (this.isLoading()) {
+      return;
+    }
+
     if (this.statusForm.invalid || !this.editingProcess()) {
       return;
     }
@@ -1448,8 +1462,13 @@ export class ProcessesComponent implements OnInit, OnDestroy {
       });
   }
 
-  deleteProcess(process: LegalProcessResponse): void {
-    if (!confirm(`¿Estás seguro de eliminar el proceso "${process.title}"?`)) {
+  async deleteProcess(process: LegalProcessResponse): Promise<void> {
+    const confirmed = await this.confirmDialog.confirm({
+      title: 'Eliminar proceso',
+      message: `¿Estás seguro de eliminar el proceso "${process.title}"?`,
+      danger: true,
+    });
+    if (!confirmed) {
       return;
     }
 

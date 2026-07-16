@@ -82,6 +82,16 @@ export class AdvisorsService {
     );
   }
 
+  toggleActive(id: string): Observable<AdvisorResponse> {
+    return this.http.patch<AdvisorItemResponse>(`${this.apiUrl}/${id}/toggle-active`, {}).pipe(
+      map((response) => response.advisor),
+      catchError((error) => {
+        console.error('Error al cambiar estado del asesor:', error);
+        return throwError(() => new Error(error.error?.message || 'Error al cambiar estado del asesor'));
+      })
+    );
+  }
+
   deleteAdvisor(id: string): Observable<void> {
     return this.http.delete<{ message: string }>(`${this.apiUrl}/${id}`).pipe(
       map(() => void 0),

@@ -4,6 +4,7 @@ export interface UserBackend {
   lastName: string;
   email: string;
   isActive: boolean;
+  lastLoginAt: string | null;
   createdAt: string;
   roles: RoleBasic[];
 }
