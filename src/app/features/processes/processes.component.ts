@@ -9,34 +9,51 @@ import { FilesService } from '../../core/services/files.service';
 import { AdvisorResponse } from '../../core/models/advisor-backend.model';
 import { ClientResponse } from '../../core/models/client-backend.model';
 import { PaginationComponent } from '../../core/components/pagination.component';
+import { FilePreviewModalComponent } from '../../core/components/file-preview-modal.component';
 import { forkJoin, of, Subscription } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
-import { 
-  LegalProcessResponse, 
-  ProcessStatus, 
-  ProcessStage, 
+import {
+  LegalProcessResponse,
+  ProcessStatus,
+  ProcessStage,
   RiskLevel,
   CreateLegalProcessRequest,
   UpdateLegalProcessRequest,
-  UpdateProcessStatusRequest
+  UpdateProcessStatusRequest,
 } from '../../core/models/legal-process.model';
-import { ProcessEvent, ProcessEventType } from '../../core/models/process-event.model';
+import { ProcessEvent } from '../../core/models/process-event.model';
+import { ConfirmDialogService } from '../../core/services/confirm-dialog.service';
+import { ProcessesTableComponent } from './components/processes-table.component';
+import { ProcessFormComponent } from './components/process-form.component';
+import { ProcessStatusModalComponent } from './components/process-status-modal.component';
+import { ProcessAnnotationModalComponent } from './components/process-annotation-modal.component';
+import { ProcessHistoryModalComponent } from './components/process-history-modal.component';
+import { getStatusLabel, getValidNextStatuses, isProcessEditable } from './utils/process-format.utils';
 
 @Component({
   selector: 'app-processes',
   standalone: true,
-  imports: [ReactiveFormsModule, PaginationComponent],
+  imports: [
+    ReactiveFormsModule,
+    PaginationComponent,
+    ProcessesTableComponent,
+    ProcessFormComponent,
+    ProcessStatusModalComponent,
+    ProcessAnnotationModalComponent,
+    ProcessHistoryModalComponent,
+    FilePreviewModalComponent,
+  ],
   template: `
     <div class="space-y-8">
       <!-- Header -->
       <header class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 class="text-2xl font-semibold text-slate-800">Procesos judiciales y administrativos</h2>
-          <p class="text-sm text-slate-500">Monitorea etapas, responsables y niveles de riesgo procesal.</p>
+          <h2 class="text-2xl font-semibold text-text">Procesos judiciales y administrativos</h2>
+          <p class="text-sm text-subtle">Monitorea etapas, responsables y niveles de riesgo procesal.</p>
         </div>
         <button
           type="button"
-          class="flex items-center gap-2 rounded-2xl bg-[#192033] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#111728]"
+          class="flex items-center gap-2 rounded-md bg-navy-900 px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:bg-navy-950"
           (click)="togglePanel()"
         >
           <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
@@ -49,25 +66,25 @@ import { ProcessEvent, ProcessEventType } from '../../core/models/process-event.
       <!-- Filters Panel -->
       <section class="relative grid gap-6">
         <form
-          class="grid gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"
+          class="grid gap-4 rounded-lg border border-default bg-surface p-6 shadow-card"
           [formGroup]="filterForm"
           (ngSubmit)="applyFilters()"
         >
           <div class="grid gap-4 md:grid-cols-4">
-            <label class="flex flex-col gap-2 text-sm text-slate-600 md:col-span-2">
+            <label class="flex flex-col gap-2 text-sm text-muted md:col-span-2">
               Búsqueda
               <input
                 formControlName="search"
                 type="search"
                 placeholder="Título, número de caso, descripción"
-                class="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                class="rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
               />
             </label>
-            <label class="flex flex-col gap-2 text-sm text-slate-600">
+            <label class="flex flex-col gap-2 text-sm text-muted">
               Estado
               <select
                 formControlName="status"
-                class="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                class="rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
               >
                 <option [value]="null">Todos</option>
                 <option [value]="ProcessStatus.DRAFT">Borrador</option>
@@ -79,11 +96,11 @@ import { ProcessEvent, ProcessEventType } from '../../core/models/process-event.
                 <option [value]="ProcessStatus.ARCHIVED">Archivado</option>
               </select>
             </label>
-            <label class="flex flex-col gap-2 text-sm text-slate-600">
+            <label class="flex flex-col gap-2 text-sm text-muted">
               Cliente
               <select
                 formControlName="clientId"
-                class="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
+                class="rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
               >
                 <option [value]="null">Todos</option>
                 @for (client of clients(); track client.id) {
@@ -95,14 +112,14 @@ import { ProcessEvent, ProcessEventType } from '../../core/models/process-event.
           <div class="flex gap-2">
             <button
               type="submit"
-              class="rounded-2xl bg-[#192033] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#111728]"
+              class="rounded-md bg-navy-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-navy-950"
             >
               Aplicar filtros
             </button>
             <button
               type="button"
               (click)="resetFilters()"
-              class="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+              class="rounded-md border border-default px-4 py-2 text-sm font-semibold text-muted transition hover:bg-surface-muted"
             >
               Limpiar
             </button>
@@ -111,869 +128,89 @@ import { ProcessEvent, ProcessEventType } from '../../core/models/process-event.
       </section>
 
       <!-- Create/Edit Form Modal -->
-      @if (panelOpen()) {
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" (click)="closePanel($event)">
-          <form 
-            class="w-full max-w-xl md:max-w-2xl grid gap-4 rounded-3xl border border-slate-200 bg-white p-4 md:p-6 shadow-2xl max-h-[90vh] overflow-y-auto" 
-            [formGroup]="processForm" 
-            (ngSubmit)="submitProcess()"
-            (click)="$event.stopPropagation()"
-          >
-            <h3 class="text-lg font-semibold text-slate-800">
-              {{ editingProcess() ? 'Editar proceso' : 'Registrar nuevo proceso' }}
-            </h3>
-            @if (processStatusMessage()) {
-              <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
-                <div class="flex items-start gap-2">
-                  <svg class="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                  <p class="text-sm text-amber-800">{{ processStatusMessage() }}</p>
-                </div>
-              </div>
-            }
-            <div class="grid gap-4">
-              <label class="text-sm text-slate-600">
-                Título del proceso *
-                <input
-                  formControlName="title"
-                  type="text"
-                  placeholder="Nombre referencial del proceso"
-                  class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
-                />
-              </label>
-              <label class="text-sm text-slate-600">
-                Descripción
-                <textarea
-                  formControlName="description"
-                  placeholder="Detalles del proceso"
-                  rows="3"
-                  class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
-                ></textarea>
-              </label>
-              <div class="grid gap-4 md:grid-cols-2">
-                <label class="text-sm text-slate-600">
-                  Cliente *
-                  <select
-                    formControlName="clientId"
-                    class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
-                  >
-                    <option value="">Seleccionar cliente</option>
-                    @for (client of clients(); track client.id) {
-                      <option [value]="client.id">{{ client.fullName }}</option>
-                    }
-                  </select>
-                </label>
-                <div class="text-sm text-slate-600">
-                  <label class="mb-2 block">Asesores responsables</label>
-                  <div class="mt-2 max-h-40 overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-3 shadow-sm">
-                    @if (advisors().length === 0) {
-                      <p class="text-center text-xs text-slate-500">No hay asesores disponibles</p>
-                    } @else {
-                      <div class="space-y-2">
-                        @for (advisor of advisors(); track advisor.id) {
-                          <label class="flex cursor-pointer items-center gap-3 rounded-lg p-2 transition hover:bg-white">
-                            <input
-                              type="checkbox"
-                              [checked]="isAdvisorSelected(advisor.id)"
-                              (change)="toggleAdvisor(advisor.id)"
-                              class="h-4 w-4 rounded border-slate-300 text-[#192033] focus:ring-2 focus:ring-[#192033]/30"
-                            />
-                            <div class="flex-1">
-                              <p class="text-xs font-medium text-slate-800">
-                                {{ advisor.user?.firstName }} {{ advisor.user?.lastName }}
-                              </p>
-                              <p class="text-xs text-slate-500">{{ advisor.specialty }}</p>
-                            </div>
-                          </label>
-                        }
-                      </div>
-                    }
-                  </div>
-                  <p class="mt-1 text-xs text-slate-500">Selecciona uno o más asesores para el proceso</p>
-                </div>
-              </div>
-              <div class="grid gap-4 md:grid-cols-2">
-                <label class="text-sm text-slate-600">
-                  Etapa
-                  <select
-                    formControlName="stage"
-                    class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
-                  >
-                    <option [value]="ProcessStage.INVESTIGATION">Investigación</option>
-                    <option [value]="ProcessStage.HEARING">Audiencia</option>
-                    <option [value]="ProcessStage.NOTIFICATION">Notificación</option>
-                    <option [value]="ProcessStage.EXECUTION">Ejecución</option>
-                  </select>
-                </label>
-                <label class="text-sm text-slate-600">
-                  Nivel de Riesgo
-                  <select
-                    formControlName="riskLevel"
-                    class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
-                  >
-                    <option [value]="RiskLevel.LOW">Bajo</option>
-                    <option [value]="RiskLevel.MEDIUM">Medio</option>
-                    <option [value]="RiskLevel.HIGH">Alto</option>
-                  </select>
-                </label>
-              </div>
-              <div class="grid gap-4 md:grid-cols-2">
-                <label class="text-sm text-slate-600">
-                  Corte / Jurisdicción
-                  <input
-                    formControlName="court"
-                    type="text"
-                    placeholder="Entidad o despacho"
-                    class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
-                  />
-                </label>
-                <div class="text-sm text-slate-600">
-                  <label class="block">Número de Caso</label>
-                  <div class="mt-2 flex gap-2">
-                    <input
-                      formControlName="caseNumber"
-                      type="text"
-                      placeholder="Radicado o número de expediente"
-                      class="flex-1 rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
-                    />
-                    <button
-                      type="button"
-                      (click)="generateCaseNumber()"
-                      class="rounded-2xl bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-200"
-                      title="Generar número automático"
-                    >
-                      <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
-                      </svg>
-                    </button>
-                  </div>
-                  <p class="mt-1 text-xs text-slate-500">Puedes generar un número automático o ingresarlo manualmente</p>
-                </div>
-              </div>
-              <div class="grid gap-4 md:grid-cols-3">
-                <label class="text-sm text-slate-600">
-                  Fecha de Inicio
-                  <input
-                    formControlName="startDate"
-                    type="date"
-                    class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
-                  />
-                </label>
-                <label class="text-sm text-slate-600">
-                  Próxima Audiencia
-                  <input
-                    formControlName="nextHearingDate"
-                    type="date"
-                    class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
-                  />
-                </label>
-                <label class="text-sm text-slate-600">
-                  Fecha de Fin
-                  <input
-                    formControlName="endDate"
-                    type="date"
-                    class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
-                  />
-                </label>
-              </div>
-            </div>
-            @if (formError()) {
-              <p class="rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-600">{{ formError() }}</p>
-            }
-            <div class="flex gap-2">
-              <button 
-                type="submit" 
-                class="rounded-2xl bg-[#192033] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#111728] disabled:opacity-50 disabled:cursor-not-allowed"
-                [disabled]="isLoading() || !canEditProcess()"
-              >
-                {{ editingProcess() ? 'Actualizar' : 'Guardar' }} proceso
-              </button>
-              <button 
-                type="button" 
-                (click)="togglePanel()"
-                class="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
-              >
-                Cancelar
-              </button>
-            </div>
-          </form>
-        </div>
-      }
+      <app-process-form
+        [form]="processForm"
+        [isOpen]="panelOpen()"
+        [isEditing]="!!editingProcess()"
+        [isSubmitting]="isLoading()"
+        [errorMessage]="formError()"
+        [statusMessage]="processStatusMessage()"
+        [canEdit]="canEditProcess()"
+        [clients]="clients()"
+        [advisors]="advisors()"
+        (close)="togglePanel()"
+        (submit)="submitProcess()"
+        (toggleAdvisor)="toggleAdvisor($event)"
+        (generateCaseNumber)="generateCaseNumber()"
+      />
 
       <!-- Status Update Modal (HU-14) -->
-      @if (statusModalOpen()) {
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" (click)="closeStatusModal($event)">
-          <form 
-            class="w-full max-w-md grid gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl" 
-            [formGroup]="statusForm" 
-            (ngSubmit)="updateStatus()"
-            (click)="$event.stopPropagation()"
-          >
-            <h3 class="text-lg font-semibold text-slate-800">Cambiar estado del proceso</h3>
-            <div class="grid gap-4">
-              <label class="text-sm text-slate-600">
-                Nuevo Estado *
-                <select
-                  formControlName="status"
-                  class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
-                >
-                  @for (status of validNextStatuses(); track status) {
-                    <option [value]="status">{{ getStatusLabel(status) }}</option>
-                  }
-                </select>
-                @if (validNextStatuses().length === 0) {
-                  <p class="mt-1 text-xs text-slate-500">No hay transiciones de estado disponibles desde el estado actual.</p>
-                } @else {
-                  <p class="mt-1 text-xs text-slate-500">Estados disponibles según el flujo de trabajo</p>
-                }
-              </label>
-              <label class="text-sm text-slate-600">
-                Notas
-                <textarea
-                  formControlName="notes"
-                  placeholder="Razón del cambio de estado (opcional)"
-                  rows="3"
-                  class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
-                ></textarea>
-              </label>
-            </div>
-            @if (formError()) {
-              <p class="rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-600">{{ formError() }}</p>
-            }
-            <div class="flex gap-2">
-              <button 
-                type="submit" 
-                class="rounded-2xl bg-[#192033] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#111728]"
-                [disabled]="isLoading()"
-              >
-                Actualizar estado
-              </button>
-              <button 
-                type="button" 
-                (click)="closeStatusModal()"
-                class="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
-              >
-                Cancelar
-              </button>
-            </div>
-          </form>
-        </div>
-      }
+      <app-process-status-modal
+        [form]="statusForm"
+        [isOpen]="statusModalOpen()"
+        [isSubmitting]="isLoading()"
+        [errorMessage]="formError()"
+        [validNextStatuses]="validNextStatuses()"
+        (close)="closeStatusModal()"
+        (submit)="updateStatus()"
+      />
 
       <!-- HU-17: History Modal -->
-      @if (historyModalOpen()) {
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" (click)="closeHistoryModal($event)">
-          <div 
-            class="w-full max-w-xl md:max-w-2xl lg:max-w-3xl flex flex-col rounded-3xl border border-slate-200 bg-white shadow-2xl overflow-hidden max-h-[85vh]" 
-            (click)="$event.stopPropagation()"
-          >
-            <!-- Header -->
-            <div class="flex items-center justify-between border-b border-slate-200 p-6">
-              <div>
-                <h3 class="text-lg font-semibold text-slate-800">Historial del proceso</h3>
-                <p class="text-sm text-slate-500">{{ editingProcess()?.title }}</p>
-              </div>
-              <button
-                type="button"
-                (click)="closeHistoryModal()"
-                class="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-              >
-                <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            <!-- Timeline Content -->
-            <div class="flex-1 overflow-y-auto p-6">
-              @if (isLoadingHistory()) {
-                <div class="flex items-center justify-center py-12">
-                  <div class="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-[#192033]"></div>
-                </div>
-              } @else if (processHistory().length === 0) {
-                <div class="py-12 text-center">
-                  <p class="text-sm text-slate-500">No hay eventos registrados para este proceso</p>
-                </div>
-              } @else {
-                <div class="space-y-4">
-                  @for (event of processHistory(); track event.id) {
-                    <div class="flex gap-4">
-                      <!-- Timeline line -->
-                      <div class="flex flex-col items-center">
-                        <div class="flex h-8 w-8 items-center justify-center rounded-full text-sm {{ getEventColor(event.type) }}">
-                          {{ getEventIcon(event.type) }}
-                        </div>
-                        @if (!$last) {
-                          <div class="h-full w-0.5 bg-slate-200"></div>
-                        }
-                      </div>
-
-                      <!-- Event content -->
-                      <div class="flex-1 pb-8">
-                        <div class="flex items-start justify-between">
-                          <div class="flex-1">
-                            <div class="flex items-center gap-2">
-                              <span class="text-xs font-semibold text-slate-600 {{ getEventColor(event.type) }} px-2 py-0.5 rounded-full">
-                                {{ getEventLabel(event.type) }}
-                              </span>
-                              <span class="text-xs text-slate-500">{{ formatDate(event.createdAt) }}</span>
-                            </div>
-                            <p class="mt-1 text-sm text-slate-700">{{ event.description }}</p>
-                            
-                            <!-- Archivos adjuntos -->
-                            @if (event.attachments && event.attachments.length > 0) {
-                              <div class="mt-3">
-                                <p class="text-xs font-medium text-slate-600 mb-2">Archivos adjuntos:</p>
-                                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                                  @for (attachment of event.attachments; track attachment.url) {
-                                    <div class="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-2 hover:bg-slate-100 transition">
-                                      <div class="flex items-center gap-2 flex-1 min-w-0">
-                                        <svg class="h-4 w-4 flex-shrink-0 text-slate-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                          <path stroke-linecap="round" stroke-linejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" />
-                                        </svg>
-                                        <div class="flex-1 min-w-0">
-                                          <p class="text-xs font-medium text-slate-700 truncate">{{ attachment.filename }}</p>
-                                          <p class="text-xs text-slate-500">{{ formatBytes(attachment.size) }}</p>
-                                        </div>
-                                      </div>
-                                      <div class="flex gap-1 flex-shrink-0">
-                                        <button
-                                          type="button"
-                                          (click)="previewFileFromHistory(attachment.url, attachment.filename)"
-                                          class="rounded-lg p-1.5 text-blue-600 hover:bg-blue-100 transition"
-                                          title="Ver archivo"
-                                        >
-                                          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                                          </svg>
-                                        </button>
-                                        <button
-                                          type="button"
-                                          (click)="downloadFile(attachment.url)"
-                                          class="rounded-lg p-1.5 text-emerald-600 hover:bg-emerald-100 transition"
-                                          title="Descargar archivo"
-                                        >
-                                          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                                          </svg>
-                                        </button>
-                                      </div>
-                                    </div>
-                                  }
-                                </div>
-                              </div>
-                            }
-                            
-                            <div class="mt-1 flex items-center gap-2 text-xs text-slate-500">
-                              <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
-                              </svg>
-                              <span>{{ event.user.firstName }} {{ event.user.lastName }}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  }
-                </div>
-              }
-            </div>
-
-            <!-- Footer -->
-            <div class="border-t border-slate-200 p-4">
-              <button
-                type="button"
-                (click)="closeHistoryModal()"
-                class="w-full rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
-              >
-                Cerrar
-              </button>
-            </div>
-          </div>
-        </div>
-      }
+      <app-process-history-modal
+        [isOpen]="historyModalOpen()"
+        [processTitle]="editingProcess()?.title ?? null"
+        [isLoadingHistory]="isLoadingHistory()"
+        [events]="processHistory()"
+        (close)="closeHistoryModal()"
+        (previewFile)="previewFileFromHistory($event.fileId, $event.filename)"
+        (downloadFile)="downloadFile($event)"
+      />
 
       <!-- File Preview Modal -->
-      @if (previewingFile()) {
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" (click)="closePreviewModal()">
-          <div class="w-full max-w-5xl flex flex-col rounded-3xl border border-slate-200 bg-white shadow-2xl overflow-hidden max-h-[90vh]" (click)="$event.stopPropagation()">
-            <!-- Header -->
-            <div class="flex items-center justify-between border-b border-slate-200 p-4">
-              <div class="flex-1 min-w-0">
-                <h3 class="text-lg font-semibold text-slate-800 truncate">{{ previewingFile()?.filename }}</h3>
-              </div>
-              <button
-                type="button"
-                (click)="closePreviewModal()"
-                class="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-              >
-                <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            <!-- Content -->
-            <div class="flex-1 overflow-auto p-6 bg-slate-50">
-              @if (isImageContentType(previewingFile()!.contentType)) {
-                <img [src]="previewUrl()!" [alt]="previewingFile()!.filename" class="mx-auto max-w-full rounded-2xl shadow-lg" />
-              } @else if (isPdfContentType(previewingFile()!.contentType)) {
-                <iframe [src]="previewUrl()!" class="h-[70vh] w-full rounded-2xl border border-slate-200 bg-white"></iframe>
-              } @else {
-                <div class="flex flex-col items-center justify-center py-12">
-                  <svg class="h-16 w-16 text-slate-300" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-                  </svg>
-                  <p class="mt-4 text-sm text-slate-500">Vista previa no disponible para este tipo de archivo</p>
-                  <button
-                    type="button"
-                    (click)="downloadFile(previewingFile()!.id)"
-                    class="mt-4 rounded-2xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
-                  >
-                    Descargar archivo
-                  </button>
-                </div>
-              }
-            </div>
-
-            <!-- Footer -->
-            <div class="border-t border-slate-200 p-4 flex gap-2 justify-end">
-              <button
-                type="button"
-                (click)="downloadFile(previewingFile()!.id)"
-                class="rounded-2xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
-              >
-                Descargar
-              </button>
-              <button
-                type="button"
-                (click)="closePreviewModal()"
-                class="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
-              >
-                Cerrar
-              </button>
-            </div>
-          </div>
-        </div>
-      }
+      <app-file-preview-modal
+        [file]="previewingFile()"
+        [url]="previewUrl()"
+        (close)="closePreviewModal()"
+        (download)="downloadFile(previewingFile()!.id)"
+      />
 
       <!-- HU-16: Annotation Modal -->
-      @if (annotationModalOpen()) {
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" (click)="closeAnnotationModal($event)">
-          <form 
-            class="w-full max-w-sm md:max-w-2xl lg:max-w-4xl grid gap-4 rounded-3xl border border-slate-200 bg-white p-4 md:p-6 shadow-2xl max-h-[90vh] overflow-y-auto" 
-            [formGroup]="annotationForm" 
-            (ngSubmit)="submitAnnotation()"
-            (click)="$event.stopPropagation()"
-          >
-            <h3 class="text-lg font-semibold text-slate-800">Agregar anotación</h3>
-            <strong>Proceso: </strong>
-            <h4 class="text-lg text-slate-500"> {{ editingProcess()?.title }}</h4>
-            
-            <div class="grid gap-4">
-              <label class="text-sm text-slate-600">
-                Descripción *
-                <textarea
-                  formControlName="description"
-                  placeholder="Describe el evento, acción o nota importante..."
-                  rows="4"
-                  maxlength="2000"
-                  class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 shadow-sm focus:border-[#192033] focus:outline-none focus:ring-2 focus:ring-[#192033]/30"
-                ></textarea>
-                <p class="mt-1 text-xs text-slate-500">
-                  {{ annotationForm.get('description')?.value?.length || 0 }} / 2000 caracteres
-                </p>
-              </label>
-
-              <!-- Cargar archivos opcionales -->
-              <div class="border-t border-slate-200 pt-4">
-                <label class="text-sm font-semibold text-slate-700">
-                  Archivos adjuntos (opcional)
-                  <div class="mt-2 flex items-center gap-2">
-                    <div class="flex-1 cursor-pointer">
-                      <div class="flex items-center gap-3 rounded-xl border-2 border-dashed {{ annotationFiles().length > 0 ? 'border-blue-400 bg-blue-50' : 'border-slate-300 bg-slate-50' }} px-4 py-3 transition hover:border-blue-400 hover:bg-blue-50">
-                        <svg class="h-5 w-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13" />
-                        </svg>
-                        <div class="flex-1 min-w-0">
-                          <input
-                            type="file"
-                            multiple
-                            (change)="onAnnotationFilesSelected($event)"
-                            class="hidden"
-                            #annotationFileInput
-                          />
-                          <p class="text-sm font-medium text-slate-700">
-                            @if (annotationFiles().length > 0) {
-                              {{ annotationFiles().length }} archivo(s) seleccionado(s)
-                            } @else {
-                              Seleccionar archivos
-                            }
-                          </p>
-                          <p class="text-xs text-slate-500">Click para adjuntar archivos a esta anotación</p>
-                        </div>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      (click)="annotationFileInput.click()"
-                      class="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                    >
-                      Adjuntar
-                    </button>
-                  </div>
-                </label>
-
-                <!-- Lista de archivos seleccionados -->
-                @if (annotationFiles().length > 0) {
-                  <div class="mt-3 space-y-2">
-                    @for (file of annotationFiles(); track $index) {
-                      <div class="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2">
-                        <div class="flex items-center gap-2 flex-1 min-w-0">
-                          <svg class="h-4 w-4 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                          </svg>
-                          <span class="text-sm text-slate-700 truncate">{{ file.name }}</span>
-                          <span class="text-xs text-slate-500">{{ formatBytes(file.size) }}</span>
-                        </div>
-                        <button
-                          type="button"
-                          (click)="removeAnnotationFile($index)"
-                          class="rounded p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
-                        >
-                          <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </div>
-                    }
-                  </div>
-                }
-              </div>
-            </div>
-
-            @if (formError()) {
-              <p class="rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-600">{{ formError() }}</p>
-            }
-
-            <div class="flex gap-2">
-              <button 
-                type="submit" 
-                class="rounded-2xl bg-[#192033] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#111728]"
-                [disabled]="isLoading() || annotationForm.invalid"
-              >
-                Guardar anotación
-              </button>
-              <button 
-                type="button" 
-                (click)="closeAnnotationModal()"
-                class="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
-              >
-                Cancelar
-              </button>
-            </div>
-          </form>
-        </div>
-      }
+      <app-process-annotation-modal
+        [form]="annotationForm"
+        [isOpen]="annotationModalOpen()"
+        [isSubmitting]="isLoading()"
+        [errorMessage]="formError()"
+        [processTitle]="editingProcess()?.title ?? null"
+        [files]="annotationFiles()"
+        (close)="closeAnnotationModal()"
+        (submit)="submitAnnotation()"
+        (filesSelected)="onAnnotationFilesSelected($event)"
+        (removeFile)="removeAnnotationFile($event)"
+      />
 
       <!-- Data Table -->
-      @if (isLoading()) {
-        <div class="flex items-center justify-center py-12">
-          <div class="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-[#192033]"></div>
-        </div>
-      } @else if (processes().length === 0) {
-        <div class="rounded-3xl border border-slate-200 bg-white p-12 text-center">
-          <p class="text-slate-500">No hay procesos registrados</p>
-        </div>
-      } @else {
-        <!-- Vista de Lista (Cards) -->
-        <div class="space-y-4">
-          @for (process of processes(); track process.id) {
-            <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm hover:shadow-md transition-shadow">
-              <div class="space-y-4">
-                <!-- Header: Título y Botones de Acción -->
-                <div class="flex items-start justify-between gap-4">
-                  <!-- Título y Número de Caso -->
-                  <div class="flex-1 min-w-0">
-                    <h3 class="text-lg font-semibold text-slate-800">{{ process.title }}</h3>
-                    <p class="mt-1 font-mono text-sm text-slate-500">
-                      {{ process.caseNumber || 'Sin número de caso asignado' }}
-                    </p>
-                  </div>
+      <app-processes-table
+        [processes]="processes()"
+        [isLoading]="isLoading()"
+        (edit)="editProcess($event)"
+        (changeStatus)="openStatusModal($event)"
+        (viewHistory)="openHistoryModal($event)"
+        (annotate)="openAnnotationModal($event)"
+        (delete)="deleteProcess($event)"
+      />
 
-                  <!-- Botones de Acción (solo iconos) -->
-                  <div class="flex items-center gap-2">
-                    <button
-                      type="button"
-                      (click)="editProcess(process)"
-                      class="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
-                      title="Editar proceso"
-                    >
-                      <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 3.487 3.65 3.65a1 1 0 0 1 0 1.415L8.96 20.104a1 1 0 0 1-.708.292H4.5a.75.75 0 0 1-.75-.75v-3.752a1 1 0 0 1 .293-.707L15.447 3.487a1 1 0 0 1 1.415 0Z" />
-                      </svg>
-                    </button>
-
-                    <button
-                      type="button"
-                      (click)="openStatusModal(process)"
-                      class="rounded-lg p-2 text-blue-600 transition hover:bg-blue-50"
-                      title="Cambiar estado"
-                    >
-                      <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
-                      </svg>
-                    </button>
-
-                    <button
-                      type="button"
-                      (click)="openHistoryModal(process)"
-                      class="rounded-lg p-2 text-indigo-600 transition hover:bg-indigo-50"
-                      title="Ver historial"
-                    >
-                      <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                      </svg>
-                    </button>
-
-                    @if (process.status === ProcessStatus.ACTIVE) {
-                      <button
-                        type="button"
-                        (click)="openAnnotationModal(process)"
-                        class="rounded-lg p-2 text-emerald-600 transition hover:bg-emerald-50"
-                        title="Agregar anotación"
-                      >
-                        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m3.75 9v6m3-3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-                        </svg>
-                      </button>
-                    }
-
-                    <button
-                      type="button"
-                      (click)="deleteProcess(process)"
-                      class="rounded-lg p-2 text-rose-600 transition hover:bg-rose-50"
-                      title="Eliminar proceso"
-                    >
-                      <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-
-                <!-- Grid de Información -->
-                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <!-- Cliente -->
-                  <div>
-                    <p class="text-xs font-medium text-slate-500 uppercase tracking-wide">Cliente</p>
-                    <p class="mt-1 text-sm font-medium text-slate-800">{{ process.client.fullName || 'Sin cliente' }}</p>
-                  </div>
-
-                  <!-- Estado -->
-                  <div>
-                    <p class="text-xs font-medium text-slate-500 uppercase tracking-wide">Estado</p>
-                    <span class="mt-1 inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold"
-                      [class]="getStatusClasses(process.status)">
-                      <span class="h-2 w-2 rounded-full" [class]="getStatusDot(process.status)"></span>
-                      {{ getStatusLabel(process.status) }}
-                    </span>
-                  </div>
-
-                  <!-- Etapa -->
-                  <div>
-                    <p class="text-xs font-medium text-slate-500 uppercase tracking-wide">Etapa</p>
-                    <p class="mt-1 text-sm text-slate-700">{{ getStageLabel(process.stage) }}</p>
-                  </div>
-
-                  <!-- Riesgo -->
-                  <div>
-                    <p class="text-xs font-medium text-slate-500 uppercase tracking-wide">Riesgo</p>
-                    <span class="mt-1 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold"
-                      [class]="getRiskClasses(process.riskLevel)">
-                      {{ getRiskLabel(process.riskLevel) }}
-                    </span>
-                  </div>
-                </div>
-
-                <!-- Asesores y Fecha -->
-                <div class="flex flex-wrap items-center gap-4 text-sm">
-                  <!-- Asesores -->
-                  @if (process.advisors && process.advisors.length > 0) {
-                    <div class="flex items-center gap-2">
-                      <svg class="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
-                      </svg>
-                      <div class="flex flex-wrap gap-1">
-                        @for (advisor of process.advisors; track advisor.id) {
-                          <span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
-                            {{ advisor.user?.firstName }} {{ advisor.user?.lastName }}
-                          </span>
-                        }
-                      </div>
-                    </div>
-                  } @else {
-                    <div class="flex items-center gap-2 text-slate-400">
-                      <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
-                      </svg>
-                      <span class="text-xs">Sin asesores asignados</span>
-                    </div>
-                  }
-
-                  <!-- Fecha de actualización -->
-                  <div class="flex items-center gap-2 text-slate-500">
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                    </svg>
-                    <span class="text-xs">Actualizado {{ formatDate(process.updatedAt) }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          }
-        </div>
-
-
-
-        <!-- Vista Mobile/Tablet: Cards -->
-        <div class="grid gap-4 md:hidden">
-          @for (process of processes(); track process.id) {
-            <div class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div class="space-y-3">
-                <!-- Título y número de caso -->
-                <div>
-                  <p class="font-semibold text-slate-800">{{ process.title }}</p>
-                  @if (process.caseNumber) {
-                    <p class="mt-1 font-mono text-xs text-slate-500">{{ process.caseNumber }}</p>
-                  }
-                </div>
-
-                <!-- Info grid -->
-                <div class="grid gap-2 text-sm">
-                  <div class="flex items-start justify-between gap-2">
-                    <span class="text-xs font-medium text-slate-500">Cliente:</span>
-                    <span class="text-xs text-slate-800">{{ process.client.fullName || 'Sin cliente' }}</span>
-                  </div>
-                  
-                  <div class="flex items-start justify-between gap-2">
-                    <span class="text-xs font-medium text-slate-500">Estado:</span>
-                    <span class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium"
-                      [class]="getStatusClasses(process.status)">
-                      <span class="h-2 w-2 rounded-full" [class]="getStatusDot(process.status)"></span>
-                      {{ getStatusLabel(process.status) }}
-                    </span>
-                  </div>
-                  
-                  <div class="flex items-start justify-between gap-2">
-                    <span class="text-xs font-medium text-slate-500">Etapa:</span>
-                    <span class="text-xs text-slate-800">{{ getStageLabel(process.stage) }}</span>
-                  </div>
-                  
-                  <div class="flex items-start justify-between gap-2">
-                    <span class="text-xs font-medium text-slate-500">Riesgo:</span>
-                    <span class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium"
-                      [class]="getRiskClasses(process.riskLevel)">
-                      {{ getRiskLabel(process.riskLevel) }}
-                    </span>
-                  </div>
-                  
-                  @if (process.advisors && process.advisors.length > 0) {
-                    <div class="flex items-start justify-between gap-2">
-                      <span class="text-xs font-medium text-slate-500">Asesores:</span>
-                      <div class="flex flex-col items-end gap-1">
-                        @for (advisor of process.advisors; track advisor.id) {
-                          <span class="text-xs text-slate-700">
-                            {{ advisor.user?.firstName }} {{ advisor.user?.lastName }}
-                          </span>
-                        }
-                      </div>
-                    </div>
-                  }
-                  
-                  <div class="flex items-start justify-between gap-2">
-                    <span class="text-xs font-medium text-slate-500">Actualizado:</span>
-                    <span class="text-xs text-slate-600">{{ formatDate(process.updatedAt) }}</span>
-                  </div>
-                </div>
-
-                <!-- Acciones mobile -->
-                <div class="grid grid-cols-2 gap-2 border-t border-slate-200 pt-3">
-                  <button
-                    type="button"
-                    (click)="editProcess(process)"
-                    class="flex items-center justify-center gap-2 rounded-xl bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-200"
-                  >
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 3.487 3.65 3.65a1 1 0 0 1 0 1.415L8.96 20.104a1 1 0 0 1-.708.292H4.5a.75.75 0 0 1-.75-.75v-3.752a1 1 0 0 1 .293-.707L15.447 3.487a1 1 0 0 1 1.415 0Z" />
-                    </svg>
-                    Editar
-                  </button>
-                  <button
-                    type="button"
-                    (click)="openStatusModal(process)"
-                    class="flex items-center justify-center gap-2 rounded-xl bg-blue-100 px-3 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-200"
-                  >
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
-                    </svg>
-                    Estado
-                  </button>
-                  <!-- HU-17: Botón historial -->
-                  <button
-                    type="button"
-                    (click)="openHistoryModal(process)"
-                    class="flex items-center justify-center gap-2 rounded-xl bg-indigo-100 px-3 py-2 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-200"
-                  >
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                    </svg>
-                    Historial
-                  </button>
-                  <!-- HU-16: Botón anotación (solo si ACTIVE) -->
-                  @if (process.status === ProcessStatus.ACTIVE) {
-                    <button
-                      type="button"
-                      (click)="openAnnotationModal(process)"
-                      class="flex items-center justify-center gap-2 rounded-xl bg-emerald-100 px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-200"
-                    >
-                      <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m3.75 9v6m3-3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-                      </svg>
-                      Anotar
-                    </button>
-                  }
-                  <button
-                    type="button"
-                    (click)="deleteProcess(process)"
-                    class="flex items-center justify-center gap-2 rounded-xl bg-rose-100 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-200"
-                  >
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-                    </svg>
-                    Eliminar
-                  </button>
-                </div>
-              </div>
-            </div>
-          }
-        </div>
-
-        <!-- Paginación -->
-        @if (totalItems() > 0) {
-          <app-pagination
-            [total]="totalItems()"
-            [currentPage]="currentPage()"
-            [pageSize]="pageSize"
-            [currentItems]="processes().length"
-            [totalPages]="totalPages()"
-            [itemLabel]="'procesos'"
-            (nextPage)="nextPage()"
-            (previousPage)="previousPage()"
-          />
-        }
+      <!-- Paginación -->
+      @if (totalItems() > 0) {
+        <app-pagination
+          [total]="totalItems()"
+          [currentPage]="currentPage()"
+          [pageSize]="pageSize"
+          [currentItems]="processes().length"
+          [totalPages]="totalPages()"
+          [itemLabel]="'procesos'"
+          (nextPage)="nextPage()"
+          (previousPage)="previousPage()"
+        />
       }
     </div>
   `,
@@ -986,6 +223,7 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   private readonly clientsService = inject(ClientsService);
   private readonly filesService = inject(FilesService);
   private readonly sanitizer = inject(DomSanitizer);
+  private readonly confirmDialog = inject(ConfirmDialogService);
 
   private fileDeletedSubscription?: Subscription;
 
@@ -993,7 +231,6 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   readonly ProcessStatus = ProcessStatus;
   readonly ProcessStage = ProcessStage;
   readonly RiskLevel = RiskLevel;
-  readonly ProcessEventType = ProcessEventType;
 
   // Signal state
   readonly processes = signal<LegalProcessResponse[]>([]);
@@ -1009,7 +246,7 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   readonly editingProcess = signal<LegalProcessResponse | null>(null);
   readonly processHistory = signal<ProcessEvent[]>([]); // HU-17
   readonly isLoadingHistory = signal(false); // HU-17
-  readonly previewingFile = signal<{ id: string; filename: string; contentType: string } | null>(null);
+  readonly previewingFile = signal<{ id: string; originalFilename: string; isImage: boolean; isPdf: boolean } | null>(null);
   readonly previewUrl = signal<SafeResourceUrl | null>(null);
   readonly currentPage = signal(1);
   readonly totalItems = signal(0);
@@ -1017,20 +254,19 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   // Computed signals
   readonly validNextStatuses = computed(() => {
     const process = this.editingProcess();
-    return process ? this.getValidNextStatuses(process.status) : [];
+    return process ? getValidNextStatuses(process.status) : [];
   });
 
   readonly canEditProcess = computed(() => {
     const process = this.editingProcess();
     if (!process) return true; // Nuevo proceso, siempre editable
-    const editableStatuses = [ProcessStatus.DRAFT, ProcessStatus.ACTIVE, ProcessStatus.SUSPENDED];
-    return editableStatuses.includes(process.status);
+    return isProcessEditable(process.status);
   });
 
   readonly processStatusMessage = computed(() => {
     const process = this.editingProcess();
     if (!process) return null;
-    
+
     switch (process.status) {
       case ProcessStatus.COMPLETED:
         return 'Este proceso está completado. No se pueden realizar cambios.';
@@ -1049,12 +285,6 @@ export class ProcessesComponent implements OnInit, OnDestroy {
     }
   });
 
-  // HU-16: Solo se pueden agregar anotaciones a procesos ACTIVE
-  readonly canAddAnnotation = computed(() => {
-    const process = this.editingProcess();
-    return process?.status === ProcessStatus.ACTIVE;
-  });
-
   readonly pageSize = 10;
 
   readonly totalPages = computed(() => Math.ceil(this.totalItems() / this.pageSize));
@@ -1065,7 +295,6 @@ export class ProcessesComponent implements OnInit, OnDestroy {
     status: [null as ProcessStatus | null],
     clientId: [null as string | null],
   });
-
 
   readonly processForm = this.fb.nonNullable.group({
     title: ['', [Validators.required]],
@@ -1101,17 +330,13 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   loadProcesses(): void {
     this.isLoading.set(true);
     const filters = this.filterForm.getRawValue();
-    
+
     this.legalProcessesService
-      .getLegalProcesses(
-        this.currentPage(),
-        this.pageSize,
-        {
-          status: filters.status || undefined,
-          clientId: filters.clientId || undefined,
-          search: filters.search || undefined,
-        }
-      )
+      .getLegalProcesses(this.currentPage(), this.pageSize, {
+        status: filters.status || undefined,
+        clientId: filters.clientId || undefined,
+        search: filters.search || undefined,
+      })
       .subscribe({
         next: (response) => {
           this.processes.set(response.legalProcesses);
@@ -1191,7 +416,7 @@ export class ProcessesComponent implements OnInit, OnDestroy {
         endDate: '',
       });
       // Habilitar todos los campos para nuevo proceso
-      Object.keys(this.processForm.controls).forEach(key => {
+      Object.keys(this.processForm.controls).forEach((key) => {
         this.processForm.get(key)?.enable();
       });
       this.formError.set(null);
@@ -1200,15 +425,11 @@ export class ProcessesComponent implements OnInit, OnDestroy {
     }
   }
 
-  closePanel(event?: MouseEvent): void {
-    if (event) {
-      // Solo cerrar si se hizo clic en el overlay (fondo)
+  submitProcess(): void {
+    if (this.isLoading()) {
       return;
     }
-    this.togglePanel();
-  }
 
-  submitProcess(): void {
     if (this.processForm.invalid) {
       this.processForm.markAllAsTouched();
       this.formError.set('Completa los campos obligatorios.');
@@ -1231,7 +452,8 @@ export class ProcessesComponent implements OnInit, OnDestroy {
       nextHearingDate: formValue.nextHearingDate || undefined,
       endDate: formValue.endDate || undefined,
       clientId: formValue.clientId,
-      advisorIds: formValue.advisorIds.length > 0 ? formValue.advisorIds : undefined,
+      // Se envía siempre el array real: omitirlo cuando queda vacío hace que el backend nunca toque la relación.
+      advisorIds: formValue.advisorIds,
     };
 
     // El estado solo se incluye al crear (siempre DRAFT)
@@ -1264,7 +486,7 @@ export class ProcessesComponent implements OnInit, OnDestroy {
       title: process.title,
       description: process.description || '',
       clientId: process.clientId,
-      advisorIds: process.advisors?.map(a => a.id) || [],
+      advisorIds: process.advisors?.map((a) => a.id) || [],
       status: process.status,
       stage: process.stage,
       riskLevel: process.riskLevel,
@@ -1287,10 +509,7 @@ export class ProcessesComponent implements OnInit, OnDestroy {
     this.statusModalOpen.set(true);
   }
 
-  closeStatusModal(event?: MouseEvent): void {
-    if (event) {
-      return;
-    }
+  closeStatusModal(): void {
     this.statusModalOpen.set(false);
     this.editingProcess.set(null);
     this.statusForm.reset();
@@ -1305,10 +524,7 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   }
 
   // HU-17: Cerrar modal de historial
-  closeHistoryModal(event?: MouseEvent): void {
-    if (event) {
-      return;
-    }
+  closeHistoryModal(): void {
     this.historyModalOpen.set(false);
     this.editingProcess.set(null);
     this.processHistory.set([]);
@@ -1338,10 +554,7 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   }
 
   // HU-16: Cerrar modal de anotación
-  closeAnnotationModal(event?: MouseEvent): void {
-    if (event) {
-      return;
-    }
+  closeAnnotationModal(): void {
     this.annotationModalOpen.set(false);
     this.editingProcess.set(null);
     this.annotationForm.reset();
@@ -1365,17 +578,12 @@ export class ProcessesComponent implements OnInit, OnDestroy {
     this.annotationFiles.set([...files]);
   }
 
-  // HU-16: Formatear tamaño de archivo
-  formatBytes(bytes: number): string {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
-  }
-
   // HU-16: Crear anotación y subir archivos
   submitAnnotation(): void {
+    if (this.isLoading()) {
+      return;
+    }
+
     if (this.annotationForm.invalid || !this.editingProcess()) {
       return;
     }
@@ -1398,11 +606,11 @@ export class ProcessesComponent implements OnInit, OnDestroy {
           // Obtener el ID del evento de anotación creado
           const annotationEventId = annotationEvent.id;
           // Subir todos los archivos en paralelo, vinculados a la anotación
-          const uploads = files.map(file =>
-            this.filesService.uploadFile(file, 'legal_process', processId, undefined, annotationEventId)
+          const uploads = files.map((file) =>
+            this.filesService.uploadFile(file, 'legal_process', processId, undefined, annotationEventId),
           );
           return forkJoin(uploads);
-        })
+        }),
       )
       .subscribe({
         next: () => {
@@ -1421,33 +629,52 @@ export class ProcessesComponent implements OnInit, OnDestroy {
       });
   }
 
-  updateStatus(): void {
+  async updateStatus(): Promise<void> {
+    if (this.isLoading()) {
+      return;
+    }
+
     if (this.statusForm.invalid || !this.editingProcess()) {
       return;
     }
 
-    this.isLoading.set(true);
-    this.formError.set(null);
     const request: UpdateProcessStatusRequest = this.statusForm.getRawValue();
 
-    this.legalProcessesService
-      .updateProcessStatus(this.editingProcess()!.id, request)
-      .subscribe({
-        next: () => {
-          this.isLoading.set(false);
-          this.closeStatusModal();
-          this.loadProcesses();
-        },
-        error: (error) => {
-          console.error('Error updating status:', error);
-          this.formError.set(error.error?.message || 'Error al actualizar el estado');
-          this.isLoading.set(false);
-        },
+    if (getValidNextStatuses(request.status).length === 0) {
+      const confirmed = await this.confirmDialog.confirm({
+        title: 'Confirmar cambio de estado',
+        message: `Cambiar el proceso a "${getStatusLabel(request.status)}" es definitivo: no se podrá volver a cambiar su estado después. ¿Deseas continuar?`,
+        danger: true,
       });
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    this.isLoading.set(true);
+    this.formError.set(null);
+
+    this.legalProcessesService.updateProcessStatus(this.editingProcess()!.id, request).subscribe({
+      next: () => {
+        this.isLoading.set(false);
+        this.closeStatusModal();
+        this.loadProcesses();
+      },
+      error: (error) => {
+        console.error('Error updating status:', error);
+        this.formError.set(error.error?.message || 'Error al actualizar el estado');
+        this.isLoading.set(false);
+      },
+    });
   }
 
-  deleteProcess(process: LegalProcessResponse): void {
-    if (!confirm(`¿Estás seguro de eliminar el proceso "${process.title}"?`)) {
+  async deleteProcess(process: LegalProcessResponse): Promise<void> {
+    const confirmed = await this.confirmDialog.confirm({
+      title: 'Eliminar proceso',
+      message: `¿Estás seguro de eliminar el proceso "${process.title}"?`,
+      danger: true,
+    });
+    if (!confirmed) {
       return;
     }
 
@@ -1465,79 +692,10 @@ export class ProcessesComponent implements OnInit, OnDestroy {
     });
   }
 
-  // Label helpers
-  getStatusLabel(status: ProcessStatus): string {
-    const labels: Record<ProcessStatus, string> = {
-      [ProcessStatus.DRAFT]: 'Borrador',
-      [ProcessStatus.ACTIVE]: 'Activo',
-      [ProcessStatus.UNDER_REVIEW]: 'En Revisión',
-      [ProcessStatus.SUSPENDED]: 'Suspendido',
-      [ProcessStatus.COMPLETED]: 'Completado',
-      [ProcessStatus.CANCELLED]: 'Cancelado',
-      [ProcessStatus.ARCHIVED]: 'Archivado',
-    };
-    return labels[status] || status;
-  }
-
-  getStageLabel(stage: ProcessStage): string {
-    const labels: Record<ProcessStage, string> = {
-      [ProcessStage.INVESTIGATION]: 'Investigación',
-      [ProcessStage.HEARING]: 'Audiencia',
-      [ProcessStage.NOTIFICATION]: 'Notificación',
-      [ProcessStage.EXECUTION]: 'Ejecución',
-    };
-    return labels[stage] || stage;
-  }
-
-  getRiskLabel(risk: RiskLevel): string {
-    const labels: Record<RiskLevel, string> = {
-      [RiskLevel.LOW]: 'Bajo',
-      [RiskLevel.MEDIUM]: 'Medio',
-      [RiskLevel.HIGH]: 'Alto',
-    };
-    return labels[risk] || risk;
-  }
-
-  // Styling helpers
-  getStatusClasses(status: ProcessStatus): string {
-    const classes: Record<ProcessStatus, string> = {
-      [ProcessStatus.DRAFT]: 'bg-slate-100 text-slate-700',
-      [ProcessStatus.ACTIVE]: 'bg-blue-100 text-blue-700',
-      [ProcessStatus.UNDER_REVIEW]: 'bg-amber-100 text-amber-700',
-      [ProcessStatus.SUSPENDED]: 'bg-orange-100 text-orange-700',
-      [ProcessStatus.COMPLETED]: 'bg-emerald-100 text-emerald-700',
-      [ProcessStatus.CANCELLED]: 'bg-rose-100 text-rose-700',
-      [ProcessStatus.ARCHIVED]: 'bg-slate-100 text-slate-500',
-    };
-    return classes[status] || 'bg-slate-100 text-slate-700';
-  }
-
-  getStatusDot(status: ProcessStatus): string {
-    const classes: Record<ProcessStatus, string> = {
-      [ProcessStatus.DRAFT]: 'bg-slate-500',
-      [ProcessStatus.ACTIVE]: 'bg-blue-500',
-      [ProcessStatus.UNDER_REVIEW]: 'bg-amber-500',
-      [ProcessStatus.SUSPENDED]: 'bg-orange-500',
-      [ProcessStatus.COMPLETED]: 'bg-emerald-500',
-      [ProcessStatus.CANCELLED]: 'bg-rose-500',
-      [ProcessStatus.ARCHIVED]: 'bg-slate-400',
-    };
-    return classes[status] || 'bg-slate-500';
-  }
-
-  getRiskClasses(risk: RiskLevel): string {
-    const classes: Record<RiskLevel, string> = {
-      [RiskLevel.LOW]: 'bg-emerald-100 text-emerald-700',
-      [RiskLevel.MEDIUM]: 'bg-amber-100 text-amber-700',
-      [RiskLevel.HIGH]: 'bg-rose-100 text-rose-700',
-    };
-    return classes[risk] || 'bg-slate-100 text-slate-700';
-  }
-
   // Workflow helpers
   configureEditableFields(status: ProcessStatus): void {
     // Habilitar todos los campos primero
-    Object.keys(this.processForm.controls).forEach(key => {
+    Object.keys(this.processForm.controls).forEach((key) => {
       this.processForm.get(key)?.enable();
     });
 
@@ -1571,44 +729,26 @@ export class ProcessesComponent implements OnInit, OnDestroy {
       case ProcessStatus.CANCELLED:
       case ProcessStatus.ARCHIVED:
         // Procesos finalizados no son editables
-        Object.keys(this.processForm.controls).forEach(key => {
+        Object.keys(this.processForm.controls).forEach((key) => {
           this.processForm.get(key)?.disable();
         });
         break;
     }
   }
 
-  getValidNextStatuses(currentStatus: ProcessStatus): ProcessStatus[] {
-    const validTransitions: Record<ProcessStatus, ProcessStatus[]> = {
-      [ProcessStatus.DRAFT]: [ProcessStatus.ACTIVE, ProcessStatus.CANCELLED],
-      [ProcessStatus.ACTIVE]: [ProcessStatus.UNDER_REVIEW, ProcessStatus.SUSPENDED, ProcessStatus.CANCELLED],
-      [ProcessStatus.UNDER_REVIEW]: [ProcessStatus.ACTIVE, ProcessStatus.COMPLETED, ProcessStatus.CANCELLED],
-      [ProcessStatus.SUSPENDED]: [ProcessStatus.ACTIVE, ProcessStatus.CANCELLED],
-      [ProcessStatus.COMPLETED]: [ProcessStatus.ARCHIVED],
-      [ProcessStatus.CANCELLED]: [],
-      [ProcessStatus.ARCHIVED]: [],
-    };
-    return validTransitions[currentStatus] || [];
-  }
-
-  isAdvisorSelected(advisorId: string): boolean {
-    const selectedIds = this.processForm.get('advisorIds')?.value || [];
-    return selectedIds.includes(advisorId);
-  }
-
   toggleAdvisor(advisorId: string): void {
     const currentIds = this.processForm.get('advisorIds')?.value || [];
     const index = currentIds.indexOf(advisorId);
-    
+
     if (index > -1) {
       // Remover el ID
       this.processForm.patchValue({
-        advisorIds: currentIds.filter((id: string) => id !== advisorId)
+        advisorIds: currentIds.filter((id: string) => id !== advisorId),
       });
     } else {
       // Agregar el ID
       this.processForm.patchValue({
-        advisorIds: [...currentIds, advisorId]
+        advisorIds: [...currentIds, advisorId],
       });
     }
   }
@@ -1621,89 +761,8 @@ export class ProcessesComponent implements OnInit, OnDestroy {
     const year = new Date().getFullYear();
     const sequence = Date.now().toString().slice(-6);
     const caseNumber = `PROC-${year}-${sequence}`;
-    
+
     this.processForm.patchValue({ caseNumber });
-  }
-
-  formatDate(date: Date | string): string {
-    if (!date) return 'N/A';
-    const d = new Date(date);
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    const hours = String(d.getHours()).padStart(2, '0');
-    const minutes = String(d.getMinutes()).padStart(2, '0');
-    return `${year}-${month}-${day} ${hours}:${minutes}`;
-  }
-
-  // HU-17: Helper methods para timeline de eventos
-  getEventIcon(type: ProcessEventType): string {
-    switch (type) {
-      case ProcessEventType.ANNOTATION:
-        return '📝';
-      case ProcessEventType.STATUS_CHANGE:
-        return '🔄';
-      case ProcessEventType.ADVISOR_ASSIGNED:
-        return '👤➕';
-      case ProcessEventType.ADVISOR_REMOVED:
-        return '👤➖';
-      case ProcessEventType.PROCESS_CREATED:
-        return '✨';
-      case ProcessEventType.PROCESS_UPDATED:
-        return '✏️';
-      case ProcessEventType.CLIENT_CHANGED:
-        return '🔀';
-      case ProcessEventType.DOCUMENT_UPLOADED:
-        return '📎';
-      default:
-        return '•';
-    }
-  }
-
-  getEventColor(type: ProcessEventType): string {
-    switch (type) {
-      case ProcessEventType.ANNOTATION:
-        return 'bg-blue-100 text-blue-600';
-      case ProcessEventType.STATUS_CHANGE:
-        return 'bg-purple-100 text-purple-600';
-      case ProcessEventType.ADVISOR_ASSIGNED:
-        return 'bg-green-100 text-green-600';
-      case ProcessEventType.ADVISOR_REMOVED:
-        return 'bg-orange-100 text-orange-600';
-      case ProcessEventType.PROCESS_CREATED:
-        return 'bg-emerald-100 text-emerald-600';
-      case ProcessEventType.PROCESS_UPDATED:
-        return 'bg-amber-100 text-amber-600';
-      case ProcessEventType.CLIENT_CHANGED:
-        return 'bg-indigo-100 text-indigo-600';
-      case ProcessEventType.DOCUMENT_UPLOADED:
-        return 'bg-cyan-100 text-cyan-600';
-      default:
-        return 'bg-slate-100 text-slate-600';
-    }
-  }
-
-  getEventLabel(type: ProcessEventType): string {
-    switch (type) {
-      case ProcessEventType.ANNOTATION:
-        return 'Anotación';
-      case ProcessEventType.STATUS_CHANGE:
-        return 'Cambio de estado';
-      case ProcessEventType.ADVISOR_ASSIGNED:
-        return 'Asesor asignado';
-      case ProcessEventType.ADVISOR_REMOVED:
-        return 'Asesor removido';
-      case ProcessEventType.PROCESS_CREATED:
-        return 'Proceso creado';
-      case ProcessEventType.PROCESS_UPDATED:
-        return 'Proceso actualizado';
-      case ProcessEventType.CLIENT_CHANGED:
-        return 'Cliente cambiado';
-      case ProcessEventType.DOCUMENT_UPLOADED:
-        return 'Documento cargado';
-      default:
-        return 'Evento';
-    }
   }
 
   // Descargar archivo desde el historial
@@ -1724,7 +783,12 @@ export class ProcessesComponent implements OnInit, OnDestroy {
     this.filesService.getDownloadUrl(fileId).subscribe({
       next: (response) => {
         const contentType = this.getContentTypeFromFilename(filename);
-        this.previewingFile.set({ id: fileId, filename, contentType });
+        this.previewingFile.set({
+          id: fileId,
+          originalFilename: filename,
+          isImage: contentType.startsWith('image/'),
+          isPdf: contentType === 'application/pdf',
+        });
         this.previewUrl.set(this.sanitizer.bypassSecurityTrustResourceUrl(response.url));
       },
       error: (error) => {
@@ -1757,16 +821,6 @@ export class ProcessesComponent implements OnInit, OnDestroy {
       xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     };
     return contentTypes[extension] || 'application/octet-stream';
-  }
-
-  // Helper: Check if content type is image
-  isImageContentType(contentType: string): boolean {
-    return contentType.startsWith('image/');
-  }
-
-  // Helper: Check if content type is PDF
-  isPdfContentType(contentType: string): boolean {
-    return contentType === 'application/pdf';
   }
 
   // Lifecycle hooks

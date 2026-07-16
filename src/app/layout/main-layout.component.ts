@@ -6,6 +6,9 @@ import { PermissionsService } from '../core/services/permissions.service';
 import { AuthUser } from '../core/models/auth.model';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { filter } from 'rxjs';
+import { environment } from '../../environments/environment';
+import { ConfirmDialogComponent } from '../core/components/confirm-dialog.component';
+import { ThemeService } from '../core/services/theme.service';
 
 interface MenuItem {
   label: string;
@@ -18,9 +21,9 @@ interface MenuItem {
 @Component({
   selector: 'app-main-layout',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, ConfirmDialogComponent],
   template: `
-    <div class="min-h-screen bg-slate-100 text-slate-900">
+    <div class="min-h-screen bg-surface-muted text-text">
       <div class="flex h-screen overflow-hidden">
         @if (sidebarOpen()) {
           <div
@@ -28,19 +31,19 @@ interface MenuItem {
             (click)="toggleSidebar()"
           ></div>
         }
-    
+
         <aside
-          class="fixed inset-y-0 left-0 z-40 w-72 transform bg-[#192033] text-white shadow-xl transition-transform duration-300 lg:translate-x-0 lg:static lg:flex lg:flex-col"
+          class="fixed inset-y-0 left-0 z-40 w-72 transform bg-navy-900 text-white shadow-raised transition-transform duration-300 lg:translate-x-0 lg:static lg:flex lg:flex-col"
           [class.-translate-x-full]="!sidebarOpen()"
           >
           <div class="flex h-16 items-center justify-between px-6">
             <div>
-              <p class="text-sm uppercase tracking-widest text-slate-400">LexAr Suite</p>
+              <p class="text-sm uppercase tracking-widest text-white/60">LexAr Suite</p>
               <p class="text-lg font-semibold">Gestión Legal</p>
             </div>
             <button
               type="button"
-              class="rounded-md p-2 text-slate-300 transition hover:bg-white/10 lg:hidden"
+              class="rounded-md p-2 text-white/70 transition hover:bg-white/10 lg:hidden"
               (click)="toggleSidebar()"
               aria-label="Cerrar menú"
               >
@@ -50,28 +53,28 @@ interface MenuItem {
               </svg>
             </button>
           </div>
-    
+
           <nav class="mt-6 flex-1 space-y-1 px-4">
             @for (item of filteredMenuItems(); track item.route) {
               <a
                 [routerLink]="item.route"
                 routerLinkActive="bg-white/10 text-white"
-                class="group flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-slate-300 transition hover:bg-white/10 hover:text-white"
+                class="group flex items-center gap-3 rounded-md px-3 py-3 text-sm font-medium text-white/70 transition hover:bg-white/10 hover:text-white"
                 (click)="closeSidebar()"
                 >
-                <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-white/5 text-slate-200 transition group-hover:bg-white/15">
+                <span class="flex h-9 w-9 items-center justify-center rounded-md bg-white/5 text-white/80 transition group-hover:bg-white/15">
                   <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                     <path [attr.d]="item.icon" stroke-linecap="round" stroke-linejoin="round"></path>
                   </svg>
                 </span>
                 <span class="flex-1">
                   <span class="block text-base font-semibold">{{ item.label }}</span>
-                  <span class="text-xs text-slate-400">{{ item.description }}</span>
+                  <span class="text-xs text-white/60">{{ item.description }}</span>
                 </span>
               </a>
             }
           </nav>
-    
+
           <div class="border-t border-white/10 px-6 py-4">
             <div class="flex items-center gap-3">
               <div class="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-sm font-semibold">
@@ -79,26 +82,26 @@ interface MenuItem {
               </div>
               <div class="min-w-0 flex-1">
                 <p class="truncate text-sm font-semibold">{{ currentUser()?.email }}</p>
-                <p class="truncate text-xs text-slate-400">{{ userRoleLabel() }}</p>
+                <p class="truncate text-xs text-white/60">{{ userRoleLabel() }}</p>
               </div>
               <button
                 type="button"
                 (click)="handleLogout()"
-                class="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-slate-200 transition hover:bg-white/10"
+                class="rounded-md border border-white/10 px-3 py-2 text-xs font-medium text-white/80 transition hover:bg-white/10"
                 >
                 Cerrar sesión
               </button>
             </div>
           </div>
         </aside>
-    
+
         <div class="flex flex-1 flex-col">
-          <header class="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-slate-200 bg-white/90 px-4 backdrop-blur lg:px-8">
+          <header class="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-default bg-surface/90 px-4 backdrop-blur lg:px-8">
             <div class="flex w-full items-center justify-between gap-4">
               <div class="flex items-center gap-3">
                 <button
                   type="button"
-                  class="rounded-xl border border-slate-200 p-2 text-slate-600 transition hover:bg-slate-50 lg:hidden"
+                  class="rounded-md border border-default p-2 text-muted transition hover:bg-surface-muted lg:hidden"
                   (click)="toggleSidebar()"
                   aria-label="Abrir menú"
                   >
@@ -107,34 +110,51 @@ interface MenuItem {
                   </svg>
                 </button>
                 <div>
-                  <p class="text-sm font-medium text-slate-500">Panel central</p>
-                  <p class="text-lg font-semibold text-slate-800">{{ activeRouteLabel() }}</p>
+                  <p class="text-sm font-medium text-subtle">Panel central</p>
+                  <p class="text-lg font-semibold text-text">{{ activeRouteLabel() }}</p>
                 </div>
               </div>
               <div class="flex items-center gap-4">
-                <div class="hidden md:flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
-                  <span class="flex h-8 w-8 items-center justify-center rounded-xl bg-[#192033] text-white text-sm font-semibold">
+                <button
+                  type="button"
+                  (click)="themeService.toggle()"
+                  class="rounded-md border border-default p-2 text-muted transition hover:bg-surface-muted"
+                  [attr.aria-label]="themeService.theme() === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'"
+                  [title]="themeService.theme() === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'"
+                >
+                  @if (themeService.theme() === 'dark') {
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
+                    </svg>
+                  } @else {
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
+                    </svg>
+                  }
+                </button>
+                <div class="hidden md:flex items-center gap-3 rounded-lg border border-default bg-surface px-3 py-2 shadow-card">
+                  <span class="flex h-8 w-8 items-center justify-center rounded-md bg-navy-900 text-white text-sm font-semibold">
                     {{ userInitials() }}
                   </span>
                   <div class="min-w-0">
-                    <p class="text-sm font-semibold text-slate-700 truncate">{{ currentUser()?.email }}</p>
-                    <p class="text-xs text-slate-400 truncate">{{ userRoleLabel() }}</p>
+                    <p class="text-sm font-semibold text-text truncate">{{ currentUser()?.email }}</p>
+                    <p class="text-xs text-subtle truncate">{{ userRoleLabel() }}</p>
                   </div>
                 </div>
               </div>
             </div>
           </header>
-    
+
           @if (hasNoRoles()) {
             <div class="px-4 md:px-6 lg:px-8">
-              <div class="mx-auto mt-4 border-l-4 border-amber-500 bg-amber-50 p-4 rounded-lg">
+              <div class="mx-auto mt-4 rounded-lg border-l-4 border-warning bg-warning-tint p-4">
                 <div class="flex items-center gap-3">
-                  <svg class="h-6 w-6 text-amber-600 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                  <svg class="h-6 w-6 text-warning flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
                   </svg>
                   <div class="flex-1">
-                    <h3 class="text-sm font-semibold text-amber-800">Sin roles asignados</h3>
-                    <p class="text-sm text-amber-700 mt-1">
+                    <h3 class="text-sm font-semibold text-warning">Sin roles asignados</h3>
+                    <p class="text-sm text-warning mt-1">
                       Tu cuenta no tiene roles ni permisos asignados. Contacta al administrador de tu empresa para que te asigne los permisos necesarios.
                     </p>
                   </div>
@@ -150,6 +170,7 @@ interface MenuItem {
           </main>
         </div>
       </div>
+      <app-confirm-dialog />
     </div>
     `,
 })
@@ -158,6 +179,7 @@ export class MainLayoutComponent {
   private readonly authService = inject(AuthService);
   private readonly permissionsService = inject(PermissionsService);
   private readonly router = inject(Router);
+  protected readonly themeService = inject(ThemeService);
 
   readonly menuItems: MenuItem[] = [
     {
@@ -218,14 +240,16 @@ export class MainLayoutComponent {
 
   // Filtrar menú según permisos del usuario
   readonly filteredMenuItems = computed(() => {
-    return this.menuItems.filter((item) => {
-      // Si no tiene permisos requeridos, se muestra siempre
-      if (!item.permissions || item.permissions.length === 0) {
-        return true;
-      }
-      // Si tiene permisos, verificar que el usuario tenga al menos uno
-      return this.permissionsService.hasAnyPermission(item.permissions);
-    });
+    return this.menuItems
+      .filter((item) => item.route !== '/chatbot' || environment.features.chatbot)
+      .filter((item) => {
+        // Si no tiene permisos requeridos, se muestra siempre
+        if (!item.permissions || item.permissions.length === 0) {
+          return true;
+        }
+        // Si tiene permisos, verificar que el usuario tenga al menos uno
+        return this.permissionsService.hasAnyPermission(item.permissions);
+      });
   });
 
   readonly currentUser: Signal<AuthUser | null>;

@@ -45,17 +45,17 @@ export interface TableAction<T> {
   template: `
     @if (isLoading()) {
       <div class="flex items-center justify-center py-12">
-        <div class="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-[#192033]"></div>
+        <div class="h-8 w-8 animate-spin rounded-full border-4 border-default border-t-navy-900"></div>
       </div>
     } @else if (data().length === 0) {
-      <div class="rounded-3xl border border-slate-200 bg-white p-12 text-center">
-        <p class="text-slate-500">{{ emptyMessage() }}</p>
+      <div class="rounded-lg border border-default bg-surface p-12 text-center">
+        <p class="text-subtle">{{ emptyMessage() }}</p>
       </div>
     } @else {
       <!-- Vista Desktop: Tabla -->
-      <div class="hidden overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm md:block">
+      <div class="hidden overflow-hidden rounded-lg border border-default bg-surface shadow-card md:block">
         <table class="w-full">
-          <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+          <thead class="bg-surface-muted text-left text-xs font-semibold uppercase tracking-wide text-muted">
             <tr>
               @for (column of columns(); track column.key) {
                 <th 
@@ -72,9 +72,9 @@ export interface TableAction<T> {
               }
             </tr>
           </thead>
-          <tbody class="divide-y divide-slate-200">
+          <tbody class="divide-y divide-default">
             @for (item of data(); track trackBy()(item)) {
-              <tr class="transition hover:bg-slate-50">
+              <tr class="transition hover:bg-surface-muted">
                 @for (column of columns(); track column.key) {
                   <td 
                     class="px-6 py-4"
@@ -89,7 +89,7 @@ export interface TableAction<T> {
                     </ng-container>
                     
                     @if (!getCellTemplate(column.key)) {
-                      <span class="text-sm text-slate-800">
+                      <span class="text-sm text-text">
                         {{ column.value ? column.value(item) : getNestedValue(item, column.key) }}
                       </span>
                     }
@@ -115,7 +115,7 @@ export interface TableAction<T> {
       <!-- Vista Mobile: Cards -->
       <div class="grid gap-4 md:hidden">
         @for (item of data(); track trackBy()(item)) {
-          <div class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div class="rounded-lg border border-default bg-surface p-4 shadow-card">
             <ng-container *ngTemplateOutlet="
               mobileCardTemplate() || defaultMobileCard;
               context: { $implicit: item }
@@ -128,7 +128,7 @@ export interface TableAction<T> {
                 @for (column of columns(); track column.key) {
                   @if (!column.hideOnMobile) {
                     <div class="flex items-start justify-between gap-2">
-                      <span class="text-xs font-medium text-slate-500">{{ column.header }}:</span>
+                      <span class="text-xs font-medium text-subtle">{{ column.header }}:</span>
                       <ng-container *ngTemplateOutlet="
                         getCellTemplate(column.key);
                         context: { $implicit: item, column: column }
@@ -136,7 +136,7 @@ export interface TableAction<T> {
                       </ng-container>
                       
                       @if (!getCellTemplate(column.key)) {
-                        <span class="text-xs text-slate-800">
+                        <span class="text-xs text-text">
                           {{ column.value ? column.value(item) : getNestedValue(item, column.key) }}
                         </span>
                       }
@@ -145,7 +145,7 @@ export interface TableAction<T> {
                 }
                 
                 @if (hasActions()) {
-                  <div class="mt-4 flex flex-wrap gap-2 border-t border-slate-200 pt-3">
+                  <div class="mt-4 flex flex-wrap gap-2 border-t border-default pt-3">
                     <ng-container *ngTemplateOutlet="
                       mobileActionsTemplate() || actionsTemplate() || null;
                       context: { $implicit: item }
