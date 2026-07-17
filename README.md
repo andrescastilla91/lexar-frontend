@@ -21,18 +21,28 @@ El diseño se rige por el [Design System](../docs/02-design-system/README.md) (t
 
 ## Environments (2 ambientes)
 
-`src/environments/environment.ts` es el **único environment del repo** (local, sin datos sensibles: `apiUrl: http://localhost:3000/api`). El environment de **producción no existe en el repositorio**: lo genera el `Dockerfile` en build a partir de los ARGs `API_URL` (=`/api`, relativo al mismo origen) y `APP_VERSION`, provistos por el `docker-compose` local o por Railway.
+`src/environments/environment.ts` es el **único environment del repo** (local, sin datos sensibles: `apiUrl: http://localhost:3040/api`). El environment de **producción no existe en el repositorio**: lo genera el `Dockerfile` en build a partir de los ARGs `API_URL` (=`/api`, relativo al mismo origen) y `APP_VERSION`, provistos por el `docker-compose` local o por Railway.
 
 ## Desarrollo local
 
 ```bash
 npm install
-npm start            # ng serve → http://localhost:4200, backend en localhost:3000
+npm start            # ng serve → http://localhost:4400, backend en localhost:3040
 ```
+
+El backend usa el puerto **3040** en host-mode: Piggy ya ocupa 3000/3010/3020/3030 (kids/pro/auth/core) — ver [`../lexar-backend/.env.example`](../lexar-backend/.env.example). El frontend usa **4400** en vez del 4200 default de Angular CLI, ya que ese también está tomado por otro proyecto Piggy (`angular.json` → `architect.serve.options.port`).
 
 Con Docker (app completa detrás de nginx, cookies first-party): ver [`../docs/03-infraestructura/README.md`](../docs/03-infraestructura/README.md) → `http://localhost:4300`.
 
 Build: `npx ng build` (configuración production por defecto) · Tests: `npm test`.
+
+## Tests (F1)
+
+**Unit (Jest):** `npm test` corre `authGuard`, `chatbotFeatureGuard`, `authInterceptor`, `errorInterceptor`, `AuthService` y `PermissionsService`. Reemplazó Karma/Jasmine — no hay que instalar Chrome. `npm run test:watch` para desarrollo, `npm run test:coverage` para cobertura.
+
+**E2E (Playwright):** `npm run e2e` requiere el backend corriendo en el puerto 3040 (`npm run start:dev` en `lexar-backend`, apuntando a Postgres) y este frontend (`npm start`, se levanta solo vía `webServer` de Playwright si no está corriendo). Cada test registra su propio tenant real vía `POST /auth/register` (`e2e/shared/tenant-fixture.ts`), sin tokens fabricados. Specs en `e2e/specs/`; page objects en `e2e/pages/`. `npm run e2e:ui` para el modo interactivo.
+
+Para agregar un caso nuevo: si es lógica de guard/interceptor/servicio → spec Jest junto al archivo (`*.spec.ts`); si es un flujo de usuario a través de rutas reales → spec Playwright en `e2e/specs/`, reutilizando `tenant-fixture` y los page objects existentes.
 
 ## Arquitectura de despliegue
 
