@@ -29,6 +29,9 @@ jobs:
       - name: Instalar dependencias
         run: npm ci
 
+      - name: Tests unitarios (Jest) — F1
+        run: npm test -- --ci --coverage
+
       - name: Design system — sin colores crudos ni emojis (U1)
         run: |
           if grep -rnE "bg-\[#|bg-blue-|bg-indigo-" src/app --include='*.ts' --include='*.html'; then
@@ -42,7 +45,3 @@ jobs:
 
       - name: Build producción
         run: npx ng build --configuration production
-
-      # Activar cuando existan specs reales (requiere Chrome headless):
-      # - name: Tests
-      #   run: npx ng test --watch=false --browsers=ChromeHeadless
