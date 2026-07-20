@@ -10,6 +10,9 @@ import {
   RegisterResponse,
   AuthUser,
   ProfileResponse,
+  ForgotPasswordRequest,
+  ResetPasswordRequest,
+  MessageResponse,
 } from '../models/auth.model';
 
 @Injectable({ providedIn: 'root' })
@@ -122,6 +125,36 @@ export class AuthService {
         console.error('❌ Error al refrescar token:', error);
         this.clearSession();
         return of(false);
+      })
+    );
+  }
+
+  forgotPassword(email: string): Observable<{ success: boolean; message?: string }> {
+    const payload: ForgotPasswordRequest = { email };
+
+    return this.http.post<MessageResponse>(`${this.apiUrl}/forgot-password`, payload).pipe(
+      map((response) => ({ success: true, message: response.message })),
+      catchError((error) => {
+        console.error('Error en forgot-password:', error);
+        return of({
+          success: false,
+          message: error.error?.message || 'No pudimos procesar tu solicitud. Intenta de nuevo en unos minutos.',
+        });
+      })
+    );
+  }
+
+  resetPassword(token: string, newPassword: string): Observable<{ success: boolean; message?: string }> {
+    const payload: ResetPasswordRequest = { token, newPassword };
+
+    return this.http.post<MessageResponse>(`${this.apiUrl}/reset-password`, payload).pipe(
+      map((response) => ({ success: true, message: response.message })),
+      catchError((error) => {
+        console.error('Error en reset-password:', error);
+        return of({
+          success: false,
+          message: error.error?.message || 'El enlace no es válido o ya expiró. Solicita uno nuevo.',
+        });
       })
     );
   }

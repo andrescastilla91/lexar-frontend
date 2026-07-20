@@ -72,7 +72,7 @@ import { AuthService } from '../../../core/services/auth.service';
                   <input type="checkbox" formControlName="remember" class="h-4 w-4 rounded border-strong text-navy-900" />
                   Recordar sesión
                 </label>
-                <a href="#" class="text-sm font-medium text-navy-900 hover:underline">¿Olvidaste tu contraseña?</a>
+                <a routerLink="/recuperar" class="text-sm font-medium text-navy-900 hover:underline">¿Olvidaste tu contraseña?</a>
               </div>
 
               @if (errorMessage()) {
