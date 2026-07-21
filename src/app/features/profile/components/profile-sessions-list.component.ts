@@ -19,9 +19,9 @@ import { SessionInfo } from '../../../core/models/profile.model';
           <p class="py-4 text-sm text-subtle">No hay sesiones activas.</p>
         } @else {
           @for (session of sessions(); track session.id) {
-            <div class="flex items-center justify-between gap-4 py-3">
+            <div class="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
               <div class="min-w-0">
-                <p class="truncate text-sm font-medium text-text">
+                <p class="break-words text-sm font-medium text-text">
                   {{ session.userAgent || 'Dispositivo desconocido' }}
                   @if (session.current) {
                     <span class="ml-2 rounded-full bg-success-tint px-2 py-0.5 text-xs font-semibold text-success">Actual</span>
@@ -35,7 +35,7 @@ import { SessionInfo } from '../../../core/models/profile.model';
                 <button
                   type="button"
                   (click)="revoke.emit(session.id)"
-                  class="flex-shrink-0 rounded-md border border-danger px-3 py-1.5 text-xs font-semibold text-danger transition hover:bg-danger-tint"
+                  class="w-full flex-shrink-0 rounded-md border border-danger px-3 py-1.5 text-xs font-semibold text-danger transition hover:bg-danger-tint sm:w-auto"
                 >
                   Cerrar sesión
                 </button>

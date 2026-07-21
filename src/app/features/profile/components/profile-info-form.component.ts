@@ -10,7 +10,7 @@ import { FormGroup, ReactiveFormsModule } from '@angular/forms';
     <div class="rounded-lg border border-default bg-surface p-6 shadow-card">
       <h2 class="text-lg font-semibold text-text">Datos personales</h2>
 
-      <div class="mt-4 flex items-center gap-4">
+      <div class="mt-4 flex flex-wrap items-center gap-4">
         <div class="relative h-16 w-16 flex-shrink-0">
           @if (avatarUrl()) {
             <img [src]="avatarUrl()" alt="Foto de perfil" class="h-16 w-16 rounded-full object-cover" />
@@ -69,10 +69,10 @@ import { FormGroup, ReactiveFormsModule } from '@angular/forms';
 
         <fieldset>
           <legend class="text-sm text-muted">Tema</legend>
-          <div class="mt-2 flex gap-2">
+          <div class="mt-2 grid grid-cols-3 gap-2">
             @for (option of themeOptions; track option.value) {
               <label
-                class="flex-1 cursor-pointer rounded-md border px-3 py-2 text-center text-sm transition"
+                class="cursor-pointer rounded-md border px-3 py-2 text-center text-sm transition"
                 [class.border-navy-900]="form().get('themePreference')?.value === option.value"
                 [class.bg-navy-900]="form().get('themePreference')?.value === option.value"
                 [class.text-white]="form().get('themePreference')?.value === option.value"
@@ -94,7 +94,7 @@ import { FormGroup, ReactiveFormsModule } from '@angular/forms';
 
         <button
           type="submit"
-          class="rounded-md bg-navy-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-navy-950 disabled:bg-strong"
+          class="w-full rounded-md bg-navy-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-navy-950 disabled:bg-strong sm:w-auto"
           [disabled]="isSubmitting() || form().invalid"
         >
           Guardar cambios

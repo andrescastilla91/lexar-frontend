@@ -20,17 +20,17 @@ const STATUS_LABELS: Record<string, string> = {
   imports: [CommonModule, DatePipe],
   template: `
     <div class="space-y-10">
-      <section class="rounded-lg bg-gradient-to-br from-navy-900 via-navy-800 to-navy-950 px-8 py-10 text-white shadow-card">
+      <section class="rounded-lg bg-gradient-to-br from-navy-900 via-navy-800 to-navy-950 px-5 py-8 text-white shadow-card sm:px-6 md:px-8 md:py-10">
         <div class="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-          <div>
+          <div class="min-w-0">
             <p class="text-sm uppercase tracking-[0.3em] text-white/70">Tablero ejecutivo</p>
-            <h2 class="mt-4 text-3xl font-semibold">Hola {{ firstName() }}, listo para tu jornada legal.</h2>
+            <h2 class="mt-4 break-words text-2xl font-semibold sm:text-3xl">Hola {{ firstName() }}, listo para tu jornada legal.</h2>
             <p class="mt-3 max-w-xl text-sm text-white/70">
               Revisa el estado general de tu operación, audiencias próximas y los procesos que requieren atención prioritaria.
             </p>
           </div>
-          <div class="grid gap-3 text-sm text-white/70">
-            <div class="flex items-center gap-4 rounded-lg bg-white/10 px-5 py-4">
+          <div class="grid min-w-0 grid-cols-1 gap-3 text-sm text-white/70">
+            <div class="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-4 rounded-lg bg-white/10 px-5 py-4">
               <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-white/15 text-2xl font-semibold tabular-data">
                 @if (isLoading()) {
                   <span class="inline-block h-6 w-8 animate-pulse rounded bg-white/20"></span>
@@ -38,12 +38,12 @@ const STATUS_LABELS: Record<string, string> = {
                   {{ summary()?.activeClients ?? 0 }}
                 }
               </div>
-              <div>
+              <div class="min-w-0">
                 <p class="text-xs uppercase tracking-wide">Clientes activos</p>
-                <p class="text-base font-semibold text-white">Relaciones vigentes bajo tu gestión</p>
+                <p class="break-words text-base font-semibold text-white">Relaciones vigentes bajo tu gestión</p>
               </div>
             </div>
-            <div class="flex items-center gap-4 rounded-lg bg-white/10 px-5 py-4">
+            <div class="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-4 rounded-lg bg-white/10 px-5 py-4">
               <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-white/15 text-2xl font-semibold tabular-data">
                 @if (isLoading()) {
                   <span class="inline-block h-6 w-8 animate-pulse rounded bg-white/20"></span>
@@ -51,9 +51,9 @@ const STATUS_LABELS: Record<string, string> = {
                   {{ summary()?.totalProcesses ?? 0 }}
                 }
               </div>
-              <div>
+              <div class="min-w-0">
                 <p class="text-xs uppercase tracking-wide">Procesos monitorizados</p>
-                <p class="text-base font-semibold text-white">Incluye litigios y trámites activos</p>
+                <p class="break-words text-base font-semibold text-white">Incluye litigios y trámites activos</p>
               </div>
             </div>
           </div>
@@ -135,12 +135,12 @@ const STATUS_LABELS: Record<string, string> = {
             <div class="space-y-4">
               @for (process of summary()!.highRiskProcesses; track process.id) {
                 <div class="rounded-lg bg-danger-tint px-4 py-4 text-sm text-danger">
-                  <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                    <div>
-                      <p class="text-base font-semibold text-danger">{{ process.title }}</p>
-                      <p class="text-xs uppercase tracking-wide text-danger/80">{{ process.court || 'Sin jurisdicción asignada' }}</p>
+                  <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+                    <div class="min-w-0">
+                      <p class="truncate text-base font-semibold text-danger">{{ process.title }}</p>
+                      <p class="truncate text-xs uppercase tracking-wide text-danger/80">{{ process.court || 'Sin jurisdicción asignada' }}</p>
                     </div>
-                    <div class="flex gap-6 text-xs text-danger/90">
+                    <div class="flex flex-wrap gap-4 text-xs text-danger/90 sm:gap-6">
                       @if (process.nextHearingDate) {
                         <span class="flex items-center gap-2">
                           <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
@@ -189,14 +189,14 @@ const STATUS_LABELS: Record<string, string> = {
           } @else {
             <div class="space-y-4">
               @for (hearing of summary()!.upcomingHearings; track hearing.id) {
-                <div class="flex items-start justify-between rounded-lg border border-default bg-surface-muted px-4 py-4 text-sm text-muted">
-                  <div>
-                    <p class="text-base font-semibold text-text">{{ hearing.title }}</p>
-                    <p class="text-xs uppercase tracking-wide text-subtle">{{ hearing.court || 'Sin jurisdicción asignada' }}</p>
-                    <p class="mt-1 text-xs text-subtle">{{ advisorInitials(hearing.advisors) }} • {{ hearing.client?.fullName ?? 'Cliente sin asignar' }}</p>
+                <div class="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-lg border border-default bg-surface-muted px-4 py-4 text-sm text-muted">
+                  <div class="min-w-0">
+                    <p class="truncate text-base font-semibold text-text">{{ hearing.title }}</p>
+                    <p class="truncate text-xs uppercase tracking-wide text-subtle">{{ hearing.court || 'Sin jurisdicción asignada' }}</p>
+                    <p class="mt-1 truncate text-xs text-subtle">{{ advisorInitials(hearing.advisors) }} • {{ hearing.client?.fullName ?? 'Cliente sin asignar' }}</p>
                   </div>
                   @if (hearing.nextHearingDate) {
-                    <span class="rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted tabular-data">
+                    <span class="flex-shrink-0 rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted tabular-data">
                       {{ hearing.nextHearingDate | date: 'dd/MM' }}
                     </span>
                   }
@@ -234,12 +234,12 @@ const STATUS_LABELS: Record<string, string> = {
           } @else {
             <div class="space-y-4">
               @for (document of summary()!.recentDocuments; track document.id) {
-                <div class="flex items-center justify-between rounded-lg border border-default px-4 py-3 text-sm text-muted">
-                  <div>
-                    <p class="font-semibold text-text">{{ document.filename }}</p>
-                    <p class="text-xs text-subtle">{{ document.entityType }} • {{ document.uploadedBy }}</p>
+                <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-default px-4 py-3 text-sm text-muted">
+                  <div class="min-w-0">
+                    <p class="truncate font-semibold text-text">{{ document.filename }}</p>
+                    <p class="truncate text-xs text-subtle">{{ document.entityType }} • {{ document.uploadedBy }}</p>
                   </div>
-                  <span class="rounded-full bg-surface-muted px-3 py-1 text-xs font-semibold text-muted tabular-data">
+                  <span class="flex-shrink-0 rounded-full bg-surface-muted px-3 py-1 text-xs font-semibold text-muted tabular-data">
                     {{ document.createdAt | date: 'dd/MM' }}
                   </span>
                 </div>
@@ -274,10 +274,10 @@ const STATUS_LABELS: Record<string, string> = {
           } @else {
             <div class="space-y-4">
               @for (advisor of summary()!.topAdvisors; track advisor.id) {
-                <div class="flex items-center justify-between rounded-lg border border-default px-4 py-3 text-sm text-muted">
-                  <div>
-                    <p class="font-semibold text-text">{{ advisor.name }}</p>
-                    <p class="text-xs text-subtle">{{ advisor.specialty }}</p>
+                <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-default px-4 py-3 text-sm text-muted">
+                  <div class="min-w-0">
+                    <p class="truncate font-semibold text-text">{{ advisor.name }}</p>
+                    <p class="truncate text-xs text-subtle">{{ advisor.specialty }}</p>
                   </div>
                   <div class="flex items-center gap-3 text-xs text-subtle">
                     <span class="flex items-center gap-1 text-accent">
