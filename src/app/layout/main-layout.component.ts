@@ -8,7 +8,12 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { filter } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { ConfirmDialogComponent } from '../core/components/confirm-dialog.component';
+import { ToastComponent } from '../core/components/toast.component';
+import { UserMenuComponent } from '../core/components/user-menu.component';
 import { ThemeService } from '../core/services/theme.service';
+import { ProfileService } from '../core/services/profile.service';
+import { CompanyService } from '../core/services/company.service';
+import { CompanyProfile } from '../core/models/company.model';
 
 interface MenuItem {
   label: string;
@@ -21,7 +26,7 @@ interface MenuItem {
 @Component({
   selector: 'app-main-layout',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, ConfirmDialogComponent],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, ConfirmDialogComponent, ToastComponent, UserMenuComponent],
   template: `
     <div class="min-h-screen bg-surface-muted text-text">
       <div class="flex h-screen overflow-hidden">
@@ -74,25 +79,6 @@ interface MenuItem {
               </a>
             }
           </nav>
-
-          <div class="border-t border-white/10 px-6 py-4">
-            <div class="flex items-center gap-3">
-              <div class="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-sm font-semibold">
-                {{ userInitials() }}
-              </div>
-              <div class="min-w-0 flex-1">
-                <p class="truncate text-sm font-semibold">{{ currentUser()?.email }}</p>
-                <p class="truncate text-xs text-white/60">{{ userRoleLabel() }}</p>
-              </div>
-              <button
-                type="button"
-                (click)="handleLogout()"
-                class="rounded-md border border-white/10 px-3 py-2 text-xs font-medium text-white/80 transition hover:bg-white/10"
-                >
-                Cerrar sesión
-              </button>
-            </div>
-          </div>
         </aside>
 
         <div class="flex flex-1 flex-col">
@@ -117,7 +103,7 @@ interface MenuItem {
               <div class="flex items-center gap-4">
                 <button
                   type="button"
-                  (click)="themeService.toggle()"
+                  (click)="toggleTheme()"
                   class="rounded-md border border-default p-2 text-muted transition hover:bg-surface-muted"
                   [attr.aria-label]="themeService.theme() === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'"
                   [title]="themeService.theme() === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'"
@@ -132,15 +118,17 @@ interface MenuItem {
                     </svg>
                   }
                 </button>
-                <div class="hidden md:flex items-center gap-3 rounded-lg border border-default bg-surface px-3 py-2 shadow-card">
-                  <span class="flex h-8 w-8 items-center justify-center rounded-md bg-navy-900 text-white text-sm font-semibold">
-                    {{ userInitials() }}
-                  </span>
-                  <div class="min-w-0">
-                    <p class="text-sm font-semibold text-text truncate">{{ currentUser()?.email }}</p>
-                    <p class="text-xs text-subtle truncate">{{ userRoleLabel() }}</p>
-                  </div>
-                </div>
+                <app-user-menu
+                  [avatarUrl]="userAvatarUrl()"
+                  [initials]="userInitials()"
+                  [displayName]="userDisplayName()"
+                  [email]="currentUser()?.email ?? ''"
+                  [roleLabel]="userRoleLabel()"
+                  [companyName]="companyName()"
+                  [companyLogoUrl]="companyLogoUrl()"
+                  [showSettings]="canManageCompany()"
+                  (logout)="handleLogout()"
+                />
               </div>
             </div>
           </header>
@@ -171,6 +159,7 @@ interface MenuItem {
         </div>
       </div>
       <app-confirm-dialog />
+      <app-toast />
     </div>
     `,
 })
@@ -178,8 +167,15 @@ export class MainLayoutComponent {
   readonly sidebarOpen = signal(false);
   private readonly authService = inject(AuthService);
   private readonly permissionsService = inject(PermissionsService);
+  private readonly profileService = inject(ProfileService);
+  private readonly companyService = inject(CompanyService);
   private readonly router = inject(Router);
   protected readonly themeService = inject(ThemeService);
+
+  private readonly company = signal<CompanyProfile | null>(null);
+  readonly companyName = computed(() => this.company()?.legalName ?? '');
+  readonly companyLogoUrl = computed(() => this.company()?.logoUrl ?? null);
+  readonly canManageCompany = computed(() => this.permissionsService.hasPermission('companies.edit'));
 
   readonly menuItems: MenuItem[] = [
     {
@@ -257,7 +253,17 @@ export class MainLayoutComponent {
 
   readonly userInitials = computed(() => {
     const user = this.currentUser();
-    if (!user?.email) {
+    if (!user) {
+      return 'LS';
+    }
+
+    if (user.firstName || user.lastName) {
+      const first = user.firstName?.charAt(0) ?? '';
+      const last = user.lastName?.charAt(0) ?? '';
+      return (first + last).toUpperCase() || 'LS';
+    }
+
+    if (!user.email) {
       return 'LS';
     }
 
@@ -269,6 +275,17 @@ export class MainLayoutComponent {
     }
     return emailPart.substring(0, 2).toUpperCase();
   });
+
+  readonly userDisplayName = computed(() => {
+    const user = this.currentUser();
+    if (!user) {
+      return '';
+    }
+    const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ');
+    return fullName || user.email;
+  });
+
+  readonly userAvatarUrl = computed(() => this.currentUser()?.avatarUrl ?? null);
 
   readonly userRoleLabel = computed(() => {
     const user = this.currentUser();
@@ -307,6 +324,11 @@ export class MainLayoutComponent {
     this.currentUser = this.authService.currentUser;
     this.currentRoute.set(this.router.url);
 
+    this.companyService.getCompany().subscribe({
+      next: (company) => this.company.set(company),
+      error: () => {},
+    });
+
     this.router.events
       .pipe(
         filter((event): event is NavigationEnd => event instanceof NavigationEnd),
@@ -321,6 +343,15 @@ export class MainLayoutComponent {
 
   closeSidebar(): void {
     this.sidebarOpen.set(false);
+  }
+
+  toggleTheme(): void {
+    this.themeService.toggle();
+    this.profileService.updateMe({ themePreference: this.themeService.theme() }).subscribe({
+      error: () => {
+        // El cambio ya se aplicó localmente; si falla la sincronización, se reintentará en el próximo toggle o desde el perfil.
+      },
+    });
   }
 
   handleLogout(): void {

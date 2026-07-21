@@ -10,6 +10,7 @@ export interface AdvisorUser {
   firstName: string;
   lastName: string;
   email: string;
+  avatarUrl?: string | null;
 }
 
 export interface AdvisorResponse {

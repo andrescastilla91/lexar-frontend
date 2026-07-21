@@ -128,6 +128,11 @@
     outline-offset: 2px;
   }
 
+  ::placeholder {
+    color: var(--color-text-subtle);
+    opacity: 1;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
       animation-duration: 0.01ms !important;

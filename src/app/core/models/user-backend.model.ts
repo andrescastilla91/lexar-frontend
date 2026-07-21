@@ -6,6 +6,7 @@ export interface UserBackend {
   isActive: boolean;
   lastLoginAt: string | null;
   createdAt: string;
+  avatarUrl?: string | null;
   roles: RoleBasic[];
 }
 

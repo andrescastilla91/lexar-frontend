@@ -18,6 +18,16 @@ export const routes: Routes = [
 		loadComponent: () => import('./features/auth/register/register.component').then((m) => m.RegisterComponent),
 	},
 	{
+		path: 'recuperar',
+		loadComponent: () =>
+			import('./features/auth/forgot-password/forgot-password.component').then((m) => m.ForgotPasswordComponent),
+	},
+	{
+		path: 'restablecer',
+		loadComponent: () =>
+			import('./features/auth/reset-password/reset-password.component').then((m) => m.ResetPasswordComponent),
+	},
+	{
 		path: '',
 		component: MainLayoutComponent,
 		canActivate: [authGuard],
@@ -27,12 +37,20 @@ export const routes: Routes = [
 				loadComponent: () => import('./features/dashboard/dashboard.component').then((m) => m.DashboardComponent),
 			},
 			{
+				path: 'perfil',
+				loadComponent: () => import('./features/profile/profile.component').then((m) => m.ProfileComponent),
+			},
+			{
 				path: 'usuarios',
 				loadComponent: () => import('./features/users/users.component').then((m) => m.UsersComponent),
 			},
 			{
 				path: 'roles',
 				loadComponent: () => import('./features/roles/roles.component').then((m) => m.RolesComponent),
+			},
+			{
+				path: 'configuracion',
+				loadComponent: () => import('./features/settings/settings.component').then((m) => m.SettingsComponent),
 			},
 			{
 				path: 'asesores',
