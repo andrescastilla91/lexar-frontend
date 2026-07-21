@@ -3,6 +3,8 @@ import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { Observable, tap, catchError, of, map, switchMap } from 'rxjs';
 import { environment } from '../../../environments/environment';
+import { ThemeService } from './theme.service';
+import { ProfileService } from './profile.service';
 import {
   LoginRequest,
   LoginResponse,
@@ -19,6 +21,8 @@ import {
 export class AuthService {
   private readonly http = inject(HttpClient);
   private readonly router = inject(Router);
+  private readonly themeService = inject(ThemeService);
+  private readonly profileService = inject(ProfileService);
   private readonly apiUrl = `${environment.apiUrl}/auth`;
 
   // Solo mantener en memoria (signal), NO en localStorage
@@ -34,6 +38,10 @@ export class AuthService {
       tap((response) => {
         // Guardar usuario en estado en memoria (NO localStorage)
         this.currentUserSignal.set(response.user);
+        if (response.user.themePreference) {
+          this.themeService.setPreference(response.user.themePreference);
+        }
+        this.enrichCurrentUserWithProfile();
       }),
       map((response) => ({
         success: true,
@@ -92,13 +100,19 @@ export class AuthService {
           email: profile.email,
           roles: profile.roles,
           permissions: profile.permissions || [],
+          themePreference: profile.themePreference,
         };
         this.currentUserSignal.set(user);
+        if (profile.themePreference) {
+          this.themeService.setPreference(profile.themePreference);
+        }
+        this.enrichCurrentUserWithProfile();
       }),
       map((profile) => ({
         email: profile.email,
         roles: profile.roles,
         permissions: profile.permissions || [],
+        themePreference: profile.themePreference,
       })),
       catchError((error) => {
         console.error('Error al obtener perfil:', error);
@@ -157,6 +171,25 @@ export class AuthService {
         });
       })
     );
+  }
+
+  patchCurrentUser(partial: Partial<AuthUser>): void {
+    this.currentUserSignal.update((user) => (user ? { ...user, ...partial } : user));
+  }
+
+  private enrichCurrentUserWithProfile(): void {
+    this.profileService.getMe().subscribe({
+      next: (profile) => {
+        this.patchCurrentUser({
+          firstName: profile.firstName,
+          lastName: profile.lastName,
+          avatarUrl: profile.avatarUrl,
+        });
+      },
+      error: () => {
+        // El header simplemente muestra iniciales por email si esto falla
+      },
+    });
   }
 
   private clearSession(): void {

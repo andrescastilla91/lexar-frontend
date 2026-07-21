@@ -37,12 +37,20 @@ export const routes: Routes = [
 				loadComponent: () => import('./features/dashboard/dashboard.component').then((m) => m.DashboardComponent),
 			},
 			{
+				path: 'perfil',
+				loadComponent: () => import('./features/profile/profile.component').then((m) => m.ProfileComponent),
+			},
+			{
 				path: 'usuarios',
 				loadComponent: () => import('./features/users/users.component').then((m) => m.UsersComponent),
 			},
 			{
 				path: 'roles',
 				loadComponent: () => import('./features/roles/roles.component').then((m) => m.RolesComponent),
+			},
+			{
+				path: 'configuracion',
+				loadComponent: () => import('./features/settings/settings.component').then((m) => m.SettingsComponent),
 			},
 			{
 				path: 'asesores',

@@ -1,0 +1,233 @@
+import { TestBed } from '@angular/core/testing';
+import { Router, provideRouter } from '@angular/router';
+import { of, throwError } from 'rxjs';
+import { ProfileComponent } from './profile.component';
+import { ProfileService } from '../../core/services/profile.service';
+import { AuthService } from '../../core/services/auth.service';
+import { ThemeService } from '../../core/services/theme.service';
+import { ConfirmDialogService } from '../../core/services/confirm-dialog.service';
+import { ToastService } from '../../core/services/toast.service';
+import { ProfileUser, SessionInfo } from '../../core/models/profile.model';
+
+describe('ProfileComponent', () => {
+  let profileServiceMock: {
+    getMe: jest.Mock;
+    updateMe: jest.Mock;
+    changePassword: jest.Mock;
+    getSessions: jest.Mock;
+    revokeSession: jest.Mock;
+    uploadAvatar: jest.Mock;
+  };
+  let authServiceMock: { logout: jest.Mock; patchCurrentUser: jest.Mock };
+  let themeServiceMock: { setPreference: jest.Mock };
+  let confirmDialogMock: { confirm: jest.Mock };
+  let toastServiceMock: { success: jest.Mock; error: jest.Mock };
+  let navigateByUrlSpy: jest.SpyInstance;
+
+  const baseUser: ProfileUser = {
+    id: '1',
+    firstName: 'Ana',
+    lastName: 'Gómez',
+    email: 'ana@lexar.com',
+    isActive: true,
+    lastLoginAt: null,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    phone: null,
+    themePreference: 'system',
+    avatarUrl: null,
+    roles: [],
+  };
+
+  const session: SessionInfo = {
+    id: 's1',
+    userAgent: 'Chrome',
+    ip: '127.0.0.1',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    current: true,
+  };
+
+  function configure(): void {
+    profileServiceMock = {
+      getMe: jest.fn().mockReturnValue(of(baseUser)),
+      updateMe: jest.fn(),
+      changePassword: jest.fn(),
+      getSessions: jest.fn().mockReturnValue(of([session])),
+      revokeSession: jest.fn().mockReturnValue(of(undefined)),
+      uploadAvatar: jest.fn(),
+    };
+    authServiceMock = {
+      logout: jest.fn().mockReturnValue(of(undefined)),
+      patchCurrentUser: jest.fn(),
+    };
+    themeServiceMock = { setPreference: jest.fn() };
+    confirmDialogMock = { confirm: jest.fn() };
+    toastServiceMock = { success: jest.fn(), error: jest.fn() };
+
+    TestBed.configureTestingModule({
+      imports: [ProfileComponent],
+      providers: [
+        provideRouter([]),
+        { provide: ProfileService, useValue: profileServiceMock },
+        { provide: AuthService, useValue: authServiceMock },
+        { provide: ThemeService, useValue: themeServiceMock },
+        { provide: ConfirmDialogService, useValue: confirmDialogMock },
+        { provide: ToastService, useValue: toastServiceMock },
+      ],
+    });
+
+    const router = TestBed.inject(Router);
+    navigateByUrlSpy = jest.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+  }
+
+  function createComponent() {
+    const fixture = TestBed.createComponent(ProfileComponent);
+    fixture.detectChanges();
+    return fixture.componentInstance;
+  }
+
+  beforeEach(() => configure());
+
+  it('al inicializar carga el perfil y las sesiones', () => {
+    const component = createComponent();
+
+    expect(profileServiceMock.getMe).toHaveBeenCalled();
+    expect(profileServiceMock.getSessions).toHaveBeenCalled();
+    expect(component.user()).toEqual(baseUser);
+    expect(component.sessions()).toEqual([session]);
+    expect(component.infoForm.getRawValue()).toEqual({
+      firstName: 'Ana',
+      lastName: 'Gómez',
+      phone: '',
+      themePreference: 'system',
+    });
+  });
+
+  it('si falla la carga del perfil, muestra un mensaje de error', () => {
+    profileServiceMock.getMe.mockReturnValue(throwError(() => new Error('fail')));
+    const component = createComponent();
+
+    expect(component.profileError()).toBe('No se pudo cargar tu perfil.');
+  });
+
+  it('onSubmitProfile no hace nada si ya está enviando', () => {
+    const component = createComponent();
+    component.isSubmittingProfile.set(true);
+
+    component.onSubmitProfile();
+
+    expect(profileServiceMock.updateMe).not.toHaveBeenCalled();
+  });
+
+  it('onSubmitProfile actualiza el perfil y sincroniza el tema en éxito', () => {
+    const updated: ProfileUser = { ...baseUser, firstName: 'Nuevo', themePreference: 'dark' };
+    profileServiceMock.updateMe.mockReturnValue(of(updated));
+    const component = createComponent();
+
+    component.onSubmitProfile();
+
+    expect(profileServiceMock.updateMe).toHaveBeenCalled();
+    expect(component.user()).toEqual(updated);
+    expect(themeServiceMock.setPreference).toHaveBeenCalledWith('dark');
+    expect(component.isSubmittingProfile()).toBe(false);
+    expect(toastServiceMock.success).toHaveBeenCalledWith('Perfil actualizado correctamente.');
+  });
+
+  it('onSubmitProfile en error muestra el mensaje del backend y un toast', () => {
+    profileServiceMock.updateMe.mockReturnValue(
+      throwError(() => ({ error: { message: 'Teléfono inválido' } })),
+    );
+    const component = createComponent();
+
+    component.onSubmitProfile();
+
+    expect(component.profileError()).toBe('Teléfono inválido');
+    expect(component.isSubmittingProfile()).toBe(false);
+    expect(toastServiceMock.error).toHaveBeenCalledWith('Teléfono inválido');
+  });
+
+  it('onAvatarSelected sube el archivo y actualiza el usuario', () => {
+    const updated: ProfileUser = { ...baseUser, avatarUrl: 'https://cdn/avatar.png' };
+    profileServiceMock.uploadAvatar.mockReturnValue(of(updated));
+    const component = createComponent();
+    const file = new File(['x'], 'avatar.png', { type: 'image/png' });
+
+    component.onAvatarSelected(file);
+
+    expect(profileServiceMock.uploadAvatar).toHaveBeenCalledWith(file);
+    expect(component.user()?.avatarUrl).toBe('https://cdn/avatar.png');
+    expect(component.isUploadingAvatar()).toBe(false);
+    expect(toastServiceMock.success).toHaveBeenCalledWith('Foto de perfil actualizada correctamente.');
+  });
+
+  it('onAvatarSelected no hace nada si ya está subiendo', () => {
+    const component = createComponent();
+    component.isUploadingAvatar.set(true);
+
+    component.onAvatarSelected(new File(['x'], 'a.png'));
+
+    expect(profileServiceMock.uploadAvatar).not.toHaveBeenCalled();
+  });
+
+  it('onSubmitPassword valida el formulario antes de enviar', () => {
+    const component = createComponent();
+
+    component.onSubmitPassword();
+
+    expect(profileServiceMock.changePassword).not.toHaveBeenCalled();
+    expect(component.passwordForm.get('currentPassword')?.touched).toBe(true);
+  });
+
+  it('onSubmitPassword en éxito cierra sesión y navega a login', () => {
+    profileServiceMock.changePassword.mockReturnValue(of(undefined));
+    const component = createComponent();
+    component.passwordForm.setValue({ currentPassword: 'actual123', newPassword: 'nuevaClave123' });
+
+    component.onSubmitPassword();
+
+    expect(profileServiceMock.changePassword).toHaveBeenCalledWith({
+      currentPassword: 'actual123',
+      newPassword: 'nuevaClave123',
+    });
+    expect(authServiceMock.logout).toHaveBeenCalled();
+    expect(navigateByUrlSpy).toHaveBeenCalledWith('/login');
+    expect(toastServiceMock.success).toHaveBeenCalledWith('Contraseña actualizada. Vuelve a iniciar sesión.');
+  });
+
+  it('onSubmitPassword en error muestra el mensaje y detiene el envío', () => {
+    profileServiceMock.changePassword.mockReturnValue(
+      throwError(() => ({ error: { message: 'Contraseña actual incorrecta' } })),
+    );
+    const component = createComponent();
+    component.passwordForm.setValue({ currentPassword: 'mala', newPassword: 'nuevaClave123' });
+
+    component.onSubmitPassword();
+
+    expect(component.passwordError()).toBe('Contraseña actual incorrecta');
+    expect(component.isSubmittingPassword()).toBe(false);
+    expect(authServiceMock.logout).not.toHaveBeenCalled();
+    expect(toastServiceMock.error).toHaveBeenCalledWith('Contraseña actual incorrecta');
+  });
+
+  it('onRevokeSession no revoca si el usuario cancela el diálogo', async () => {
+    confirmDialogMock.confirm.mockResolvedValue(false);
+    const component = createComponent();
+
+    component.onRevokeSession('s1');
+    await Promise.resolve();
+
+    expect(profileServiceMock.revokeSession).not.toHaveBeenCalled();
+  });
+
+  it('onRevokeSession revoca y recarga las sesiones al confirmar', async () => {
+    confirmDialogMock.confirm.mockResolvedValue(true);
+    const component = createComponent();
+    profileServiceMock.getSessions.mockReturnValue(of([]));
+
+    component.onRevokeSession('s1');
+    await Promise.resolve();
+
+    expect(profileServiceMock.revokeSession).toHaveBeenCalledWith('s1');
+    expect(component.sessions()).toEqual([]);
+    expect(toastServiceMock.success).toHaveBeenCalledWith('Sesión cerrada correctamente.');
+  });
+});

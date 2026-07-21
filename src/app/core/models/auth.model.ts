@@ -11,9 +11,6 @@ export interface RegisterCompanyRequest {
   company: {
     legalName: string;
     taxId: string;
-    address?: string;
-    email: string;
-    legalRepresentative?: string;
   };
 }
 
@@ -26,6 +23,10 @@ export interface AuthUser {
   email: string;
   roles: string[];
   permissions: string[];
+  themePreference?: 'light' | 'dark' | 'system';
+  firstName?: string;
+  lastName?: string;
+  avatarUrl?: string | null;
 }
 
 export interface LoginResponse {
@@ -46,6 +47,7 @@ export interface ProfileResponse {
   email: string;
   roles: string[];
   permissions?: string[];
+  themePreference?: 'light' | 'dark' | 'system';
 }
 
 export interface ForgotPasswordRequest {

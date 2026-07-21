@@ -1,12 +1,13 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { HasPermissionDirective } from '../../../core/directives/has-permission.directive';
+import { AvatarComponent } from '../../../core/components/avatar.component';
 import { UserBackend } from '../../../core/models/user-backend.model';
 
 @Component({
   selector: 'app-users-table',
   standalone: true,
-  imports: [DatePipe, HasPermissionDirective],
+  imports: [DatePipe, HasPermissionDirective, AvatarComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (isLoading()) {
@@ -134,9 +135,7 @@ import { UserBackend } from '../../../core/models/user-backend.model';
           <div class="rounded-lg border border-default bg-surface p-4 shadow-card">
             <div class="mb-3 flex items-start justify-between">
               <div class="flex items-center gap-3">
-                <div class="flex h-10 w-10 items-center justify-center rounded-full bg-navy-900 text-sm font-semibold text-white">
-                  {{ getUserInitials(user) }}
-                </div>
+                <app-avatar [url]="user.avatarUrl ?? null" [initials]="getUserInitials(user)" [size]="40" />
                 <div>
                   <p class="font-semibold text-text">{{ user.firstName }} {{ user.lastName }}</p>
                   <p class="text-sm text-subtle">{{ user.email }}</p>

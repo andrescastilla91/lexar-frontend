@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { HasPermissionDirective } from '../../../core/directives/has-permission.directive';
+import { AvatarComponent } from '../../../core/components/avatar.component';
 import { AdvisorResponse, AdvisorStatus } from '../../../core/models/advisor-backend.model';
 import { getAdvisorFullName, getAdvisorInitials } from '../utils/advisor-format.utils';
 
@@ -13,7 +14,7 @@ const STATUS_LABELS: Record<AdvisorStatus, string> = {
 @Component({
   selector: 'app-advisors-table',
   standalone: true,
-  imports: [HasPermissionDirective],
+  imports: [HasPermissionDirective, AvatarComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (isLoading()) {
@@ -47,9 +48,7 @@ const STATUS_LABELS: Record<AdvisorStatus, string> = {
               <tr class="transition hover:bg-surface-muted">
                 <td class="px-6 py-4">
                   <div class="flex items-center gap-3">
-                    <div class="flex h-10 w-10 items-center justify-center rounded-full bg-navy-900 text-sm font-semibold text-white">
-                      {{ getAdvisorInitials(advisor) }}
-                    </div>
+                    <app-avatar [url]="advisor.user?.avatarUrl ?? null" [initials]="getAdvisorInitials(advisor)" [size]="40" />
                     <div>
                       <p class="font-semibold text-text">{{ getAdvisorFullName(advisor) }}</p>
                       <p class="text-sm text-subtle">{{ advisor.user?.email || 'Sin email' }}</p>

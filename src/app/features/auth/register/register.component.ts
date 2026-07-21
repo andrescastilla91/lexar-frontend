@@ -131,55 +131,22 @@ import { RegisterCompanyRequest } from '../../../core/models/auth.model';
                       <p class="text-xs text-danger">Campo requerido</p>
                     }
                   </div>
-                  <div class="grid gap-3 md:grid-cols-2">
-                    <div class="space-y-1">
-                      <label class="block text-xs font-medium text-muted" for="taxId">NIT / RUT</label>
-                      <input
-                        id="taxId"
-                        type="text"
-                        formControlName="taxId"
-                        class="w-full rounded-md border border-default px-3 py-2 text-sm text-text shadow-card transition focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
-                        placeholder="123456789-0"
-                      />
-                      @if (form.get('taxId')?.touched && form.get('taxId')?.invalid) {
-                        <p class="text-xs text-danger">Campo requerido</p>
-                      }
-                    </div>
-                    <div class="space-y-1">
-                      <label class="block text-xs font-medium text-muted" for="companyEmail">Email empresa</label>
-                      <input
-                        id="companyEmail"
-                        type="email"
-                        formControlName="companyEmail"
-                        autocomplete="off"
-                        class="w-full rounded-md border border-default px-3 py-2 text-sm text-text shadow-card transition focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
-                        placeholder="contacto@empresa.com"
-                      />
-                      @if (form.get('companyEmail')?.touched && form.get('companyEmail')?.invalid) {
-                        <p class="text-xs text-danger">Email inválido</p>
-                      }
-                    </div>
-                  </div>
                   <div class="space-y-1">
-                    <label class="block text-xs font-medium text-muted" for="address">Dirección (opcional)</label>
+                    <label class="block text-xs font-medium text-muted" for="taxId">NIT / RUT</label>
                     <input
-                      id="address"
+                      id="taxId"
                       type="text"
-                      formControlName="address"
+                      formControlName="taxId"
                       class="w-full rounded-md border border-default px-3 py-2 text-sm text-text shadow-card transition focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
-                      placeholder="Dirección principal"
+                      placeholder="123456789-0"
                     />
+                    @if (form.get('taxId')?.touched && form.get('taxId')?.invalid) {
+                      <p class="text-xs text-danger">Campo requerido</p>
+                    }
                   </div>
-                  <div class="space-y-1">
-                    <label class="block text-xs font-medium text-muted" for="legalRepresentative">Representante legal (opcional)</label>
-                    <input
-                      id="legalRepresentative"
-                      type="text"
-                      formControlName="legalRepresentative"
-                      class="w-full rounded-md border border-default px-3 py-2 text-sm text-text shadow-card transition focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
-                      placeholder="Nombre del representante"
-                    />
-                  </div>
+                  <p class="text-xs text-subtle">
+                    Podrás completar los demás datos de tu empresa (dirección, facturación, marca) después de crear la cuenta, desde Configuración.
+                  </p>
                 </div>
               </div>
 
@@ -227,9 +194,6 @@ export class RegisterComponent implements OnInit {
       confirmPassword: ['', Validators.required],
       legalName: ['', [Validators.required, Validators.minLength(3)]],
       taxId: ['', [Validators.required]],
-      companyEmail: ['', [Validators.required, Validators.email]],
-      address: [''],
-      legalRepresentative: [''],
     },
     { validators: (control) => this.passwordsMatchValidator(control) }
   );
@@ -270,9 +234,6 @@ export class RegisterComponent implements OnInit {
       company: {
         legalName: formValue.legalName,
         taxId: formValue.taxId,
-        email: formValue.companyEmail,
-        address: formValue.address || undefined,
-        legalRepresentative: formValue.legalRepresentative || undefined,
       },
     };
 
