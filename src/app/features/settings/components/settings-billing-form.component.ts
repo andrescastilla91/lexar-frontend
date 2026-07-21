@@ -29,7 +29,7 @@ import { FormGroup, ReactiveFormsModule } from '@angular/forms';
 
         <button
           type="submit"
-          class="rounded-md bg-navy-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-navy-950 disabled:bg-strong"
+          class="w-full rounded-md bg-navy-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-navy-950 disabled:bg-strong sm:w-auto"
           [disabled]="isSubmitting() || form().invalid"
         >
           Guardar cambios

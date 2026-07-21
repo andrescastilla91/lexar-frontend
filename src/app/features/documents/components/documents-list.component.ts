@@ -63,72 +63,67 @@ export interface DocumentRow extends FileModel {
           <p class="mt-1 text-sm text-subtle">Sube tu primer archivo para comenzar</p>
         </div>
       } @else {
-        <div class="space-y-2">
+        <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           @for (file of files(); track file.id) {
-            <div class="group rounded-md border border-default bg-surface p-4 shadow-card hover:shadow-card transition-all">
-              <div class="flex items-center justify-between gap-4">
-                <div class="flex items-center gap-3 flex-1 min-w-0">
-                  <div class="flex h-10 w-10 items-center justify-center rounded-md bg-surface-muted flex-shrink-0">
-                    <svg class="h-5 w-5 text-subtle" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                      <path [attr.d]="file.iconPath" stroke-linecap="round" stroke-linejoin="round" />
-                    </svg>
-                  </div>
-                  <div class="flex-1 min-w-0">
-                    <h3 class="font-semibold text-text truncate">{{ file.originalFilename }}</h3>
-                    <div class="flex flex-wrap items-center gap-2 mt-0.5 text-xs text-subtle">
-                      <span class="inline-flex items-center gap-1 rounded-full bg-surface-muted px-2 py-0.5">
-                        <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026m-16.5 0a2.25 2.25 0 0 0-1.883 2.542l.857 6a2.25 2.25 0 0 0 2.227 1.932H19.05a2.25 2.25 0 0 0 2.227-1.932l.857-6a2.25 2.25 0 0 0-1.883-2.542m-16.5 0V6A2.25 2.25 0 0 1 6 3.75h3.879a1.5 1.5 0 0 1 1.06.44l2.122 2.12a1.5 1.5 0 0 0 1.06.44H18A2.25 2.25 0 0 1 20.25 9v.776" />
-                        </svg>
-                        {{ file.entityTypeLabel }}
-                      </span>
-                      <span class="font-medium text-text">{{ file.entityName }}</span>
-                    </div>
-                    <div class="flex flex-wrap items-center gap-2 mt-1 text-xs text-subtle">
-                      <span>{{ file.formattedSize }}</span>
-                      <span>•</span>
-                      <span>{{ file.formattedDate }}</span>
-                      <span>•</span>
-                      <span>{{ file.uploadedBy.email }}</span>
-                    </div>
-                  </div>
-                </div>
+            <div class="flex flex-col rounded-md border border-default bg-surface p-3 shadow-card transition hover:shadow-card">
+              <div class="flex h-12 w-12 items-center justify-center self-center rounded-md bg-surface-muted">
+                <svg class="h-6 w-6 text-subtle" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                  <path [attr.d]="file.iconPath" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </div>
 
-                <div class="flex items-center gap-1">
-                  @if (file.isPreviewable) {
-                    <button
-                      (click)="previewFile.emit(file)"
-                      class="rounded-lg p-2 text-primary transition hover:bg-primary-tint"
-                      title="Vista previa"
-                    >
-                      <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                      </svg>
-                    </button>
-                  }
+              <h3 class="mt-2 truncate text-center text-sm font-semibold text-text" [title]="file.originalFilename">
+                {{ file.originalFilename }}
+              </h3>
 
+              <span
+                class="mx-auto mt-1 inline-flex max-w-full items-center gap-1 truncate rounded-full bg-surface-muted px-2 py-0.5 text-xs text-subtle"
+                [title]="file.entityName"
+              >
+                <svg class="h-3 w-3 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026m-16.5 0a2.25 2.25 0 0 0-1.883 2.542l.857 6a2.25 2.25 0 0 0 2.227 1.932H19.05a2.25 2.25 0 0 0 2.227-1.932l.857-6a2.25 2.25 0 0 0-1.883-2.542m-16.5 0V6A2.25 2.25 0 0 1 6 3.75h3.879a1.5 1.5 0 0 1 1.06.44l2.122 2.12a1.5 1.5 0 0 0 1.06.44H18A2.25 2.25 0 0 1 20.25 9v.776" />
+                </svg>
+                <span class="truncate">{{ file.entityTypeLabel }} · {{ file.entityName }}</span>
+              </span>
+
+              <p class="mt-1 truncate text-center text-xs text-subtle" [title]="file.formattedDate">
+                {{ file.formattedSize }} · {{ file.formattedDate }}
+              </p>
+
+              <div class="mt-2 flex items-center justify-center gap-1 border-t border-default pt-2">
+                @if (file.isPreviewable) {
                   <button
-                    (click)="downloadFile.emit(file)"
-                    class="rounded-lg p-2 text-success transition hover:bg-success-tint"
-                    title="Descargar"
+                    (click)="previewFile.emit(file)"
+                    class="rounded-lg p-2 text-primary transition hover:bg-primary-tint"
+                    title="Vista previa"
                   >
                     <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
                     </svg>
                   </button>
+                }
 
-                  <button
-                    *hasPermission="['files.delete']"
-                    (click)="deleteFile.emit(file)"
-                    class="rounded-lg p-2 text-danger transition hover:bg-danger-tint"
-                    title="Eliminar"
-                  >
-                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-                    </svg>
-                  </button>
-                </div>
+                <button
+                  (click)="downloadFile.emit(file)"
+                  class="rounded-lg p-2 text-success transition hover:bg-success-tint"
+                  title="Descargar"
+                >
+                  <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                  </svg>
+                </button>
+
+                <button
+                  *hasPermission="['files.delete']"
+                  (click)="deleteFile.emit(file)"
+                  class="rounded-lg p-2 text-danger transition hover:bg-danger-tint"
+                  title="Eliminar"
+                >
+                  <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                  </svg>
+                </button>
               </div>
             </div>
           }

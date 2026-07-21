@@ -11,7 +11,7 @@ import { FormGroup, ReactiveFormsModule } from '@angular/forms';
       <h2 class="text-lg font-semibold text-text">Marca</h2>
       <p class="mt-1 text-sm text-subtle">Logo y sitio web que verán tus clientes y equipo.</p>
 
-      <div class="mt-4 flex items-center gap-4">
+      <div class="mt-4 flex flex-wrap items-center gap-4">
         <div class="relative flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-md border border-default bg-surface-muted">
           @if (logoUrl()) {
             <img [src]="logoUrl()" alt="Logo de la empresa" class="h-full w-full rounded-md object-contain p-1" />
@@ -57,7 +57,7 @@ import { FormGroup, ReactiveFormsModule } from '@angular/forms';
 
         <button
           type="submit"
-          class="rounded-md bg-navy-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-navy-950 disabled:bg-strong"
+          class="w-full rounded-md bg-navy-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-navy-950 disabled:bg-strong sm:w-auto"
           [disabled]="isSubmitting() || form().invalid"
         >
           Guardar cambios
