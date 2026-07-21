@@ -2,7 +2,9 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Router } from '@angular/router';
+import { of } from 'rxjs';
 import { AuthService } from './auth.service';
+import { ProfileService } from './profile.service';
 import { AuthUser } from '../models/auth.model';
 import { environment } from '../../../environments/environment';
 
@@ -18,6 +20,10 @@ describe('AuthService', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         { provide: Router, useValue: { navigate: jest.fn() } },
+        {
+          provide: ProfileService,
+          useValue: { getMe: jest.fn().mockReturnValue(of({ firstName: '', lastName: '', avatarUrl: null })) },
+        },
       ],
     });
 
@@ -40,7 +46,7 @@ describe('AuthService', () => {
 
     expect(result).toEqual({ success: true, user });
     expect(service.isAuthenticated()).toBe(true);
-    expect(service.currentUser()).toEqual(user);
+    expect(service.currentUser()).toEqual(expect.objectContaining(user));
   });
 
   it('login fallido no autentica y expone el mensaje del backend', () => {
