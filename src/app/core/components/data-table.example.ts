@@ -9,7 +9,7 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DataTableComponent, TableColumn } from '../../core/components';
 import { ClientsService } from '../../core/services/clients.service';
-import { ClientResponse, RiskLevel, DocumentType } from '../../core/models/client-backend.model';
+import { ClientResponse } from '../../core/models/client-backend.model';
 import { HasPermissionDirective } from '../../core/directives/has-permission.directive';
 
 @Component({
@@ -44,7 +44,7 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
           <div>
             <p class="font-semibold text-slate-800">{{ client.fullName }}</p>
             <p class="text-sm text-slate-500">
-              {{ getDocumentTypeLabel(client.documentType) }}: {{ client.identificationNumber }}
+              {{ client.documentType?.label || 'N/A' }}: {{ client.identificationNumber }}
             </p>
           </div>
         </ng-template>
@@ -57,15 +57,8 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
 
         <!-- Template personalizado para riesgo -->
         <ng-template #cellRisk let-client>
-          <span
-            class="inline-flex rounded-full px-2 py-1 text-xs font-semibold"
-            [class]="{
-              'bg-emerald-100 text-emerald-700': client.riskLevel === 'LOW',
-              'bg-amber-100 text-amber-700': client.riskLevel === 'MEDIUM',
-              'bg-rose-100 text-rose-700': client.riskLevel === 'HIGH'
-            }"
-          >
-            {{ getRiskLevelLabel(client.riskLevel) }}
+          <span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold bg-slate-100 text-slate-700">
+            {{ client.riskLevel?.label || 'N/A' }}
           </span>
         </ng-template>
 
@@ -214,22 +207,5 @@ export class ClientsExampleComponent implements OnInit {
 
   openCreateModal(): void {
     console.log('Abrir modal de creación');
-  }
-
-  getRiskLevelLabel(riskLevel: RiskLevel): string {
-    const labels: Record<RiskLevel, string> = {
-      LOW: 'Bajo',
-      MEDIUM: 'Medio',
-      HIGH: 'Alto',
-    };
-    return labels[riskLevel];
-  }
-
-  getDocumentTypeLabel(documentType: DocumentType): string {
-    const labels: Record<DocumentType, string> = {
-      CC: 'Cédula',
-      NIT: 'NIT',
-    };
-    return labels[documentType];
   }
 }

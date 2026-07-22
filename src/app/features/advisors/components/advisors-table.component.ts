@@ -59,7 +59,7 @@ const STATUS_LABELS: Record<AdvisorStatus, string> = {
                   {{ advisor.phone || 'N/A' }}
                 </td>
                 <td class="px-6 py-4">
-                  <p class="text-sm font-medium text-text">{{ advisor.specialty }}</p>
+                  <p class="text-sm font-medium text-text">{{ advisor.specialty?.label || 'N/A' }}</p>
                 </td>
                 <td class="px-6 py-4">
                   <div class="flex items-center gap-3 text-sm">
@@ -150,7 +150,7 @@ const STATUS_LABELS: Record<AdvisorStatus, string> = {
               </div>
               <div>
                 <span class="text-xs font-medium text-subtle">Especialidad:</span>
-                <span class="ml-2 text-xs text-muted">{{ advisor.specialty }}</span>
+                <span class="ml-2 text-xs text-muted">{{ advisor.specialty?.label || 'N/A' }}</span>
               </div>
               <div>
                 <span class="text-xs font-medium text-subtle">Experiencia:</span>

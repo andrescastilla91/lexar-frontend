@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
 import { FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { AdvisorStatus } from '../../../core/models/advisor-backend.model';
 import { UserBackend } from '../../../core/models/user-backend.model';
+import { CatalogItem } from '../../../core/models/catalog-backend.model';
 
 @Component({
   selector: 'app-advisor-form',
@@ -61,13 +62,16 @@ import { UserBackend } from '../../../core/models/user-backend.model';
               </label>
               <label class="text-sm text-muted">
                 Especialidad *
-                <input
-                  formControlName="specialty"
-                  type="text"
-                  placeholder="Derecho administrativo, penal, etc."
+                <select
+                  formControlName="specialtyId"
                   class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
-                />
-                @if (form().get('specialty')?.touched && form().get('specialty')?.invalid) {
+                >
+                  <option value="">Selecciona una especialidad</option>
+                  @for (specialty of specialties(); track specialty.id) {
+                    <option [value]="specialty.id">{{ specialty.label }}</option>
+                  }
+                </select>
+                @if (form().get('specialtyId')?.touched && form().get('specialtyId')?.invalid) {
                   <p class="mt-1 text-xs text-danger">Campo requerido</p>
                 }
               </label>
@@ -145,6 +149,7 @@ export class AdvisorFormComponent {
   isSubmitting = input(false);
   errorMessage = input<string | null>(null);
   availableUsers = input<UserBackend[]>([]);
+  specialties = input<CatalogItem[]>([]);
 
   cancel = output<void>();
   submit = output<void>();

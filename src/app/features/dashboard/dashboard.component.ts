@@ -153,7 +153,7 @@ const STATUS_LABELS: Record<string, string> = {
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                           <path stroke-linecap="round" stroke-linejoin="round" d="m12 6 7.5 12h-15L12 6z" />
                         </svg>
-                        Riesgo {{ process.riskLevel }}
+                        Riesgo {{ process.riskLevel?.label || 'N/A' }}
                       </span>
                     </div>
                   </div>
@@ -277,7 +277,7 @@ const STATUS_LABELS: Record<string, string> = {
                 <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-default px-4 py-3 text-sm text-muted">
                   <div class="min-w-0">
                     <p class="truncate font-semibold text-text">{{ advisor.name }}</p>
-                    <p class="truncate text-xs text-subtle">{{ advisor.specialty }}</p>
+                    <p class="truncate text-xs text-subtle">{{ advisor.specialty?.label || 'N/A' }}</p>
                   </div>
                   <div class="flex items-center gap-3 text-xs text-subtle">
                     <span class="flex items-center gap-1 text-accent">

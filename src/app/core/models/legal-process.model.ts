@@ -3,6 +3,7 @@
  */
 
 import { AdvisorResponse } from './advisor-backend.model';
+import { CatalogRef } from './catalog-backend.model';
 
 export enum ProcessStatus {
   DRAFT = 'DRAFT', // Borrador
@@ -14,26 +15,13 @@ export enum ProcessStatus {
   ARCHIVED = 'ARCHIVED', // Archivado
 }
 
-export enum ProcessStage {
-  INVESTIGATION = 'INVESTIGATION',
-  HEARING = 'HEARING',
-  NOTIFICATION = 'NOTIFICATION',
-  EXECUTION = 'EXECUTION',
-}
-
-export enum RiskLevel {
-  LOW = 'LOW',
-  MEDIUM = 'MEDIUM',
-  HIGH = 'HIGH',
-}
-
 export interface LegalProcessResponse {
   id: string;
   title: string;
   description: string | null;
   status: ProcessStatus;
-  stage: ProcessStage;
-  riskLevel: RiskLevel;
+  stage: CatalogRef | null;
+  riskLevel: CatalogRef | null;
   court: string | null;
   caseNumber: string | null;
   nextHearingDate: Date | null;
@@ -55,8 +43,8 @@ export interface CreateLegalProcessRequest {
   title: string;
   description?: string;
   status?: ProcessStatus;
-  stage?: ProcessStage;
-  riskLevel?: RiskLevel;
+  stageId?: string;
+  riskLevelId?: string;
   court?: string;
   caseNumber?: string;
   nextHearingDate?: string;
@@ -70,8 +58,8 @@ export interface UpdateLegalProcessRequest {
   title?: string;
   description?: string;
   status?: ProcessStatus;
-  stage?: ProcessStage;
-  riskLevel?: RiskLevel;
+  stageId?: string;
+  riskLevelId?: string;
   court?: string;
   caseNumber?: string;
   nextHearingDate?: string;

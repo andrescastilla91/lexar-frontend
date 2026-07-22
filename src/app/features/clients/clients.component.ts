@@ -3,7 +3,9 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { startWith } from 'rxjs';
 import { ClientsService } from '../../core/services/clients.service';
-import { ClientResponse, CreateClientRequest, UpdateClientRequest, RiskLevel, DocumentType } from '../../core/models/client-backend.model';
+import { ClientResponse, CreateClientRequest, UpdateClientRequest } from '../../core/models/client-backend.model';
+import { CatalogsService } from '../../core/services/catalogs.service';
+import { CatalogItem } from '../../core/models/catalog-backend.model';
 import { HasPermissionDirective } from '../../core/directives/has-permission.directive';
 import { ConfirmDialogService } from '../../core/services/confirm-dialog.service';
 import { PaginationComponent } from '../../core/components/pagination.component';
@@ -65,9 +67,9 @@ import { identificationNumberValidator } from './utils/identification-number.val
                 class="w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
               >
                 <option value="all">Todos</option>
-                <option value="LOW">Bajo</option>
-                <option value="MEDIUM">Medio</option>
-                <option value="HIGH">Alto</option>
+                @for (riskLevel of riskLevels(); track riskLevel.id) {
+                  <option [value]="riskLevel.code">{{ riskLevel.label }}</option>
+                }
               </select>
             </label>
           </div>
@@ -100,6 +102,8 @@ import { identificationNumberValidator } from './utils/identification-number.val
         [isSubmitting]="isSubmitting()"
         [errorMessage]="errorMessage()"
         [editingClientId]="editingClient()?.id ?? null"
+        [documentTypes]="documentTypes()"
+        [riskLevels]="riskLevels()"
         (cancel)="cancelEdit()"
         (submit)="submitClient()"
       />
@@ -129,6 +133,7 @@ import { identificationNumberValidator } from './utils/identification-number.val
 export class ClientsComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly clientsService = inject(ClientsService);
+  private readonly catalogsService = inject(CatalogsService);
   private readonly confirmDialog = inject(ConfirmDialogService);
 
   readonly clients = signal<ClientResponse[]>([]);
@@ -142,6 +147,9 @@ export class ClientsComponent implements OnInit {
   readonly pageSize = 10;
   readonly totalPages = computed(() => Math.ceil(this.total() / this.pageSize));
 
+  readonly documentTypes = signal<CatalogItem[]>([]);
+  readonly riskLevels = signal<CatalogItem[]>([]);
+
   readonly filterForm = this.fb.nonNullable.group({
     search: [''],
     status: ['all'],
@@ -154,11 +162,11 @@ export class ClientsComponent implements OnInit {
     phone: [''],
     email: ['', [Validators.required, Validators.email]],
     address: [''],
-    documentType: ['CC' as DocumentType, [Validators.required]],
+    documentTypeId: ['', [Validators.required]],
     identificationNumber: ['', [Validators.required]],
-    riskLevel: ['LOW' as RiskLevel],
+    riskLevelId: [''],
   }, {
-    validators: [identificationNumberValidator]
+    validators: [identificationNumberValidator(() => this.documentTypes())]
   });
 
   readonly filterValues = toSignal(
@@ -195,7 +203,7 @@ export class ClientsComponent implements OnInit {
     }
 
     if (riskLevel !== 'all') {
-      filtered = filtered.filter((c) => c.riskLevel === riskLevel);
+      filtered = filtered.filter((c) => c.riskLevel?.code === riskLevel);
     }
 
     return filtered;
@@ -208,16 +216,22 @@ export class ClientsComponent implements OnInit {
 
   readonly highRiskCount = computed(() => {
     const clients = this.clients();
-    return Array.isArray(clients) ? clients.filter((c) => c.riskLevel === 'HIGH').length : 0;
+    return Array.isArray(clients) ? clients.filter((c) => c.riskLevel?.code === 'HIGH').length : 0;
   });
 
   readonly lowRiskCount = computed(() => {
     const clients = this.clients();
-    return Array.isArray(clients) ? clients.filter((c) => c.riskLevel === 'LOW').length : 0;
+    return Array.isArray(clients) ? clients.filter((c) => c.riskLevel?.code === 'LOW').length : 0;
   });
 
   ngOnInit(): void {
+    this.loadCatalogs();
     this.loadClients();
+  }
+
+  loadCatalogs(): void {
+    this.catalogsService.getActiveCatalog('document_type').subscribe((items) => this.documentTypes.set(items));
+    this.catalogsService.getActiveCatalog('risk_level').subscribe((items) => this.riskLevels.set(items));
   }
 
   loadClients(): void {
@@ -252,9 +266,9 @@ export class ClientsComponent implements OnInit {
       phone: client.phone || '',
       email: client.email,
       address: client.address || '',
-      documentType: client.documentType,
+      documentTypeId: client.documentType?.id || '',
       identificationNumber: client.identificationNumber,
-      riskLevel: client.riskLevel,
+      riskLevelId: client.riskLevel?.id || '',
     });
     this.panelOpen.set(true);
   }
@@ -267,9 +281,9 @@ export class ClientsComponent implements OnInit {
       phone: '',
       email: '',
       address: '',
-      documentType: 'CC',
+      documentTypeId: '',
       identificationNumber: '',
-      riskLevel: 'LOW',
+      riskLevelId: '',
     });
     this.errorMessage.set(null);
     this.panelOpen.set(false);
@@ -297,9 +311,9 @@ export class ClientsComponent implements OnInit {
         phone: formValue.phone || undefined,
         email: formValue.email,
         address: formValue.address || undefined,
-        documentType: formValue.documentType,
+        documentTypeId: formValue.documentTypeId || undefined,
         identificationNumber: formValue.identificationNumber,
-        riskLevel: formValue.riskLevel,
+        riskLevelId: formValue.riskLevelId || undefined,
       };
 
       this.clientsService.updateClient(this.editingClient()!.id, updateData).subscribe({
@@ -320,9 +334,9 @@ export class ClientsComponent implements OnInit {
         phone: formValue.phone || undefined,
         email: formValue.email,
         address: formValue.address || undefined,
-        documentType: formValue.documentType,
+        documentTypeId: formValue.documentTypeId || undefined,
         identificationNumber: formValue.identificationNumber,
-        riskLevel: formValue.riskLevel,
+        riskLevelId: formValue.riskLevelId || undefined,
       };
 
       this.clientsService.createClient(createData).subscribe({

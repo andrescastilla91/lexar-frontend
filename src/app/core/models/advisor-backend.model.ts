@@ -1,3 +1,5 @@
+import { CatalogRef } from './catalog-backend.model';
+
 export enum AdvisorStatus {
   AVAILABLE = 'AVAILABLE',
   IN_HEARING = 'IN_HEARING',
@@ -16,7 +18,7 @@ export interface AdvisorUser {
 export interface AdvisorResponse {
   id: string;
   userId: string;
-  specialty: string;
+  specialty: CatalogRef | null;
   phone: string | null;
   status: AdvisorStatus;
   rating: number | null;
@@ -30,7 +32,7 @@ export interface AdvisorResponse {
 
 export interface CreateAdvisorRequest {
   userId: string;
-  specialty: string;
+  specialtyId?: string;
   phone?: string;
   status?: AdvisorStatus;
   rating?: number;
@@ -38,7 +40,7 @@ export interface CreateAdvisorRequest {
 }
 
 export interface UpdateAdvisorRequest {
-  specialty?: string;
+  specialtyId?: string;
   phone?: string;
   status?: AdvisorStatus;
   rating?: number;
