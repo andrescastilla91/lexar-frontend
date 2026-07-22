@@ -7,13 +7,20 @@ import { SettingsLegalFormComponent } from './components/settings-legal-form.com
 import { SettingsBillingFormComponent } from './components/settings-billing-form.component';
 import { SettingsBrandFormComponent } from './components/settings-brand-form.component';
 import { SettingsCatalogsComponent } from './components/settings-catalogs.component';
+import { SettingsPlanComponent } from './components/settings-plan.component';
 
-type SettingsTab = 'legal' | 'billing' | 'brand' | 'catalogs';
+type SettingsTab = 'legal' | 'billing' | 'brand' | 'catalogs' | 'plan';
 
 @Component({
   selector: 'app-settings',
   standalone: true,
-  imports: [SettingsLegalFormComponent, SettingsBillingFormComponent, SettingsBrandFormComponent, SettingsCatalogsComponent],
+  imports: [
+    SettingsLegalFormComponent,
+    SettingsBillingFormComponent,
+    SettingsBrandFormComponent,
+    SettingsCatalogsComponent,
+    SettingsPlanComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6 md:px-6 lg:px-8">
@@ -83,6 +90,9 @@ type SettingsTab = 'legal' | 'billing' | 'brand' | 'catalogs';
         @case ('catalogs') {
           <app-settings-catalogs />
         }
+        @case ('plan') {
+          <app-settings-plan />
+        }
       }
     </div>
   `,
@@ -97,6 +107,7 @@ export class SettingsComponent implements OnInit {
     { id: 'billing', label: 'Facturación' },
     { id: 'brand', label: 'Marca' },
     { id: 'catalogs', label: 'Catálogos' },
+    { id: 'plan', label: 'Plan y facturación' },
   ];
   readonly activeTab = signal<SettingsTab>('legal');
 

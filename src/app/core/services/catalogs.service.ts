@@ -86,4 +86,9 @@ export class CatalogsService {
   invalidate(type: CatalogType): void {
     this.cache.delete(type);
   }
+
+  /** Limpia todo el caché (p. ej. al cambiar de tenant en login/logout). */
+  invalidateAll(): void {
+    this.cache.clear();
+  }
 }

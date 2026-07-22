@@ -5,6 +5,8 @@ import { Observable, tap, catchError, of, map, switchMap } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { ThemeService } from './theme.service';
 import { ProfileService } from './profile.service';
+import { CatalogsService } from './catalogs.service';
+import { SubscriptionService } from './subscription.service';
 import {
   LoginRequest,
   LoginResponse,
@@ -24,6 +26,8 @@ export class AuthService {
   private readonly router = inject(Router);
   private readonly themeService = inject(ThemeService);
   private readonly profileService = inject(ProfileService);
+  private readonly catalogsService = inject(CatalogsService);
+  private readonly subscriptionService = inject(SubscriptionService);
   private readonly apiUrl = `${environment.apiUrl}/auth`;
 
   // Solo mantener en memoria (signal), NO en localStorage
@@ -37,6 +41,7 @@ export class AuthService {
     
     return this.http.post<LoginResponse>(`${this.apiUrl}/login`, payload).pipe(
       tap((response) => {
+        this.clearTenantCaches();
         // Guardar usuario en estado en memoria (NO localStorage)
         this.currentUserSignal.set(response.user);
         if (response.user.themePreference) {
@@ -61,6 +66,7 @@ export class AuthService {
   register(data: RegisterCompanyRequest): Observable<{ success: boolean; message?: string; user?: AuthUser }> {
     return this.http.post<RegisterResponse>(`${this.apiUrl}/register`, data).pipe(
       tap((response) => {
+        this.clearTenantCaches();
         // Guardar usuario en estado en memoria (NO localStorage)
         this.currentUserSignal.set(response.user);
       }),
@@ -214,6 +220,12 @@ export class AuthService {
 
   private clearSession(): void {
     this.currentUserSignal.set(null);
+    this.clearTenantCaches();
     // NO usar localStorage para datos sensibles
+  }
+
+  private clearTenantCaches(): void {
+    this.catalogsService.invalidateAll();
+    this.subscriptionService.invalidate();
   }
 }
