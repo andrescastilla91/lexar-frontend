@@ -4,8 +4,10 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { startWith, catchError, of } from 'rxjs';
 import { AdvisorsService } from '../../core/services/advisors.service';
 import { UsersService } from '../../core/services/users.service';
+import { CatalogsService } from '../../core/services/catalogs.service';
 import { AdvisorResponse, AdvisorStatus } from '../../core/models/advisor-backend.model';
 import { UserBackend } from '../../core/models/user-backend.model';
+import { CatalogItem } from '../../core/models/catalog-backend.model';
 import { HasPermissionDirective } from '../../core/directives/has-permission.directive';
 import { ConfirmDialogService } from '../../core/services/confirm-dialog.service';
 import { PaginationComponent } from '../../core/components/pagination.component';
@@ -94,6 +96,7 @@ type FilterStatus = AdvisorStatus | 'ALL';
         [isSubmitting]="isSubmitting()"
         [errorMessage]="errorMessage()"
         [availableUsers]="availableUsers()"
+        [specialties]="specialties()"
         (cancel)="cancelEdit()"
         (submit)="submitAdvisor()"
       />
@@ -125,12 +128,14 @@ export class AdvisorsComponent {
   private readonly fb = inject(FormBuilder);
   private readonly advisorsService = inject(AdvisorsService);
   private readonly usersService = inject(UsersService);
+  private readonly catalogsService = inject(CatalogsService);
   private readonly confirmDialog = inject(ConfirmDialogService);
 
   protected readonly AdvisorStatus = AdvisorStatus;
 
   readonly advisors = signal<AdvisorResponse[]>([]);
   readonly users = signal<UserBackend[]>([]);
+  readonly specialties = signal<CatalogItem[]>([]);
   readonly isLoading = signal(false);
   readonly isSubmitting = signal(false);
   readonly errorMessage = signal<string | null>(null);
@@ -149,7 +154,7 @@ export class AdvisorsComponent {
   readonly advisorForm = this.fb.nonNullable.group({
     userId: ['', [Validators.required]],
     phone: [''],
-    specialty: ['', [Validators.required]],
+    specialtyId: ['', [Validators.required]],
     status: [AdvisorStatus.AVAILABLE, Validators.required],
     experienceYears: [0, [Validators.required, Validators.min(0)]],
     rating: [0, [Validators.min(0), Validators.max(5)]],
@@ -170,7 +175,7 @@ export class AdvisorsComponent {
         search === '' ||
         getAdvisorFullName(advisor).toLowerCase().includes(search) ||
         advisor.user?.email.toLowerCase().includes(search) ||
-        advisor.specialty.toLowerCase().includes(search);
+        (advisor.specialty?.label ?? '').toLowerCase().includes(search);
       const matchesStatus = status === 'ALL' || advisor.status === status;
       return matchesTerm && matchesStatus;
     });
@@ -211,6 +216,11 @@ export class AdvisorsComponent {
       this.loadAdvisors();
       this.loadUsers();
     }, { allowSignalWrites: true });
+    this.loadSpecialties();
+  }
+
+  private loadSpecialties(): void {
+    this.catalogsService.getActiveCatalog('advisor_specialty').subscribe((items) => this.specialties.set(items));
   }
 
   private loadAdvisors(): void {
@@ -249,7 +259,7 @@ export class AdvisorsComponent {
       this.advisorForm.reset({
         userId: '',
         phone: '',
-        specialty: '',
+        specialtyId: '',
         status: AdvisorStatus.AVAILABLE,
         experienceYears: 0,
         rating: 0,
@@ -269,7 +279,7 @@ export class AdvisorsComponent {
     const formData = {
       userId: advisor.userId,
       phone: advisor.phone || '',
-      specialty: advisor.specialty,
+      specialtyId: advisor.specialty?.id || '',
       status: advisor.status,
       experienceYears: advisor.experienceYears,
       rating: advisor.rating || 0,
@@ -300,7 +310,7 @@ export class AdvisorsComponent {
 
     if (currentAdvisor) {
       const updatePayload = {
-        specialty: formValue.specialty,
+        specialtyId: formValue.specialtyId,
         phone: formValue.phone || undefined,
         status: formValue.status,
         experienceYears: formValue.experienceYears,
@@ -323,7 +333,7 @@ export class AdvisorsComponent {
     } else {
       const createPayload = {
         userId: formValue.userId,
-        specialty: formValue.specialty,
+        specialtyId: formValue.specialtyId,
         phone: formValue.phone || undefined,
         status: formValue.status,
         experienceYears: formValue.experienceYears,

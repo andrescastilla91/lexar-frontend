@@ -8,6 +8,8 @@ import { ClientsService } from '../../core/services/clients.service';
 import { FilesService } from '../../core/services/files.service';
 import { AdvisorResponse } from '../../core/models/advisor-backend.model';
 import { ClientResponse } from '../../core/models/client-backend.model';
+import { CatalogsService } from '../../core/services/catalogs.service';
+import { CatalogItem } from '../../core/models/catalog-backend.model';
 import { PaginationComponent } from '../../core/components/pagination.component';
 import { FilePreviewModalComponent } from '../../core/components/file-preview-modal.component';
 import { forkJoin, of, Subscription } from 'rxjs';
@@ -15,8 +17,6 @@ import { switchMap } from 'rxjs/operators';
 import {
   LegalProcessResponse,
   ProcessStatus,
-  ProcessStage,
-  RiskLevel,
   CreateLegalProcessRequest,
   UpdateLegalProcessRequest,
   UpdateProcessStatusRequest,
@@ -138,6 +138,8 @@ import { getStatusLabel, getValidNextStatuses, isProcessEditable } from './utils
         [canEdit]="canEditProcess()"
         [clients]="clients()"
         [advisors]="advisors()"
+        [stages]="stages()"
+        [riskLevels]="riskLevels()"
         (close)="togglePanel()"
         (submit)="submitProcess()"
         (toggleAdvisor)="toggleAdvisor($event)"
@@ -221,6 +223,7 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   private readonly processEventsService = inject(ProcessEventsService);
   private readonly advisorsService = inject(AdvisorsService);
   private readonly clientsService = inject(ClientsService);
+  private readonly catalogsService = inject(CatalogsService);
   private readonly filesService = inject(FilesService);
   private readonly sanitizer = inject(DomSanitizer);
   private readonly confirmDialog = inject(ConfirmDialogService);
@@ -229,13 +232,13 @@ export class ProcessesComponent implements OnInit, OnDestroy {
 
   // Exposed enums for template
   readonly ProcessStatus = ProcessStatus;
-  readonly ProcessStage = ProcessStage;
-  readonly RiskLevel = RiskLevel;
 
   // Signal state
   readonly processes = signal<LegalProcessResponse[]>([]);
   readonly advisors = signal<AdvisorResponse[]>([]);
   readonly clients = signal<ClientResponse[]>([]);
+  readonly stages = signal<CatalogItem[]>([]);
+  readonly riskLevels = signal<CatalogItem[]>([]);
   readonly isLoading = signal(false);
   readonly formError = signal<string | null>(null);
   readonly panelOpen = signal(false);
@@ -302,8 +305,8 @@ export class ProcessesComponent implements OnInit, OnDestroy {
     clientId: ['', [Validators.required]],
     advisorIds: [[] as string[], []],
     status: [ProcessStatus.DRAFT, [Validators.required]],
-    stage: [ProcessStage.INVESTIGATION, [Validators.required]],
-    riskLevel: [RiskLevel.MEDIUM, [Validators.required]],
+    stageId: ['', [Validators.required]],
+    riskLevelId: ['', [Validators.required]],
     court: [''],
     caseNumber: [''],
     startDate: [''],
@@ -325,6 +328,12 @@ export class ProcessesComponent implements OnInit, OnDestroy {
     this.loadProcesses();
     this.loadAdvisors();
     this.loadClients();
+    this.loadCatalogs();
+  }
+
+  loadCatalogs(): void {
+    this.catalogsService.getActiveCatalog('process_stage').subscribe((items) => this.stages.set(items));
+    this.catalogsService.getActiveCatalog('risk_level').subscribe((items) => this.riskLevels.set(items));
   }
 
   loadProcesses(): void {
@@ -407,8 +416,8 @@ export class ProcessesComponent implements OnInit, OnDestroy {
         clientId: '',
         advisorIds: [],
         status: ProcessStatus.DRAFT,
-        stage: ProcessStage.INVESTIGATION,
-        riskLevel: RiskLevel.MEDIUM,
+        stageId: '',
+        riskLevelId: '',
         court: '',
         caseNumber: '',
         startDate: '',
@@ -444,8 +453,8 @@ export class ProcessesComponent implements OnInit, OnDestroy {
     const baseRequest = {
       title: formValue.title,
       description: formValue.description || undefined,
-      stage: formValue.stage,
-      riskLevel: formValue.riskLevel,
+      stageId: formValue.stageId || undefined,
+      riskLevelId: formValue.riskLevelId || undefined,
       court: formValue.court || undefined,
       caseNumber: formValue.caseNumber || undefined,
       startDate: formValue.startDate || undefined,
@@ -488,8 +497,8 @@ export class ProcessesComponent implements OnInit, OnDestroy {
       clientId: process.clientId,
       advisorIds: process.advisors?.map((a) => a.id) || [],
       status: process.status,
-      stage: process.stage,
-      riskLevel: process.riskLevel,
+      stageId: process.stage?.id || '',
+      riskLevelId: process.riskLevel?.id || '',
       court: process.court || '',
       caseNumber: process.caseNumber || '',
       startDate: process.startDate ? new Date(process.startDate).toISOString().slice(0, 10) : '',
@@ -722,7 +731,7 @@ export class ProcessesComponent implements OnInit, OnDestroy {
         // Suspendido, no se puede cambiar caso, cliente, ni etapa
         this.processForm.get('caseNumber')?.disable();
         this.processForm.get('clientId')?.disable();
-        this.processForm.get('stage')?.disable();
+        this.processForm.get('stageId')?.disable();
         break;
 
       case ProcessStatus.COMPLETED:

@@ -58,18 +58,42 @@ import { UserBackend } from '../../../core/models/user-backend.model';
                   </div>
                 </td>
                 <td class="px-6 py-4">
-                  <span
-                    class="inline-flex rounded-full px-2 py-1 text-xs font-semibold"
-                    [class]="user.isActive ? 'bg-success-tint text-success' : 'bg-surface-muted text-muted'"
-                  >
-                    {{ user.isActive ? 'Activo' : 'Inactivo' }}
-                  </span>
+                  <div class="flex flex-wrap gap-1">
+                    <span
+                      class="inline-flex rounded-full px-2 py-1 text-xs font-semibold"
+                      [class]="user.isActive ? 'bg-success-tint text-success' : 'bg-surface-muted text-muted'"
+                    >
+                      {{ user.isActive ? 'Activo' : 'Inactivo' }}
+                    </span>
+                    @if (user.invitationStatus === 'PENDING') {
+                      <span class="inline-flex rounded-full bg-info-tint px-2 py-1 text-xs font-semibold text-info">
+                        Invitado
+                      </span>
+                    } @else if (user.invitationStatus === 'EXPIRED') {
+                      <span class="inline-flex rounded-full bg-warning-tint px-2 py-1 text-xs font-semibold text-warning">
+                        Invitación vencida
+                      </span>
+                    }
+                  </div>
                 </td>
                 <td class="px-6 py-4 text-sm text-muted">
                   {{ user.createdAt | date: 'dd/MM/yyyy' }}
                 </td>
                 <td class="px-6 py-4">
                   <div class="flex justify-end gap-2">
+                    @if (user.invitationStatus === 'PENDING' || user.invitationStatus === 'EXPIRED') {
+                      <button
+                        *hasPermission="'users.create'"
+                        type="button"
+                        (click)="resendInvitation.emit(user)"
+                        class="rounded-lg p-2 text-info hover:bg-info-tint hover:text-info"
+                        title="Reenviar invitación"
+                      >
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                        </svg>
+                      </button>
+                    }
                     <button
                       *hasPermission="'users.edit'"
                       type="button"
@@ -110,17 +134,6 @@ import { UserBackend } from '../../../core/models/user-backend.model';
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
                       </svg>
                     </button>
-                    <button
-                      *hasPermission="'users.delete'"
-                      type="button"
-                      (click)="delete.emit(user)"
-                      class="rounded-lg p-2 text-danger hover:bg-danger-tint hover:text-danger"
-                      title="Eliminar"
-                    >
-                      <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-                      </svg>
-                    </button>
                   </div>
                 </td>
               </tr>
@@ -133,20 +146,31 @@ import { UserBackend } from '../../../core/models/user-backend.model';
       <div class="grid gap-4 md:hidden">
         @for (user of users(); track user.id) {
           <div class="rounded-lg border border-default bg-surface p-4 shadow-card">
-            <div class="mb-3 flex items-start justify-between">
-              <div class="flex items-center gap-3">
+            <div class="mb-3 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
+              <div class="flex min-w-0 items-center gap-3">
                 <app-avatar [url]="user.avatarUrl ?? null" [initials]="getUserInitials(user)" [size]="40" />
-                <div>
-                  <p class="font-semibold text-text">{{ user.firstName }} {{ user.lastName }}</p>
-                  <p class="text-sm text-subtle">{{ user.email }}</p>
+                <div class="min-w-0">
+                  <p class="truncate font-semibold text-text">{{ user.firstName }} {{ user.lastName }}</p>
+                  <p class="truncate text-sm text-subtle">{{ user.email }}</p>
                 </div>
               </div>
-              <span
-                class="inline-flex rounded-full px-2 py-1 text-xs font-semibold"
-                [class]="user.isActive ? 'bg-success-tint text-success' : 'bg-surface-muted text-muted'"
-              >
-                {{ user.isActive ? 'Activo' : 'Inactivo' }}
-              </span>
+              <div class="flex flex-wrap justify-end gap-1">
+                <span
+                  class="inline-flex whitespace-nowrap rounded-full px-2 py-1 text-xs font-semibold"
+                  [class]="user.isActive ? 'bg-success-tint text-success' : 'bg-surface-muted text-muted'"
+                >
+                  {{ user.isActive ? 'Activo' : 'Inactivo' }}
+                </span>
+                @if (user.invitationStatus === 'PENDING') {
+                  <span class="inline-flex whitespace-nowrap rounded-full bg-info-tint px-2 py-1 text-xs font-semibold text-info">
+                    Invitado
+                  </span>
+                } @else if (user.invitationStatus === 'EXPIRED') {
+                  <span class="inline-flex whitespace-nowrap rounded-full bg-warning-tint px-2 py-1 text-xs font-semibold text-warning">
+                    Vencida
+                  </span>
+                }
+              </div>
             </div>
 
             <div class="mb-3 space-y-2 text-sm">
@@ -169,12 +193,22 @@ import { UserBackend } from '../../../core/models/user-backend.model';
               </div>
             </div>
 
-            <div class="flex flex-wrap gap-2">
+            <div class="grid grid-cols-2 gap-2">
+              @if (user.invitationStatus === 'PENDING' || user.invitationStatus === 'EXPIRED') {
+                <button
+                  *hasPermission="'users.create'"
+                  type="button"
+                  (click)="resendInvitation.emit(user)"
+                  class="rounded-md border border-info px-3 py-2 text-xs font-medium text-info transition hover:bg-info-tint"
+                >
+                  Reenviar invitación
+                </button>
+              }
               <button
                 *hasPermission="'users.edit'"
                 type="button"
                 (click)="edit.emit(user)"
-                class="flex-1 rounded-md border border-default px-3 py-2 text-xs font-medium text-muted transition hover:bg-surface-muted"
+                class="rounded-md border border-default px-3 py-2 text-xs font-medium text-muted transition hover:bg-surface-muted"
               >
                 Editar
               </button>
@@ -182,7 +216,7 @@ import { UserBackend } from '../../../core/models/user-backend.model';
                 *hasPermission="'users.assign-roles'"
                 type="button"
                 (click)="assignRoles.emit(user)"
-                class="flex-1 rounded-md border border-default px-3 py-2 text-xs font-medium text-muted transition hover:bg-surface-muted"
+                class="rounded-md border border-default px-3 py-2 text-xs font-medium text-muted transition hover:bg-surface-muted"
               >
                 Roles
               </button>
@@ -194,14 +228,6 @@ import { UserBackend } from '../../../core/models/user-backend.model';
                 [class]="user.isActive ? 'border border-warning text-warning hover:bg-warning-tint' : 'border border-success text-success hover:bg-success-tint'"
               >
                 {{ user.isActive ? 'Desactivar' : 'Activar' }}
-              </button>
-              <button
-                *hasPermission="'users.delete'"
-                type="button"
-                (click)="delete.emit(user)"
-                class="rounded-md border border-danger px-3 py-2 text-xs font-medium text-danger transition hover:bg-danger-tint"
-              >
-                Eliminar
               </button>
             </div>
           </div>
@@ -217,7 +243,7 @@ export class UsersTableComponent {
   edit = output<UserBackend>();
   toggleStatus = output<UserBackend>();
   assignRoles = output<UserBackend>();
-  delete = output<UserBackend>();
+  resendInvitation = output<UserBackend>();
 
   getUserInitials(user: UserBackend): string {
     return (user.firstName.charAt(0) + user.lastName.charAt(0)).toUpperCase();

@@ -1,4 +1,4 @@
-import { ProcessStatus, ProcessStage, RiskLevel } from '../../../core/models/legal-process.model';
+import { ProcessStatus } from '../../../core/models/legal-process.model';
 import { ProcessEventType } from '../../../core/models/process-event.model';
 
 export function formatDate(date: Date | string): string {
@@ -33,16 +33,6 @@ export function getStatusLabel(status: ProcessStatus): string {
   return labels[status] || status;
 }
 
-export function getStageLabel(stage: ProcessStage): string {
-  const labels: Record<ProcessStage, string> = {
-    [ProcessStage.INVESTIGATION]: 'Investigación',
-    [ProcessStage.HEARING]: 'Audiencia',
-    [ProcessStage.NOTIFICATION]: 'Notificación',
-    [ProcessStage.EXECUTION]: 'Ejecución',
-  };
-  return labels[stage] || stage;
-}
-
 export function isProcessEditable(status: ProcessStatus): boolean {
   return [ProcessStatus.DRAFT, ProcessStatus.ACTIVE, ProcessStatus.SUSPENDED].includes(status);
 }
@@ -58,15 +48,6 @@ export function getValidNextStatuses(currentStatus: ProcessStatus): ProcessStatu
     [ProcessStatus.ARCHIVED]: [],
   };
   return validTransitions[currentStatus] || [];
-}
-
-export function getRiskLabel(risk: RiskLevel): string {
-  const labels: Record<RiskLevel, string> = {
-    [RiskLevel.LOW]: 'Bajo',
-    [RiskLevel.MEDIUM]: 'Medio',
-    [RiskLevel.HIGH]: 'Alto',
-  };
-  return labels[risk] || risk;
 }
 
 export function getStatusClasses(status: ProcessStatus): string {
@@ -93,15 +74,6 @@ export function getStatusDot(status: ProcessStatus): string {
     [ProcessStatus.ARCHIVED]: 'bg-strong',
   };
   return classes[status] || 'bg-subtle';
-}
-
-export function getRiskClasses(risk: RiskLevel): string {
-  const classes: Record<RiskLevel, string> = {
-    [RiskLevel.LOW]: 'bg-success-tint text-success',
-    [RiskLevel.MEDIUM]: 'bg-warning-tint text-warning',
-    [RiskLevel.HIGH]: 'bg-danger-tint text-danger',
-  };
-  return classes[risk] || 'bg-surface-muted text-text';
 }
 
 export function getEventIcon(type: ProcessEventType): string {

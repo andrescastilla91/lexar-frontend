@@ -59,7 +59,7 @@ const STATUS_LABELS: Record<AdvisorStatus, string> = {
                   {{ advisor.phone || 'N/A' }}
                 </td>
                 <td class="px-6 py-4">
-                  <p class="text-sm font-medium text-text">{{ advisor.specialty }}</p>
+                  <p class="text-sm font-medium text-text">{{ advisor.specialty?.label || 'N/A' }}</p>
                 </td>
                 <td class="px-6 py-4">
                   <div class="flex items-center gap-3 text-sm">
@@ -124,18 +124,18 @@ const STATUS_LABELS: Record<AdvisorStatus, string> = {
       <div class="grid gap-4 md:hidden">
         @for (advisor of advisors(); track advisor.id) {
           <div class="rounded-lg border border-default bg-surface p-4 shadow-card">
-            <div class="mb-3 flex items-start justify-between">
-              <div class="flex items-center gap-3">
-                <div class="flex h-10 w-10 items-center justify-center rounded-full bg-navy-900 text-sm font-semibold text-white">
+            <div class="mb-3 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
+              <div class="flex min-w-0 items-center gap-3">
+                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-navy-900 text-sm font-semibold text-white">
                   {{ getAdvisorInitials(advisor) }}
                 </div>
-                <div>
-                  <p class="font-semibold text-text">{{ getAdvisorFullName(advisor) }}</p>
-                  <p class="text-sm text-subtle">{{ advisor.user?.email || 'Sin email' }}</p>
+                <div class="min-w-0">
+                  <p class="truncate font-semibold text-text">{{ getAdvisorFullName(advisor) }}</p>
+                  <p class="truncate text-sm text-subtle">{{ advisor.user?.email || 'Sin email' }}</p>
                 </div>
               </div>
               <span
-                class="inline-flex items-center gap-2 rounded-full px-2 py-1 text-xs font-semibold"
+                class="inline-flex items-center gap-2 whitespace-nowrap rounded-full px-2 py-1 text-xs font-semibold"
                 [class]="statusClasses(advisor.status)"
               >
                 <span class="h-2 w-2 rounded-full" [class]="dotClasses(advisor.status)"></span>
@@ -150,7 +150,7 @@ const STATUS_LABELS: Record<AdvisorStatus, string> = {
               </div>
               <div>
                 <span class="text-xs font-medium text-subtle">Especialidad:</span>
-                <span class="ml-2 text-xs text-muted">{{ advisor.specialty }}</span>
+                <span class="ml-2 text-xs text-muted">{{ advisor.specialty?.label || 'N/A' }}</span>
               </div>
               <div>
                 <span class="text-xs font-medium text-subtle">Experiencia:</span>
@@ -166,12 +166,12 @@ const STATUS_LABELS: Record<AdvisorStatus, string> = {
               </div>
             </div>
 
-            <div class="flex gap-2">
+            <div class="grid grid-cols-2 gap-2">
               <button
                 *hasPermission="'advisors.edit'"
                 type="button"
                 (click)="edit.emit(advisor)"
-                class="flex-1 rounded-md border border-default px-3 py-2 text-xs font-medium text-muted transition hover:bg-surface-muted"
+                class="rounded-md border border-default px-3 py-2 text-xs font-medium text-muted transition hover:bg-surface-muted"
               >
                 Editar
               </button>
@@ -179,7 +179,7 @@ const STATUS_LABELS: Record<AdvisorStatus, string> = {
                 *hasPermission="['advisors.activate', 'advisors.deactivate']"
                 type="button"
                 (click)="toggleStatus.emit(advisor)"
-                class="flex-1 rounded-md border px-4 py-2 text-xs font-semibold transition"
+                class="rounded-md border px-4 py-2 text-xs font-semibold transition"
                 [class]="advisor.isActive ? 'border-warning text-warning hover:bg-warning-tint' : 'border-success text-success hover:bg-success-tint'"
               >
                 {{ advisor.isActive ? 'Desactivar' : 'Activar' }}

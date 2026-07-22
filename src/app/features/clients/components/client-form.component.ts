@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { EntityFilesComponent } from '../../../core/components/entity-files.component';
+import { CatalogItem } from '../../../core/models/catalog-backend.model';
 
 @Component({
   selector: 'app-client-form',
@@ -89,11 +90,12 @@ import { EntityFilesComponent } from '../../../core/components/entity-files.comp
                   <label class="text-sm text-muted">
                     Tipo de documento *
                     <select
-                      formControlName="documentType"
+                      formControlName="documentTypeId"
                       class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
                     >
-                      <option value="CC">Cédula de Ciudadanía</option>
-                      <option value="NIT">NIT</option>
+                      @for (documentType of documentTypes(); track documentType.id) {
+                        <option [value]="documentType.id">{{ documentType.label }}</option>
+                      }
                     </select>
                   </label>
                   <label class="text-sm text-muted">
@@ -113,16 +115,19 @@ import { EntityFilesComponent } from '../../../core/components/entity-files.comp
                     @if (form().errors?.['invalidCedula']) {
                       <p class="mt-1 text-xs text-danger">{{ form().errors?.['invalidCedula'] }}</p>
                     }
+                    @if (form().errors?.['invalidIdentification']) {
+                      <p class="mt-1 text-xs text-danger">{{ form().errors?.['invalidIdentification'] }}</p>
+                    }
                   </label>
                   <label class="text-sm text-muted">
                     Nivel de riesgo
                     <select
-                      formControlName="riskLevel"
+                      formControlName="riskLevelId"
                       class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
                     >
-                      <option value="LOW">Bajo</option>
-                      <option value="MEDIUM">Medio</option>
-                      <option value="HIGH">Alto</option>
+                      @for (riskLevel of riskLevels(); track riskLevel.id) {
+                        <option [value]="riskLevel.id">{{ riskLevel.label }}</option>
+                      }
                     </select>
                   </label>
                 </div>
@@ -184,6 +189,8 @@ export class ClientFormComponent {
   isSubmitting = input(false);
   errorMessage = input<string | null>(null);
   editingClientId = input<string | null>(null);
+  documentTypes = input<CatalogItem[]>([]);
+  riskLevels = input<CatalogItem[]>([]);
 
   cancel = output<void>();
   submit = output<void>();

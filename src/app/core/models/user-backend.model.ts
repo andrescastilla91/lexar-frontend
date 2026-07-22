@@ -1,3 +1,5 @@
+export type InvitationStatus = 'ACTIVE' | 'PENDING' | 'EXPIRED';
+
 export interface UserBackend {
   id: string;
   firstName: string;
@@ -7,6 +9,7 @@ export interface UserBackend {
   lastLoginAt: string | null;
   createdAt: string;
   avatarUrl?: string | null;
+  invitationStatus?: InvitationStatus;
   roles: RoleBasic[];
 }
 
@@ -19,8 +22,6 @@ export interface CreateUserRequest {
   firstName: string;
   lastName: string;
   email: string;
-  password?: string; // Opcional si autoGeneratePassword es true
-  autoGeneratePassword?: boolean;
 }
 
 export interface UpdateUserRequest {
@@ -53,5 +54,4 @@ export interface UserResponse {
 export interface CreateUserResponse {
   message: string;
   user: UserBackend;
-  generatedPassword?: string; // Solo presente si se auto-generó
 }

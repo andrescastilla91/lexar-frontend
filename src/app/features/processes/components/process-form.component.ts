@@ -1,8 +1,9 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { ProcessStage, ProcessStatus, RiskLevel } from '../../../core/models/legal-process.model';
+import { ProcessStatus } from '../../../core/models/legal-process.model';
 import { AdvisorResponse } from '../../../core/models/advisor-backend.model';
 import { ClientResponse } from '../../../core/models/client-backend.model';
+import { CatalogItem } from '../../../core/models/catalog-backend.model';
 
 @Component({
   selector: 'app-process-form',
@@ -81,7 +82,7 @@ import { ClientResponse } from '../../../core/models/client-backend.model';
                             <p class="text-xs font-medium text-text">
                               {{ advisor.user?.firstName }} {{ advisor.user?.lastName }}
                             </p>
-                            <p class="text-xs text-subtle">{{ advisor.specialty }}</p>
+                            <p class="text-xs text-subtle">{{ advisor.specialty?.label || 'N/A' }}</p>
                           </div>
                         </label>
                       }
@@ -95,24 +96,23 @@ import { ClientResponse } from '../../../core/models/client-backend.model';
               <label class="text-sm text-muted">
                 Etapa
                 <select
-                  formControlName="stage"
+                  formControlName="stageId"
                   class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
                 >
-                  <option [value]="ProcessStage.INVESTIGATION">Investigación</option>
-                  <option [value]="ProcessStage.HEARING">Audiencia</option>
-                  <option [value]="ProcessStage.NOTIFICATION">Notificación</option>
-                  <option [value]="ProcessStage.EXECUTION">Ejecución</option>
+                  @for (stage of stages(); track stage.id) {
+                    <option [value]="stage.id">{{ stage.label }}</option>
+                  }
                 </select>
               </label>
               <label class="text-sm text-muted">
                 Nivel de Riesgo
                 <select
-                  formControlName="riskLevel"
+                  formControlName="riskLevelId"
                   class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
                 >
-                  <option [value]="RiskLevel.LOW">Bajo</option>
-                  <option [value]="RiskLevel.MEDIUM">Medio</option>
-                  <option [value]="RiskLevel.HIGH">Alto</option>
+                  @for (riskLevel of riskLevels(); track riskLevel.id) {
+                    <option [value]="riskLevel.id">{{ riskLevel.label }}</option>
+                  }
                 </select>
               </label>
             </div>
@@ -210,14 +210,14 @@ export class ProcessFormComponent {
   canEdit = input(true);
   clients = input<ClientResponse[]>([]);
   advisors = input<AdvisorResponse[]>([]);
+  stages = input<CatalogItem[]>([]);
+  riskLevels = input<CatalogItem[]>([]);
 
   close = output<void>();
   submit = output<void>();
   toggleAdvisor = output<string>();
   generateCaseNumber = output<void>();
 
-  protected readonly ProcessStage = ProcessStage;
-  protected readonly RiskLevel = RiskLevel;
   protected readonly ProcessStatus = ProcessStatus;
 
   isAdvisorSelected(advisorId: string): boolean {

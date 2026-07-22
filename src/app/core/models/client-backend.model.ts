@@ -2,6 +2,8 @@
  * Backend Client DTOs and Interfaces
  */
 
+import { CatalogRef } from './catalog-backend.model';
+
 export interface ClientResponse {
   id: string;
   fullName: string;
@@ -9,9 +11,9 @@ export interface ClientResponse {
   phone: string | null;
   email: string;
   address: string | null;
-  documentType: DocumentType;
+  documentType: CatalogRef | null;
   identificationNumber: string;
-  riskLevel: RiskLevel;
+  riskLevel: CatalogRef | null;
   isActive: boolean;
   assignedAdvisor: {
     id: string;
@@ -29,9 +31,9 @@ export interface CreateClientRequest {
   phone?: string;
   email: string;
   address?: string;
-  documentType?: DocumentType;
+  documentTypeId?: string;
   identificationNumber: string;
-  riskLevel?: RiskLevel;
+  riskLevelId?: string;
   assignedAdvisorId?: string;
 }
 
@@ -41,11 +43,8 @@ export interface UpdateClientRequest {
   phone?: string;
   email?: string;
   address?: string;
-  documentType?: DocumentType;
+  documentTypeId?: string;
   identificationNumber?: string;
-  riskLevel?: RiskLevel;
+  riskLevelId?: string;
   assignedAdvisorId?: string;
 }
-
-export type DocumentType = 'CC' | 'NIT';
-export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH';

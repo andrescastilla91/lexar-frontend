@@ -3,7 +3,4 @@ export const environment = {
   environment: 'local',
   version: 'dev',
   apiUrl: 'http://localhost:3040/api',
-  features: {
-    chatbot: false,
-  },
 };

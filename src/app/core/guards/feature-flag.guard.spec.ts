@@ -1,44 +1,63 @@
 import { TestBed } from '@angular/core/testing';
 import { Router, UrlTree } from '@angular/router';
+import { of } from 'rxjs';
 import { chatbotFeatureGuard } from './feature-flag.guard';
-import { environment } from '../../../environments/environment';
+import { SubscriptionService } from '../services/subscription.service';
+import { Entitlements } from '../models/subscription-backend.model';
+
+function makeEntitlements(chatbot: boolean): Entitlements {
+  return {
+    planCode: 'PROFESIONAL',
+    planName: 'Profesional',
+    status: 'active',
+    isReadOnly: false,
+    trialEndsAt: null,
+    currentPeriodEnd: new Date().toISOString(),
+    cancelAtPeriodEnd: false,
+    features: { chatbot, clientPortal: false, advancedReports: false },
+    limits: { maxUsers: null, maxActiveProcesses: null, maxStorageMb: null },
+    usage: { users: 1, activeProcesses: 0, storageMb: 0 },
+  };
+}
 
 describe('chatbotFeatureGuard', () => {
   let routerMock: { createUrlTree: jest.Mock };
-  const originalChatbotFlag = environment.features.chatbot;
+  let subscriptionServiceMock: { getEntitlements: jest.Mock };
 
   beforeEach(() => {
     routerMock = { createUrlTree: jest.fn() };
+    subscriptionServiceMock = { getEntitlements: jest.fn() };
 
     TestBed.configureTestingModule({
-      providers: [{ provide: Router, useValue: routerMock }],
+      providers: [
+        { provide: Router, useValue: routerMock },
+        { provide: SubscriptionService, useValue: subscriptionServiceMock },
+      ],
     });
   });
 
-  afterEach(() => {
-    environment.features.chatbot = originalChatbotFlag;
-  });
-
-  function runGuard(): boolean | UrlTree {
-    return TestBed.runInInjectionContext(() => chatbotFeatureGuard({} as never, {} as never)) as
-      | boolean
-      | UrlTree;
+  function runGuard() {
+    return TestBed.runInInjectionContext(() => chatbotFeatureGuard({} as never, {} as never));
   }
 
-  it('permite el acceso cuando el feature flag está activo', () => {
-    environment.features.chatbot = true;
+  it('permite el acceso cuando el plan incluye el entitlement chatbot', (done) => {
+    subscriptionServiceMock.getEntitlements.mockReturnValue(of(makeEntitlements(true)));
 
-    expect(runGuard()).toBe(true);
+    (runGuard() as ReturnType<typeof chatbotFeatureGuard>).subscribe((result) => {
+      expect(result).toBe(true);
+      done();
+    });
   });
 
-  it('redirige a dashboard cuando el feature flag está desactivado', () => {
-    environment.features.chatbot = false;
+  it('redirige a dashboard cuando el plan no incluye el entitlement chatbot', (done) => {
+    subscriptionServiceMock.getEntitlements.mockReturnValue(of(makeEntitlements(false)));
     const urlTree = {} as UrlTree;
     routerMock.createUrlTree.mockReturnValue(urlTree);
 
-    const result = runGuard();
-
-    expect(routerMock.createUrlTree).toHaveBeenCalledWith(['/dashboard']);
-    expect(result).toBe(urlTree);
+    (runGuard() as ReturnType<typeof chatbotFeatureGuard>).subscribe((result) => {
+      expect(routerMock.createUrlTree).toHaveBeenCalledWith(['/dashboard']);
+      expect(result).toBe(urlTree);
+      done();
+    });
   });
 });

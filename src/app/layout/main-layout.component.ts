@@ -6,7 +6,6 @@ import { PermissionsService } from '../core/services/permissions.service';
 import { AuthUser } from '../core/models/auth.model';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { filter } from 'rxjs';
-import { environment } from '../../environments/environment';
 import { ConfirmDialogComponent } from '../core/components/confirm-dialog.component';
 import { ToastComponent } from '../core/components/toast.component';
 import { UserMenuComponent } from '../core/components/user-menu.component';
@@ -14,6 +13,7 @@ import { ThemeService } from '../core/services/theme.service';
 import { ProfileService } from '../core/services/profile.service';
 import { CompanyService } from '../core/services/company.service';
 import { CompanyProfile } from '../core/models/company.model';
+import { SubscriptionService } from '../core/services/subscription.service';
 
 interface MenuItem {
   label: string;
@@ -169,6 +169,7 @@ export class MainLayoutComponent {
   private readonly permissionsService = inject(PermissionsService);
   private readonly profileService = inject(ProfileService);
   private readonly companyService = inject(CompanyService);
+  private readonly subscriptionService = inject(SubscriptionService);
   private readonly router = inject(Router);
   protected readonly themeService = inject(ThemeService);
 
@@ -176,6 +177,12 @@ export class MainLayoutComponent {
   readonly companyName = computed(() => this.company()?.legalName ?? '');
   readonly companyLogoUrl = computed(() => this.company()?.logoUrl ?? null);
   readonly canManageCompany = computed(() => this.permissionsService.hasPermission('companies.edit'));
+
+  // F7: el chatbot en el menú se gatea por entitlement de plan, no por
+  // environment flag. Arranca en `false` (oculto) hasta que llegue la
+  // respuesta de `/api/subscription` — evita un parpadeo mostrando algo que
+  // luego se oculta.
+  private readonly chatbotEnabled = signal(false);
 
   readonly menuItems: MenuItem[] = [
     {
@@ -237,7 +244,7 @@ export class MainLayoutComponent {
   // Filtrar menú según permisos del usuario
   readonly filteredMenuItems = computed(() => {
     return this.menuItems
-      .filter((item) => item.route !== '/chatbot' || environment.features.chatbot)
+      .filter((item) => item.route !== '/chatbot' || this.chatbotEnabled())
       .filter((item) => {
         // Si no tiene permisos requeridos, se muestra siempre
         if (!item.permissions || item.permissions.length === 0) {
@@ -326,6 +333,11 @@ export class MainLayoutComponent {
 
     this.companyService.getCompany().subscribe({
       next: (company) => this.company.set(company),
+      error: () => {},
+    });
+
+    this.subscriptionService.getEntitlements().subscribe({
+      next: (entitlements) => this.chatbotEnabled.set(entitlements.features.chatbot),
       error: () => {},
     });
 

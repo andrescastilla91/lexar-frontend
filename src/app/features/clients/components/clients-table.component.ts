@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { HasPermissionDirective } from '../../../core/directives/has-permission.directive';
-import { ClientResponse, DocumentType, RiskLevel } from '../../../core/models/client-backend.model';
+import { ClientResponse } from '../../../core/models/client-backend.model';
+import { getCatalogBadgeClasses } from '../../../core/utils/catalog-badge.util';
 
 @Component({
   selector: 'app-clients-table',
@@ -37,7 +38,7 @@ import { ClientResponse, DocumentType, RiskLevel } from '../../../core/models/cl
                   <div>
                     <p class="font-semibold text-text">{{ client.fullName }}</p>
                     <p class="text-sm text-subtle">
-                      {{ getDocumentTypeLabel(client.documentType) }}: {{ client.identificationNumber }}
+                      {{ client.documentType?.label || 'N/A' }}: {{ client.identificationNumber }}
                     </p>
                   </div>
                 </td>
@@ -51,13 +52,9 @@ import { ClientResponse, DocumentType, RiskLevel } from '../../../core/models/cl
                 <td class="px-6 py-4">
                   <span
                     class="inline-flex rounded-full px-2 py-1 text-xs font-semibold"
-                    [class]="{
-                      'bg-success-tint text-success': client.riskLevel === 'LOW',
-                      'bg-warning-tint text-warning': client.riskLevel === 'MEDIUM',
-                      'bg-danger-tint text-danger': client.riskLevel === 'HIGH'
-                    }"
+                    [class]="getCatalogBadgeClasses(client.riskLevel?.color)"
                   >
-                    {{ getRiskLevelLabel(client.riskLevel) }}
+                    {{ client.riskLevel?.label || 'N/A' }}
                   </span>
                 </td>
                 <td class="px-6 py-4">
@@ -115,7 +112,7 @@ import { ClientResponse, DocumentType, RiskLevel } from '../../../core/models/cl
               <div>
                 <p class="font-semibold text-text">{{ client.fullName }}</p>
                 <p class="text-sm text-subtle">
-                  {{ getDocumentTypeLabel(client.documentType) }}: {{ client.identificationNumber }}
+                  {{ client.documentType?.label || 'N/A' }}: {{ client.identificationNumber }}
                 </p>
               </div>
               <span
@@ -143,13 +140,9 @@ import { ClientResponse, DocumentType, RiskLevel } from '../../../core/models/cl
                 <span class="text-xs font-medium text-subtle">Riesgo:</span>
                 <span
                   class="ml-2 inline-flex rounded-full px-2 py-1 text-xs font-semibold"
-                  [class]="{
-                    'bg-success-tint text-success': client.riskLevel === 'LOW',
-                    'bg-warning-tint text-warning': client.riskLevel === 'MEDIUM',
-                    'bg-danger-tint text-danger': client.riskLevel === 'HIGH'
-                  }"
+                  [class]="getCatalogBadgeClasses(client.riskLevel?.color)"
                 >
-                  {{ getRiskLevelLabel(client.riskLevel) }}
+                  {{ client.riskLevel?.label || 'N/A' }}
                 </span>
               </div>
             </div>
@@ -186,20 +179,5 @@ export class ClientsTableComponent {
   edit = output<ClientResponse>();
   toggleStatus = output<ClientResponse>();
 
-  getRiskLevelLabel(riskLevel: RiskLevel): string {
-    const labels: Record<RiskLevel, string> = {
-      LOW: 'Bajo',
-      MEDIUM: 'Medio',
-      HIGH: 'Alto',
-    };
-    return labels[riskLevel] || riskLevel;
-  }
-
-  getDocumentTypeLabel(documentType: DocumentType): string {
-    const labels: Record<DocumentType, string> = {
-      CC: 'Cédula',
-      NIT: 'NIT',
-    };
-    return labels[documentType] || documentType;
-  }
+  protected readonly getCatalogBadgeClasses = getCatalogBadgeClasses;
 }

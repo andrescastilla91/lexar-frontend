@@ -1,4 +1,5 @@
-import { ProcessStatus, RiskLevel } from './legal-process.model';
+import { ProcessStatus } from './legal-process.model';
+import { CatalogRef } from './catalog-backend.model';
 
 export interface ProcessStatusCount {
   status: ProcessStatus;
@@ -10,7 +11,7 @@ export interface DashboardHearingItem {
   title: string;
   court: string | null;
   nextHearingDate: string | null;
-  riskLevel: RiskLevel;
+  riskLevel: CatalogRef | null;
   client: { id: string; fullName: string } | null;
   advisors: { id: string; firstName: string; lastName: string }[];
 }
@@ -20,7 +21,7 @@ export interface DashboardProcessItem {
   title: string;
   court: string | null;
   nextHearingDate: string | null;
-  riskLevel: RiskLevel;
+  riskLevel: CatalogRef | null;
   client: { id: string; fullName: string } | null;
 }
 
@@ -35,7 +36,7 @@ export interface DashboardDocumentItem {
 export interface DashboardAdvisorItem {
   id: string;
   name: string;
-  specialty: string;
+  specialty: CatalogRef | null;
   rating: number;
   experienceYears: number;
 }

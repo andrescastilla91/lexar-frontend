@@ -2,15 +2,13 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
 import { LegalProcessResponse, ProcessStatus } from '../../../core/models/legal-process.model';
 import {
   formatDate,
-  getRiskClasses,
-  getRiskLabel,
-  getStageLabel,
   getStatusClasses,
   getStatusDot,
   getStatusLabel,
   getValidNextStatuses,
   isProcessEditable,
 } from '../utils/process-format.utils';
+import { getCatalogBadgeClasses } from '../../../core/utils/catalog-badge.util';
 
 @Component({
   selector: 'app-processes-table',
@@ -127,15 +125,15 @@ import {
                 <!-- Etapa -->
                 <div>
                   <p class="text-xs font-medium text-subtle uppercase tracking-wide">Etapa</p>
-                  <p class="mt-1 text-sm text-text">{{ getStageLabel(process.stage) }}</p>
+                  <p class="mt-1 text-sm text-text">{{ process.stage?.label || 'N/A' }}</p>
                 </div>
 
                 <!-- Riesgo -->
                 <div>
                   <p class="text-xs font-medium text-subtle uppercase tracking-wide">Riesgo</p>
                   <span class="mt-1 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold"
-                    [class]="getRiskClasses(process.riskLevel)">
-                    {{ getRiskLabel(process.riskLevel) }}
+                    [class]="getCatalogBadgeClasses(process.riskLevel?.color)">
+                    {{ process.riskLevel?.label || 'N/A' }}
                   </span>
                 </div>
               </div>
@@ -209,14 +207,14 @@ import {
 
                 <div class="flex items-start justify-between gap-2">
                   <span class="text-xs font-medium text-subtle">Etapa:</span>
-                  <span class="text-xs text-text">{{ getStageLabel(process.stage) }}</span>
+                  <span class="text-xs text-text">{{ process.stage?.label || 'N/A' }}</span>
                 </div>
 
                 <div class="flex items-start justify-between gap-2">
                   <span class="text-xs font-medium text-subtle">Riesgo:</span>
                   <span class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium"
-                    [class]="getRiskClasses(process.riskLevel)">
-                    {{ getRiskLabel(process.riskLevel) }}
+                    [class]="getCatalogBadgeClasses(process.riskLevel?.color)">
+                    {{ process.riskLevel?.label || 'N/A' }}
                   </span>
                 </div>
 
@@ -320,9 +318,7 @@ export class ProcessesTableComponent {
   protected readonly getStatusLabel = getStatusLabel;
   protected readonly getStatusClasses = getStatusClasses;
   protected readonly getStatusDot = getStatusDot;
-  protected readonly getStageLabel = getStageLabel;
-  protected readonly getRiskLabel = getRiskLabel;
-  protected readonly getRiskClasses = getRiskClasses;
+  protected readonly getCatalogBadgeClasses = getCatalogBadgeClasses;
   protected readonly isProcessEditable = isProcessEditable;
   protected readonly getValidNextStatuses = getValidNextStatuses;
 }
