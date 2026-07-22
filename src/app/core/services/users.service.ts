@@ -54,4 +54,8 @@ export class UsersService {
   toggleActive(id: string): Observable<UserResponse> {
     return this.http.patch<UserResponse>(`${this.apiUrl}/${id}/toggle-active`, {});
   }
+
+  resendInvitation(id: string): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(`${this.apiUrl}/${id}/resend-invitation`, {});
+  }
 }

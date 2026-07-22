@@ -9,10 +9,10 @@ import { Role } from '../../core/models/role-backend.model';
 import { HasPermissionDirective } from '../../core/directives/has-permission.directive';
 import { PaginationComponent } from '../../core/components/pagination.component';
 import { ConfirmDialogService } from '../../core/services/confirm-dialog.service';
+import { ToastService } from '../../core/services/toast.service';
 import { CatalogAssignModalComponent, CatalogAssignItem } from '../../core/components/catalog-assign-modal.component';
 import { UserFormComponent } from './components/user-form.component';
 import { UsersTableComponent } from './components/users-table.component';
-import { GeneratedPasswordModalComponent } from './components/generated-password-modal.component';
 
 @Component({
   selector: 'app-users',
@@ -24,7 +24,6 @@ import { GeneratedPasswordModalComponent } from './components/generated-password
     CatalogAssignModalComponent,
     UserFormComponent,
     UsersTableComponent,
-    GeneratedPasswordModalComponent,
   ],
   template: `
     <div class="space-y-6">
@@ -96,10 +95,8 @@ import { GeneratedPasswordModalComponent } from './components/generated-password
         [isSubmitting]="isSubmitting()"
         [errorMessage]="errorMessage()"
         [editingUserHasLoggedIn]="editingUserHasLoggedIn()"
-        [autoGeneratePassword]="autoGeneratePassword()"
-        (cancel)="cancelEdit()"
-        (submit)="submitUser()"
-        (toggleAutoGeneratePassword)="toggleAutoGeneratePassword()"
+        (formCancel)="cancelEdit()"
+        (formSubmit)="submitUser()"
       />
 
       <app-users-table
@@ -108,7 +105,7 @@ import { GeneratedPasswordModalComponent } from './components/generated-password
         (edit)="editUser($event)"
         (toggleStatus)="toggleUserStatus($event)"
         (assignRoles)="assignRoles($event)"
-        (delete)="deleteUser($event)"
+        (resendInvitation)="resendInvitation($event)"
       />
 
       @if (!isLoading() && filteredUsers().length > 0) {
@@ -136,11 +133,6 @@ import { GeneratedPasswordModalComponent } from './components/generated-password
         (cancel)="closeRolesModal()"
         (save)="saveRoles($event)"
       />
-
-      <app-generated-password-modal
-        [data]="generatedPasswordData()"
-        (close)="closeGeneratedPasswordModal()"
-      />
     </div>
   `,
 })
@@ -149,6 +141,7 @@ export class UsersComponent implements OnInit {
   private readonly usersService = inject(UsersService);
   private readonly rolesService = inject(RolesService);
   private readonly confirmDialog = inject(ConfirmDialogService);
+  private readonly toastService = inject(ToastService);
 
   readonly users = signal<UserBackend[]>([]);
   readonly availableRoles = signal<Role[]>([]);
@@ -173,11 +166,7 @@ export class UsersComponent implements OnInit {
     firstName: ['', [Validators.required, Validators.minLength(2)]],
     lastName: ['', [Validators.required, Validators.minLength(2)]],
     email: ['', [Validators.required, Validators.email]],
-    password: ['', [Validators.required, Validators.minLength(8)]],
   });
-
-  readonly autoGeneratePassword = signal(false);
-  readonly generatedPasswordData = signal<{ password: string; email: string } | null>(null);
 
   readonly filterValues = toSignal(
     this.filterForm.valueChanges.pipe(startWith(this.filterForm.value)),
@@ -279,41 +268,20 @@ export class UsersComponent implements OnInit {
         } else {
           this.userForm.get('email')?.enable();
         }
-        // Hacer password opcional al editar
-        this.userForm.get('password')?.clearValidators();
-        this.userForm.get('password')?.updateValueAndValidity();
         this.panelOpen.set(true);
       },
       error: (error) => {
-        alert(error.error?.message || 'Error al cargar el usuario');
+        this.toastService.error(error.error?.message || 'Error al cargar el usuario');
       },
     });
   }
 
   cancelEdit(): void {
     this.editingUser.set(null);
-    this.autoGeneratePassword.set(false);
-    this.userForm.reset({ firstName: '', lastName: '', email: '', password: '' });
+    this.userForm.reset({ firstName: '', lastName: '', email: '' });
     this.userForm.get('email')?.enable();
-    this.userForm.get('password')?.setValidators([Validators.required, Validators.minLength(8)]);
-    this.userForm.get('password')?.updateValueAndValidity();
     this.errorMessage.set(null);
     this.panelOpen.set(false);
-  }
-
-  toggleAutoGeneratePassword(): void {
-    this.autoGeneratePassword.update((value) => !value);
-    const passwordControl = this.userForm.get('password');
-
-    if (this.autoGeneratePassword()) {
-      // Si auto-genera, password no es requerido
-      passwordControl?.clearValidators();
-      passwordControl?.setValue('');
-    } else {
-      // Si no auto-genera, password es requerido
-      passwordControl?.setValidators([Validators.required, Validators.minLength(8)]);
-    }
-    passwordControl?.updateValueAndValidity();
   }
 
   submitUser(): void {
@@ -341,11 +309,14 @@ export class UsersComponent implements OnInit {
       this.usersService.updateUser(this.editingUser()!.id, updateData).subscribe({
         next: () => {
           this.loadUsers();
+          this.toastService.success('Usuario actualizado exitosamente');
           this.cancelEdit();
           this.isSubmitting.set(false);
         },
         error: (error) => {
-          this.errorMessage.set(error.error?.message || 'Error al actualizar usuario');
+          const message = error.error?.message || 'Error al actualizar usuario';
+          this.errorMessage.set(message);
+          this.toastService.error(message);
           this.isSubmitting.set(false);
         },
       });
@@ -354,27 +325,19 @@ export class UsersComponent implements OnInit {
         firstName: formValue.firstName,
         lastName: formValue.lastName,
         email: formValue.email,
-        password: this.autoGeneratePassword() ? undefined : formValue.password,
-        autoGeneratePassword: this.autoGeneratePassword(),
       };
 
       this.usersService.createUser(createData).subscribe({
         next: (response) => {
           this.loadUsers();
-
-          // Si se generó una contraseña, mostrarla en un modal
-          if (response.generatedPassword) {
-            this.generatedPasswordData.set({
-              password: response.generatedPassword,
-              email: formValue.email,
-            });
-          }
-
+          this.toastService.success(response.message || `Invitación enviada a ${formValue.email}`);
           this.cancelEdit();
           this.isSubmitting.set(false);
         },
         error: (error) => {
-          this.errorMessage.set(error.error?.message || 'Error al crear usuario');
+          const message = error.error?.message || 'Error al enviar la invitación';
+          this.errorMessage.set(message);
+          this.toastService.error(message);
           this.isSubmitting.set(false);
         },
       });
@@ -394,29 +357,24 @@ export class UsersComponent implements OnInit {
     this.usersService.toggleActive(user.id).subscribe({
       next: () => {
         this.loadUsers();
+        this.toastService.success(
+          user.isActive ? 'Usuario desactivado exitosamente' : 'Usuario activado exitosamente',
+        );
       },
       error: (error) => {
-        alert(error.message || 'Error al cambiar estado del usuario');
+        this.toastService.error(error.error?.message || 'Error al cambiar estado del usuario');
       },
     });
   }
 
-  async deleteUser(user: UserBackend): Promise<void> {
-    const confirmed = await this.confirmDialog.confirm({
-      title: 'Eliminar usuario',
-      message: `¿Estás seguro de eliminar a ${user.firstName} ${user.lastName}? Esta acción no se puede deshacer.`,
-      danger: true,
-    });
-    if (!confirmed) {
-      return;
-    }
-
-    this.usersService.deleteUser(user.id).subscribe({
-      next: () => {
+  resendInvitation(user: UserBackend): void {
+    this.usersService.resendInvitation(user.id).subscribe({
+      next: (response) => {
         this.loadUsers();
+        this.toastService.success(response.message || `Invitación reenviada a ${user.email}`);
       },
       error: (error) => {
-        alert(error.message || 'Error al eliminar usuario');
+        this.toastService.error(error.error?.message || 'Error al reenviar la invitación');
       },
     });
   }
@@ -446,18 +404,15 @@ export class UsersComponent implements OnInit {
     this.usersService.assignRoles(user.id, roleIds).subscribe({
       next: () => {
         this.loadUsers();
+        this.toastService.success('Roles asignados exitosamente');
         this.closeRolesModal();
         this.isSubmitting.set(false);
       },
       error: (error) => {
-        alert(error.message || 'Error al asignar roles');
+        this.toastService.error(error.error?.message || 'Error al asignar roles');
         this.isSubmitting.set(false);
       },
     });
-  }
-
-  closeGeneratedPasswordModal(): void {
-    this.generatedPasswordData.set(null);
   }
 
   previousPage(): void {

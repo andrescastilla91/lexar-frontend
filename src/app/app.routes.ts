@@ -28,6 +28,11 @@ export const routes: Routes = [
 			import('./features/auth/reset-password/reset-password.component').then((m) => m.ResetPasswordComponent),
 	},
 	{
+		path: 'activar-cuenta',
+		loadComponent: () =>
+			import('./features/auth/activar-cuenta/activar-cuenta.component').then((m) => m.ActivarCuentaComponent),
+	},
+	{
 		path: '',
 		component: MainLayoutComponent,
 		canActivate: [authGuard],

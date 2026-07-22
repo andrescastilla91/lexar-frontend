@@ -14,6 +14,7 @@ import {
   ProfileResponse,
   ForgotPasswordRequest,
   ResetPasswordRequest,
+  AcceptInvitationRequest,
   MessageResponse,
 } from '../models/auth.model';
 
@@ -168,6 +169,25 @@ export class AuthService {
         return of({
           success: false,
           message: error.error?.message || 'El enlace no es válido o ya expiró. Solicita uno nuevo.',
+        });
+      })
+    );
+  }
+
+  acceptInvitation(token: string, password: string): Observable<{ success: boolean; message?: string }> {
+    const payload: AcceptInvitationRequest = { token, password };
+
+    return this.http.post<MessageResponse>(`${this.apiUrl}/accept-invitation`, payload).pipe(
+      switchMap(() =>
+        this.getProfile().pipe(
+          map((user) => ({ success: user !== null })),
+        ),
+      ),
+      catchError((error) => {
+        console.error('Error en accept-invitation:', error);
+        return of({
+          success: false,
+          message: error.error?.message || 'El enlace no es válido o ya expiró. Solicita uno nuevo al administrador.',
         });
       })
     );

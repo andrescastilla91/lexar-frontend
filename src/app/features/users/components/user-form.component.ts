@@ -13,7 +13,7 @@ import { FormGroup, ReactiveFormsModule } from '@angular/forms';
           class="w-full max-w-sm md:max-w-lg overflow-y-auto rounded-lg border border-default bg-surface p-4 md:p-6 shadow-2xl"
           style="max-height: 90vh"
           [formGroup]="form()"
-          (ngSubmit)="submit.emit()"
+          (ngSubmit)="formSubmit.emit()"
         >
           <div class="mb-4 flex items-center justify-between">
             <h3 class="text-lg font-semibold text-text">
@@ -21,7 +21,7 @@ import { FormGroup, ReactiveFormsModule } from '@angular/forms';
             </h3>
             <button
               type="button"
-              (click)="cancel.emit()"
+              (click)="formCancel.emit()"
               class="rounded-lg p-1 text-subtle hover:bg-surface-muted hover:text-muted"
             >
               <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
@@ -90,37 +90,11 @@ import { FormGroup, ReactiveFormsModule } from '@angular/forms';
 
             @if (!isEditing()) {
               <div class="rounded-md border border-default bg-surface-muted p-4">
-                <label class="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    [checked]="autoGeneratePassword()"
-                    (change)="toggleAutoGeneratePassword.emit()"
-                    class="h-4 w-4 rounded border-strong text-navy-900 focus:ring-2 focus:ring-navy-900/30"
-                  />
-                  <div class="flex-1">
-                    <span class="text-sm font-semibold text-text">Generar contraseña automáticamente</span>
-                    <p class="text-xs text-subtle mt-0.5">
-                      Se creará una contraseña segura de 16 caracteres. El usuario la recibirá por email.
-                    </p>
-                  </div>
-                </label>
+                <p class="text-sm font-semibold text-text">Se enviará una invitación por correo</p>
+                <p class="text-xs text-subtle mt-0.5">
+                  El usuario recibirá un enlace para crear su propia contraseña y activar su cuenta.
+                </p>
               </div>
-
-              @if (!autoGeneratePassword()) {
-                <label class="text-sm text-muted">
-                  Contraseña
-                  <input
-                    formControlName="password"
-                    type="password"
-                    autocomplete="new-password"
-                    placeholder="Mínimo 8 caracteres"
-                    class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
-                  />
-                  @if (form().get('password')?.touched && form().get('password')?.invalid) {
-                    <p class="mt-1 text-xs text-danger">Mínimo 8 caracteres</p>
-                  }
-                </label>
-              }
             }
           </div>
 
@@ -133,7 +107,7 @@ import { FormGroup, ReactiveFormsModule } from '@angular/forms';
           <div class="mt-6 flex gap-3">
             <button
               type="button"
-              (click)="cancel.emit()"
+              (click)="formCancel.emit()"
               class="flex-1 rounded-md border border-default px-4 py-2.5 text-sm font-semibold text-muted transition hover:bg-surface-muted"
             >
               Cancelar
@@ -143,7 +117,7 @@ import { FormGroup, ReactiveFormsModule } from '@angular/forms';
               class="flex-1 rounded-md bg-navy-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-navy-950 disabled:bg-strong"
               [disabled]="isSubmitting() || form().invalid"
             >
-              {{ isEditing() ? 'Actualizar' : 'Crear usuario' }}
+              {{ isEditing() ? 'Actualizar' : 'Enviar invitación' }}
             </button>
           </div>
         </form>
@@ -158,9 +132,7 @@ export class UserFormComponent {
   isSubmitting = input(false);
   errorMessage = input<string | null>(null);
   editingUserHasLoggedIn = input(false);
-  autoGeneratePassword = input(false);
 
-  cancel = output<void>();
-  submit = output<void>();
-  toggleAutoGeneratePassword = output<void>();
+  formCancel = output<void>();
+  formSubmit = output<void>();
 }
