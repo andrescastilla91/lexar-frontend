@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, catchError, map, shareReplay, tap, throwError } from 'rxjs';
+import { Observable, catchError, map, shareReplay, switchMap, tap, throwError } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
   CancelSubscriptionResponse,
@@ -8,8 +8,11 @@ import {
   CreateCheckoutRequest,
   Entitlements,
   EntitlementsResponse,
+  InvoiceDownloadResponse,
   PlanCatalogEntry,
   PlanCatalogResponse,
+  SaasInvoice,
+  SaasInvoicesResponse,
 } from '../models/subscription-backend.model';
 
 /**
@@ -23,24 +26,31 @@ export class SubscriptionService {
   private readonly http = inject(HttpClient);
   private readonly apiUrl = `${environment.apiUrl}/subscription`;
 
-  private cache: Observable<Entitlements> | null = null;
+  private entitlementsCache: Observable<EntitlementsResponse> | null = null;
 
   getEntitlements(): Observable<Entitlements> {
-    if (this.cache) {
-      return this.cache;
+    return this.entitlementsResponse().pipe(map((response) => response.entitlements));
+  }
+
+  isSimulationEnabled(): Observable<boolean> {
+    return this.entitlementsResponse().pipe(map((response) => response.simulationEnabled));
+  }
+
+  private entitlementsResponse(): Observable<EntitlementsResponse> {
+    if (this.entitlementsCache) {
+      return this.entitlementsCache;
     }
 
     const request$ = this.http.get<EntitlementsResponse>(this.apiUrl).pipe(
-      map((response) => response.entitlements),
       catchError((error) => {
-        this.cache = null;
+        this.entitlementsCache = null;
         console.error('Error al obtener la suscripción:', error);
         return throwError(() => new Error(error.error?.message || 'Error al cargar la suscripción'));
       }),
       shareReplay({ bufferSize: 1, refCount: false })
     );
 
-    this.cache = request$;
+    this.entitlementsCache = request$;
     return request$;
   }
 
@@ -64,6 +74,23 @@ export class SubscriptionService {
     );
   }
 
+  /** Encadena checkout + simulate APPROVED — solo disponible cuando `simulationEnabled` es true. */
+  simulateSubscription(planCode: string, billingCycle: 'monthly' | 'yearly' = 'monthly'): Observable<{ message: string }> {
+    return this.createCheckout({ planCode, billingCycle }).pipe(
+      switchMap((checkout) =>
+        this.http.post<{ message: string }>(`${this.apiUrl}/simulate`, {
+          reference: checkout.reference,
+          status: 'APPROVED',
+        })
+      ),
+      tap(() => this.invalidate()),
+      catchError((error) => {
+        console.error('Error al simular la suscripción:', error);
+        return throwError(() => new Error(error.error?.message || 'No se pudo simular la suscripción'));
+      })
+    );
+  }
+
   cancelAtPeriodEnd(): Observable<CancelSubscriptionResponse> {
     return this.http.post<CancelSubscriptionResponse>(`${this.apiUrl}/cancel`, {}).pipe(
       tap(() => this.invalidate()),
@@ -76,6 +103,26 @@ export class SubscriptionService {
 
   /** Limpia el caché de entitlements (p. ej. tras volver de un checkout exitoso). */
   invalidate(): void {
-    this.cache = null;
+    this.entitlementsCache = null;
+  }
+
+  listInvoices(): Observable<SaasInvoice[]> {
+    return this.http.get<SaasInvoicesResponse>(`${this.apiUrl}/invoices`).pipe(
+      map((response) => response.invoices),
+      catchError((error) => {
+        console.error('Error al obtener las facturas:', error);
+        return throwError(() => new Error(error.error?.message || 'Error al cargar las facturas'));
+      })
+    );
+  }
+
+  downloadInvoice(id: string): Observable<string> {
+    return this.http.get<InvoiceDownloadResponse>(`${this.apiUrl}/invoices/${id}/download`).pipe(
+      map((response) => response.url),
+      catchError((error) => {
+        console.error('Error al obtener la descarga de la factura:', error);
+        return throwError(() => new Error(error.error?.message || 'Error al descargar la factura'));
+      })
+    );
   }
 }
