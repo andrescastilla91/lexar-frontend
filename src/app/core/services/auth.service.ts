@@ -108,6 +108,7 @@ export class AuthService {
           roles: profile.roles,
           permissions: profile.permissions || [],
           themePreference: profile.themePreference,
+          impersonating: profile.impersonating,
         };
         this.currentUserSignal.set(user);
         if (profile.themePreference) {
@@ -120,6 +121,7 @@ export class AuthService {
         roles: profile.roles,
         permissions: profile.permissions || [],
         themePreference: profile.themePreference,
+        impersonating: profile.impersonating,
       })),
       catchError((error) => {
         console.error('Error al obtener perfil:', error);
@@ -201,6 +203,19 @@ export class AuthService {
 
   patchCurrentUser(partial: Partial<AuthUser>): void {
     this.currentUserSignal.update((user) => (user ? { ...user, ...partial } : user));
+  }
+
+  /** F9: cierra la sesión de impersonación (no un logout normal). */
+  exitImpersonation(): Observable<void> {
+    return this.http.post<{ message: string }>(`${this.apiUrl}/exit-impersonation`, {}).pipe(
+      tap(() => this.clearSession()),
+      map(() => void 0),
+      catchError((error) => {
+        console.error('Error al salir de la impersonación:', error);
+        this.clearSession();
+        return of(void 0);
+      })
+    );
   }
 
   private enrichCurrentUserWithProfile(): void {

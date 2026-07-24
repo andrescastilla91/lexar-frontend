@@ -27,6 +27,8 @@ export interface AuthUser {
   firstName?: string;
   lastName?: string;
   avatarUrl?: string | null;
+  /** F9: true si esta sesión fue abierta por un platform admin (impersonación). */
+  impersonating?: boolean;
 }
 
 export interface LoginResponse {
@@ -48,6 +50,7 @@ export interface ProfileResponse {
   roles: string[];
   permissions?: string[];
   themePreference?: 'light' | 'dark' | 'system';
+  impersonating?: boolean;
 }
 
 export interface ForgotPasswordRequest {
