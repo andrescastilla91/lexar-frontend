@@ -19,6 +19,12 @@ function isAuthActionEndpoint(url: string): boolean {
   );
 }
 
+// F9: /admin/* usa una cookie y un guard totalmente aparte (sin refresh
+// token) — un 401 ahí nunca debe disparar el refresh de sesión de tenant.
+function isPlatformAdminEndpoint(url: string): boolean {
+  return url.includes('/admin/');
+}
+
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const router = inject(Router);
   const authService = inject(AuthService);
@@ -28,6 +34,11 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
   return next(authReq).pipe(
     catchError((error) => {
       if (error.status !== 401 || isSessionProbeEndpoint(req.url)) {
+        return throwError(() => error);
+      }
+
+      if (isPlatformAdminEndpoint(req.url)) {
+        router.navigate(['/admin/login']);
         return throwError(() => error);
       }
 

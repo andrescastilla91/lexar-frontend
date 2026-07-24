@@ -5,6 +5,7 @@ import { routes } from './app.routes';
 import { authInterceptor } from './core/interceptors/auth.interceptor';
 import { errorInterceptor } from './core/interceptors/error.interceptor';
 import { AuthService } from './core/services/auth.service';
+import { PlatformAdminService } from './core/services/platform-admin.service';
 import { catchError, of } from 'rxjs';
 
 export const appConfig: ApplicationConfig = {
@@ -18,6 +19,12 @@ export const appConfig: ApplicationConfig = {
     provideAppInitializer(() => {
       const authService = inject(AuthService);
       return authService.getProfile().pipe(catchError(() => of(null)));
+    }),
+    // F9: igual que arriba pero para la sesión de platform admin — cookie
+    // independiente (platform_access_token), no interfiere con la de tenant.
+    provideAppInitializer(() => {
+      const platformAdminService = inject(PlatformAdminService);
+      return platformAdminService.getProfile().pipe(catchError(() => of(null)));
     }),
   ],
 };

@@ -1,7 +1,10 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/guards/auth.guard';
+import { platformAdminGuard } from './core/guards/platform-admin.guard';
 import { chatbotFeatureGuard } from './core/guards/feature-flag.guard';
+import { emailVerifiedGuard } from './core/guards/email-verified.guard';
 import { MainLayoutComponent } from './layout/main-layout.component';
+import { AdminLayoutComponent } from './layout/admin-layout.component';
 
 export const routes: Routes = [
 	{
@@ -33,13 +36,62 @@ export const routes: Routes = [
 			import('./features/auth/activar-cuenta/activar-cuenta.component').then((m) => m.ActivarCuentaComponent),
 	},
 	{
+		path: 'verificar-correo',
+		loadComponent: () =>
+			import('./features/auth/verify-email/verify-email.component').then((m) => m.VerifyEmailComponent),
+	},
+	{
+		path: 'verificar-pendiente',
+		canActivate: [authGuard],
+		loadComponent: () =>
+			import('./features/auth/verify-required/verify-required.component').then((m) => m.VerifyRequiredComponent),
+	},
+	{
+		path: 'admin/login',
+		loadComponent: () => import('./features/admin/login/admin-login.component').then((m) => m.AdminLoginComponent),
+	},
+	{
+		path: 'admin',
+		component: AdminLayoutComponent,
+		canActivate: [platformAdminGuard],
+		children: [
+			{
+				path: 'tenants',
+				loadComponent: () =>
+					import('./features/admin/tenants/admin-tenants.component').then((m) => m.AdminTenantsComponent),
+			},
+			{
+				path: 'plans',
+				loadComponent: () => import('./features/admin/plans/admin-plans.component').then((m) => m.AdminPlansComponent),
+			},
+			{
+				path: 'metrics',
+				loadComponent: () =>
+					import('./features/admin/metrics/admin-metrics.component').then((m) => m.AdminMetricsComponent),
+			},
+			{
+				path: 'team',
+				loadComponent: () => import('./features/admin/team/admin-team.component').then((m) => m.AdminTeamComponent),
+			},
+			{
+				path: '',
+				pathMatch: 'full',
+				redirectTo: 'tenants',
+			},
+		],
+	},
+	{
 		path: '',
 		component: MainLayoutComponent,
-		canActivate: [authGuard],
+		canActivate: [authGuard, emailVerifiedGuard],
 		children: [
 			{
 				path: 'dashboard',
 				loadComponent: () => import('./features/dashboard/dashboard.component').then((m) => m.DashboardComponent),
+			},
+			{
+				path: 'onboarding',
+				loadComponent: () => import('./features/onboarding/onboarding.component').then((m) => m.OnboardingComponent),
 			},
 			{
 				path: 'perfil',

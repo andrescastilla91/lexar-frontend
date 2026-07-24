@@ -99,6 +99,9 @@ import { AuthService } from '../../../core/services/auth.service';
             <p class="mt-8 text-center text-sm text-subtle">
               ¿Aún no tienes acceso? <a routerLink="/registro" class="font-semibold text-navy-900 hover:underline">Crear cuenta</a>
             </p>
+            <p class="mt-2 text-center text-xs text-subtle/60">
+              <a routerLink="/admin/login" class="hover:underline">Acceso equipo LexAr</a>
+            </p>
           </div>
         </section>
       </div>

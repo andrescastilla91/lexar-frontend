@@ -37,6 +37,7 @@ export interface Entitlements {
 
 export interface EntitlementsResponse {
   entitlements: Entitlements;
+  simulationEnabled: boolean;
 }
 
 export interface PlanCatalogEntry {
@@ -69,4 +70,26 @@ export interface CancelSubscriptionResponse {
   message: string;
   cancelAtPeriodEnd: boolean;
   effectiveAt: string;
+}
+
+export type SaasInvoiceStatus = 'paid' | 'failed' | 'void';
+
+export interface SaasInvoice {
+  id: string;
+  number: string;
+  amount: number;
+  currency: string;
+  status: SaasInvoiceStatus;
+  periodStart: string;
+  periodEnd: string;
+  pdfKey: string | null;
+  createdAt: string;
+}
+
+export interface SaasInvoicesResponse {
+  invoices: SaasInvoice[];
+}
+
+export interface InvoiceDownloadResponse {
+  url: string;
 }

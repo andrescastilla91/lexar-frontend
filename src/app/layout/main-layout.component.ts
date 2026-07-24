@@ -133,6 +133,15 @@ interface MenuItem {
             </div>
           </header>
 
+          @if (currentUser()?.impersonating) {
+            <div class="bg-danger px-4 py-2 text-center text-sm font-semibold text-white md:px-6 lg:px-8">
+              Estás operando esta cuenta como platform admin (impersonación) — expira sola en 30 minutos.
+              <button type="button" class="ml-3 underline hover:no-underline" (click)="exitImpersonation()">
+                Salir de la impersonación
+              </button>
+            </div>
+          }
+
           @if (hasNoRoles()) {
             <div class="px-4 md:px-6 lg:px-8">
               <div class="mx-auto mt-4 rounded-lg border-l-4 border-warning bg-warning-tint p-4">
@@ -375,6 +384,13 @@ export class MainLayoutComponent {
         // Incluso si hay error, redirigir a login
         this.router.navigate(['/login']);
       },
+    });
+  }
+
+  exitImpersonation(): void {
+    this.authService.exitImpersonation().subscribe({
+      next: () => this.router.navigate(['/admin/tenants']),
+      error: () => this.router.navigate(['/admin/tenants']),
     });
   }
 }

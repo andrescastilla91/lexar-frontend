@@ -18,6 +18,7 @@ import {
   ResetPasswordRequest,
   AcceptInvitationRequest,
   MessageResponse,
+  VerifyEmailRequest,
 } from '../models/auth.model';
 
 @Injectable({ providedIn: 'root' })
@@ -108,6 +109,9 @@ export class AuthService {
           roles: profile.roles,
           permissions: profile.permissions || [],
           themePreference: profile.themePreference,
+          impersonating: profile.impersonating,
+          emailVerified: profile.emailVerified,
+          isOwner: profile.isOwner,
         };
         this.currentUserSignal.set(user);
         if (profile.themePreference) {
@@ -120,11 +124,45 @@ export class AuthService {
         roles: profile.roles,
         permissions: profile.permissions || [],
         themePreference: profile.themePreference,
+        impersonating: profile.impersonating,
+        emailVerified: profile.emailVerified,
+        isOwner: profile.isOwner,
       })),
       catchError((error) => {
         console.error('Error al obtener perfil:', error);
         this.clearSession();
         return of(null);
+      })
+    );
+  }
+
+  /** F10: verifica el correo del usuario a partir del token recibido por email. */
+  verifyEmail(token: string): Observable<{ success: boolean; message?: string }> {
+    const payload: VerifyEmailRequest = { token };
+
+    return this.http.post<MessageResponse>(`${this.apiUrl}/verify-email`, payload).pipe(
+      tap(() => this.patchCurrentUser({ emailVerified: true })),
+      map((response) => ({ success: true, message: response.message })),
+      catchError((error) => {
+        console.error('Error al verificar el correo:', error);
+        return of({
+          success: false,
+          message: error.error?.message || 'El enlace no es válido o ya expiró.',
+        });
+      })
+    );
+  }
+
+  /** F10: reenvía el correo de verificación al usuario autenticado actual. */
+  resendVerification(): Observable<{ success: boolean; message?: string }> {
+    return this.http.post<MessageResponse>(`${this.apiUrl}/resend-verification`, {}).pipe(
+      map((response) => ({ success: true, message: response.message })),
+      catchError((error) => {
+        console.error('Error al reenviar la verificación:', error);
+        return of({
+          success: false,
+          message: error.error?.message || 'No se pudo reenviar el correo de verificación.',
+        });
       })
     );
   }
@@ -201,6 +239,19 @@ export class AuthService {
 
   patchCurrentUser(partial: Partial<AuthUser>): void {
     this.currentUserSignal.update((user) => (user ? { ...user, ...partial } : user));
+  }
+
+  /** F9: cierra la sesión de impersonación (no un logout normal). */
+  exitImpersonation(): Observable<void> {
+    return this.http.post<{ message: string }>(`${this.apiUrl}/exit-impersonation`, {}).pipe(
+      tap(() => this.clearSession()),
+      map(() => void 0),
+      catchError((error) => {
+        console.error('Error al salir de la impersonación:', error);
+        this.clearSession();
+        return of(void 0);
+      })
+    );
   }
 
   private enrichCurrentUserWithProfile(): void {

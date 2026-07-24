@@ -1,8 +1,14 @@
 import { CommonModule, DatePipe } from '@angular/common';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { DashboardService } from '../../core/services/dashboard.service';
 import { AuthService } from '../../core/services/auth.service';
-import { DashboardSummary } from '../../core/models/dashboard.model';
+import { DashboardSummary, OnboardingChecklist } from '../../core/models/dashboard.model';
+
+interface ChecklistItemView {
+  label: string;
+  done: boolean;
+}
 
 const STATUS_LABELS: Record<string, string> = {
   DRAFT: 'Borrador',
@@ -17,9 +23,41 @@ const STATUS_LABELS: Record<string, string> = {
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, DatePipe],
+  imports: [CommonModule, DatePipe, RouterLink],
   template: `
     <div class="space-y-10">
+      @if (showChecklist()) {
+        <section class="rounded-lg border border-default bg-surface p-6 shadow-card">
+          <header class="flex items-center justify-between">
+            <div>
+              <h3 class="text-lg font-semibold text-text">Primeros pasos</h3>
+              <p class="text-sm text-subtle">Termina de configurar tu cuenta para sacarle el máximo provecho a LexAr.</p>
+            </div>
+            <a
+              routerLink="/onboarding"
+              class="rounded-md border border-default px-4 py-2 text-sm font-semibold text-text transition hover:bg-surface-muted"
+            >
+              Continuar
+            </a>
+          </header>
+
+          <ul class="mt-4 grid gap-3 sm:grid-cols-2">
+            @for (item of checklistItems(); track item.label) {
+              <li class="flex items-center gap-2 text-sm" [class.text-subtle]="item.done" [class.text-text]="!item.done">
+                @if (item.done) {
+                  <svg class="h-4 w-4 flex-shrink-0 text-success" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                  </svg>
+                } @else {
+                  <span class="h-4 w-4 flex-shrink-0 rounded-full border border-default"></span>
+                }
+                <span [class.line-through]="item.done">{{ item.label }}</span>
+              </li>
+            }
+          </ul>
+        </section>
+      }
+
       <section class="rounded-lg bg-gradient-to-br from-navy-900 via-navy-800 to-navy-950 px-5 py-8 text-white shadow-card sm:px-6 md:px-8 md:py-10">
         <div class="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div class="min-w-0">
@@ -305,6 +343,29 @@ export class DashboardComponent implements OnInit {
   readonly isLoading = signal(true);
   readonly errorMessage = signal<string | null>(null);
 
+  readonly checklist = signal<OnboardingChecklist | null>(null);
+
+  readonly showChecklist = computed(() => {
+    const checklist = this.checklist();
+    return checklist !== null && !checklist.wizardCompleted;
+  });
+
+  readonly checklistItems = computed<ChecklistItemView[]>(() => {
+    const checklist = this.checklist();
+    if (!checklist) {
+      return [];
+    }
+
+    return [
+      { label: 'Verifica tu correo electrónico', done: checklist.emailVerified },
+      { label: 'Completa los datos de tu empresa', done: checklist.companyProfileComplete },
+      { label: 'Invita a tu equipo', done: checklist.teamInvited },
+      { label: 'Crea tu primer cliente', done: checklist.firstClientCreated },
+      { label: 'Crea tu primer proceso', done: checklist.firstProcessCreated },
+      { label: 'Sube tu primer documento', done: checklist.firstDocumentUploaded },
+    ];
+  });
+
   readonly firstName = computed(() => {
     const user = this.authService.currentUser();
     if (!user) {
@@ -360,6 +421,16 @@ export class DashboardComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadSummary();
+    this.loadChecklist();
+  }
+
+  loadChecklist(): void {
+    this.dashboardService.getOnboardingChecklist().subscribe({
+      next: (checklist) => this.checklist.set(checklist),
+      error: () => {
+        // El checklist es un extra informativo — si falla, el dashboard sigue funcionando sin él.
+      },
+    });
   }
 
   loadSummary(): void {

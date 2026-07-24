@@ -95,4 +95,82 @@ describe('AuthService', () => {
     expect(result).toBe(false);
     expect(service.isAuthenticated()).toBe(false);
   });
+
+  it('getProfile propaga emailVerified al usuario en memoria', () => {
+    service.getProfile().subscribe();
+
+    httpMock.expectOne(`${apiUrl}/me`).flush({
+      email: user.email,
+      roles: user.roles,
+      permissions: user.permissions,
+      emailVerified: false,
+    });
+
+    expect(service.currentUser()?.emailVerified).toBe(false);
+  });
+
+  it('getProfile propaga isOwner al usuario en memoria', () => {
+    service.getProfile().subscribe();
+
+    httpMock.expectOne(`${apiUrl}/me`).flush({
+      email: user.email,
+      roles: user.roles,
+      permissions: user.permissions,
+      emailVerified: false,
+      isOwner: true,
+    });
+
+    expect(service.currentUser()?.isOwner).toBe(true);
+  });
+
+  it('login propaga isOwner del backend al usuario en memoria', () => {
+    let result: { success: boolean; user?: AuthUser } | undefined;
+
+    service.login(user.email, 'Passw0rd!').subscribe((r) => (result = r));
+
+    httpMock
+      .expectOne(`${apiUrl}/login`)
+      .flush({ message: 'ok', user: { ...user, emailVerified: false, isOwner: true } });
+
+    expect(result?.user?.isOwner).toBe(true);
+    expect(service.currentUser()?.isOwner).toBe(true);
+  });
+
+  it('verifyEmail en éxito marca emailVerified en memoria', () => {
+    service.login(user.email, 'Passw0rd!').subscribe();
+    httpMock.expectOne(`${apiUrl}/login`).flush({ message: 'ok', user: { ...user, emailVerified: false } });
+
+    let result: { success: boolean } | undefined;
+    service.verifyEmail('token-123').subscribe((r) => (result = r));
+
+    const req = httpMock.expectOne(`${apiUrl}/verify-email`);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ token: 'token-123' });
+    req.flush({ message: 'Correo verificado exitosamente' });
+
+    expect(result?.success).toBe(true);
+    expect(service.currentUser()?.emailVerified).toBe(true);
+  });
+
+  it('verifyEmail en error expone el mensaje del backend', () => {
+    let result: { success: boolean; message?: string } | undefined;
+    service.verifyEmail('token-invalido').subscribe((r) => (result = r));
+
+    httpMock
+      .expectOne(`${apiUrl}/verify-email`)
+      .flush({ message: 'El enlace es inválido o ya expiró' }, { status: 400, statusText: 'Bad Request' });
+
+    expect(result).toEqual({ success: false, message: 'El enlace es inválido o ya expiró' });
+  });
+
+  it('resendVerification hace POST a /auth/resend-verification', () => {
+    let result: { success: boolean } | undefined;
+    service.resendVerification().subscribe((r) => (result = r));
+
+    const req = httpMock.expectOne(`${apiUrl}/resend-verification`);
+    expect(req.request.method).toBe('POST');
+    req.flush({ message: 'ok' });
+
+    expect(result?.success).toBe(true);
+  });
 });

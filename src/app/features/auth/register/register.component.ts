@@ -246,7 +246,7 @@ export class RegisterComponent implements OnInit {
         }
 
         this.isSubmitting.set(false);
-        this.router.navigate(['/dashboard']);
+        this.router.navigate(['/onboarding']);
       },
       error: (error) => {
         this.errorMessage.set(error.message ?? 'Error al conectar con el servidor.');

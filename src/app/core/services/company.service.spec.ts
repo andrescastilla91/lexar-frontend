@@ -25,6 +25,7 @@ describe('CompanyService', () => {
     billingEmail: null,
     website: null,
     logoUrl: null,
+    onboardingCompletedAt: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
   };
@@ -71,5 +72,19 @@ describe('CompanyService', () => {
     const req = httpMock.expectOne(apiUrl);
     expect(req.request.body).toEqual({ city: 'Cali' });
     req.flush({ message: 'ok', company });
+  });
+
+  it('completeOnboarding hace POST a /company/onboarding/complete', () => {
+    let result: CompanyProfile | undefined;
+    service.completeOnboarding().subscribe((c) => (result = c));
+
+    const req = httpMock.expectOne(`${apiUrl}/onboarding/complete`);
+    expect(req.request.method).toBe('POST');
+    req.flush({
+      message: 'ok',
+      company: { ...company, onboardingCompletedAt: '2026-07-24T00:00:00.000Z' },
+    });
+
+    expect(result?.onboardingCompletedAt).toBe('2026-07-24T00:00:00.000Z');
   });
 });

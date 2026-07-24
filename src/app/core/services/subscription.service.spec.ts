@@ -85,6 +85,29 @@ describe('SubscriptionService', () => {
     httpMock.expectOne(apiUrl).flush({ entitlements });
   });
 
+  it('isSimulationEnabled reutiliza el mismo GET que getEntitlements', () => {
+    let enabled: boolean | undefined;
+    service.isSimulationEnabled().subscribe((r) => (enabled = r));
+
+    httpMock.expectOne(apiUrl).flush({ entitlements, simulationEnabled: true });
+
+    expect(enabled).toBe(true);
+  });
+
+  it('simulateSubscription encadena checkout y simulate con la referencia obtenida', () => {
+    let result: { message: string } | undefined;
+    service.simulateSubscription('PROFESIONAL').subscribe((r) => (result = r));
+
+    const checkoutReq = httpMock.expectOne(`${apiUrl}/checkout`);
+    checkoutReq.flush({ checkout: { url: 'https://checkout.wompi.co/p/?x=1', reference: 'ref-sim-1' } });
+
+    const simulateReq = httpMock.expectOne(`${apiUrl}/simulate`);
+    expect(simulateReq.request.body).toEqual({ reference: 'ref-sim-1', status: 'APPROVED' });
+    simulateReq.flush({ message: 'Evento simulado aplicado' });
+
+    expect(result?.message).toBe('Evento simulado aplicado');
+  });
+
   it('createCheckout hace POST a /subscription/checkout con el body dado', () => {
     let url: string | undefined;
     service.createCheckout({ planCode: 'FIRMA', billingCycle: 'yearly' }).subscribe((c) => (url = c.url));
