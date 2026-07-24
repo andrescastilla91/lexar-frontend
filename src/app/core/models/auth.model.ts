@@ -29,6 +29,10 @@ export interface AuthUser {
   avatarUrl?: string | null;
   /** F9: true si esta sesión fue abierta por un platform admin (impersonación). */
   impersonating?: boolean;
+  /** F10: true si el usuario ya verificó su correo. */
+  emailVerified?: boolean;
+  /** true solo para el usuario que registró la empresa — es a quien bloquea emailVerifiedGuard hasta verificar. */
+  isOwner?: boolean;
 }
 
 export interface LoginResponse {
@@ -51,6 +55,8 @@ export interface ProfileResponse {
   permissions?: string[];
   themePreference?: 'light' | 'dark' | 'system';
   impersonating?: boolean;
+  emailVerified?: boolean;
+  isOwner?: boolean;
 }
 
 export interface ForgotPasswordRequest {
@@ -69,4 +75,8 @@ export interface AcceptInvitationRequest {
 
 export interface MessageResponse {
   message: string;
+}
+
+export interface VerifyEmailRequest {
+  token: string;
 }

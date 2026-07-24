@@ -35,6 +35,13 @@ export class CompanyService {
     return cleaned;
   }
 
+  /** F10: marca el wizard de primeros pasos como completado/saltado. */
+  completeOnboarding(): Observable<CompanyProfile> {
+    return this.http
+      .post<{ company: CompanyProfile }>(`${this.apiUrl}/onboarding/complete`, {})
+      .pipe(map((res) => res.company));
+  }
+
   uploadLogo(file: File): Observable<CompanyProfile> {
     return this.http
       .post<CompanyLogoSignedUrlResponse>(`${this.apiUrl}/logo/signed-url`, {

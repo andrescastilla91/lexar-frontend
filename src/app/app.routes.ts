@@ -2,6 +2,7 @@ import { Routes } from '@angular/router';
 import { authGuard } from './core/guards/auth.guard';
 import { platformAdminGuard } from './core/guards/platform-admin.guard';
 import { chatbotFeatureGuard } from './core/guards/feature-flag.guard';
+import { emailVerifiedGuard } from './core/guards/email-verified.guard';
 import { MainLayoutComponent } from './layout/main-layout.component';
 import { AdminLayoutComponent } from './layout/admin-layout.component';
 
@@ -33,6 +34,17 @@ export const routes: Routes = [
 		path: 'activar-cuenta',
 		loadComponent: () =>
 			import('./features/auth/activar-cuenta/activar-cuenta.component').then((m) => m.ActivarCuentaComponent),
+	},
+	{
+		path: 'verificar-correo',
+		loadComponent: () =>
+			import('./features/auth/verify-email/verify-email.component').then((m) => m.VerifyEmailComponent),
+	},
+	{
+		path: 'verificar-pendiente',
+		canActivate: [authGuard],
+		loadComponent: () =>
+			import('./features/auth/verify-required/verify-required.component').then((m) => m.VerifyRequiredComponent),
 	},
 	{
 		path: 'admin/login',
@@ -71,11 +83,15 @@ export const routes: Routes = [
 	{
 		path: '',
 		component: MainLayoutComponent,
-		canActivate: [authGuard],
+		canActivate: [authGuard, emailVerifiedGuard],
 		children: [
 			{
 				path: 'dashboard',
 				loadComponent: () => import('./features/dashboard/dashboard.component').then((m) => m.DashboardComponent),
+			},
+			{
+				path: 'onboarding',
+				loadComponent: () => import('./features/onboarding/onboarding.component').then((m) => m.OnboardingComponent),
 			},
 			{
 				path: 'perfil',

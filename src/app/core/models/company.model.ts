@@ -13,6 +13,7 @@ export interface CompanyProfile {
   billingEmail: string | null;
   website: string | null;
   logoUrl: string | null;
+  onboardingCompletedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }

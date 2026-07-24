@@ -9,6 +9,7 @@ import { ProfileService } from '../core/services/profile.service';
 import { CompanyService } from '../core/services/company.service';
 import { SubscriptionService } from '../core/services/subscription.service';
 import { ThemeService } from '../core/services/theme.service';
+import { ToastService } from '../core/services/toast.service';
 import { AuthUser } from '../core/models/auth.model';
 import { Entitlements } from '../core/models/subscription-backend.model';
 
@@ -17,7 +18,9 @@ describe('MainLayoutComponent — banner de impersonación (F9)', () => {
     currentUser: ReturnType<typeof signal<AuthUser | null>>;
     logout: jest.Mock;
     exitImpersonation: jest.Mock;
+    resendVerification: jest.Mock;
   };
+  let toastServiceMock: { success: jest.Mock; error: jest.Mock; toasts: jest.Mock };
   let navigateSpy: jest.SpyInstance;
 
   function configure(user: AuthUser | null): void {
@@ -25,7 +28,9 @@ describe('MainLayoutComponent — banner de impersonación (F9)', () => {
       currentUser: signal(user),
       logout: jest.fn().mockReturnValue(of(undefined)),
       exitImpersonation: jest.fn().mockReturnValue(of(undefined)),
+      resendVerification: jest.fn().mockReturnValue(of({ success: true })),
     };
+    toastServiceMock = { success: jest.fn(), error: jest.fn(), toasts: jest.fn().mockReturnValue([]) };
 
     TestBed.configureTestingModule({
       imports: [MainLayoutComponent],
@@ -40,6 +45,7 @@ describe('MainLayoutComponent — banner de impersonación (F9)', () => {
           useValue: { getEntitlements: jest.fn().mockReturnValue(of({ features: { chatbot: false } } as Entitlements)) },
         },
         { provide: ThemeService, useValue: { theme: jest.fn().mockReturnValue('light'), toggle: jest.fn() } },
+        { provide: ToastService, useValue: toastServiceMock },
       ],
     });
 

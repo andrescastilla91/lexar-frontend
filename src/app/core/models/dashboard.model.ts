@@ -58,3 +58,19 @@ export interface DashboardSummaryResponse {
   message: string;
   summary: DashboardSummary;
 }
+
+/** F10: checklist "Primeros pasos" del dashboard. */
+export interface OnboardingChecklist {
+  emailVerified: boolean;
+  companyProfileComplete: boolean;
+  firstClientCreated: boolean;
+  firstProcessCreated: boolean;
+  firstDocumentUploaded: boolean;
+  teamInvited: boolean;
+  wizardCompleted: boolean;
+}
+
+export interface OnboardingChecklistResponse {
+  message: string;
+  checklist: OnboardingChecklist;
+}
