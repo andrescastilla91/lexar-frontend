@@ -14,6 +14,8 @@ export interface CompanyProfile {
   website: string | null;
   logoUrl: string | null;
   onboardingCompletedAt: string | null;
+  /** F11 (S10): si está activo, todo usuario del tenant sin 2FA queda bloqueado hasta activarlo. */
+  require2fa: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -30,6 +32,7 @@ export interface UpdateCompanyRequest {
   taxRegime?: string;
   billingEmail?: string;
   website?: string;
+  require2fa?: boolean;
 }
 
 export interface CompanyLogoSignedUrlResponse {

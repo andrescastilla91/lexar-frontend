@@ -19,7 +19,24 @@ import {
   AcceptInvitationRequest,
   MessageResponse,
   VerifyEmailRequest,
+  TwoFactorLoginRequest,
+  TwoFactorSetupResponse,
+  TwoFactorVerifyRequest,
+  TwoFactorVerifyResponse,
+  TwoFactorDisableRequest,
+  TwoFactorRecoveryCodesRegenerateRequest,
+  TwoFactorRecoveryCodesRegenerateResponse,
+  ForgotTwoFactorRequest,
 } from '../models/auth.model';
+
+export interface LoginOutcome {
+  success: boolean;
+  message?: string;
+  user?: AuthUser;
+  /** F11 (S10): si viene en true, el login no abrió sesión — hay que completar el segundo paso con pendingToken. */
+  requires2fa?: boolean;
+  pendingToken?: string;
+}
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -37,28 +54,99 @@ export class AuthService {
   readonly currentUser = computed(() => this.currentUserSignal());
   readonly isAuthenticated = computed(() => this.currentUserSignal() !== null);
 
-  login(email: string, password: string): Observable<{ success: boolean; message?: string; user?: AuthUser }> {
+  login(email: string, password: string): Observable<LoginOutcome> {
     const payload: LoginRequest = { email, password };
-    
+
     return this.http.post<LoginResponse>(`${this.apiUrl}/login`, payload).pipe(
-      tap((response) => {
-        this.clearTenantCaches();
-        // Guardar usuario en estado en memoria (NO localStorage)
-        this.currentUserSignal.set(response.user);
-        if (response.user.themePreference) {
-          this.themeService.setPreference(response.user.themePreference);
+      map((response) => {
+        if (response.requires2fa) {
+          // F11 (S10): aún no hay sesión — el componente de login debe pedir el código.
+          return {
+            success: true,
+            requires2fa: true,
+            pendingToken: response.pendingToken,
+            message: response.message,
+          };
         }
-        this.enrichCurrentUserWithProfile();
+        this.completeLogin(response.user!);
+        return { success: true, requires2fa: false, user: response.user };
       }),
-      map((response) => ({
-        success: true,
-        user: response.user,
-      })),
       catchError((error) => {
         console.error('Error en login:', error);
         return of({
           success: false,
           message: error.error?.message || 'Error al iniciar sesión. Verifica tus credenciales.',
+        });
+      })
+    );
+  }
+
+  /** F11 (S10): segundo paso del login cuando el usuario tiene 2FA activo. */
+  loginWithTwoFactor(pendingToken: string, code: string): Observable<LoginOutcome> {
+    const payload: TwoFactorLoginRequest = { pendingToken, code };
+
+    return this.http.post<LoginResponse>(`${this.apiUrl}/login/2fa`, payload).pipe(
+      map((response) => {
+        this.completeLogin(response.user!);
+        return { success: true, user: response.user };
+      }),
+      catchError((error) => {
+        console.error('Error en login/2fa:', error);
+        return of({
+          success: false,
+          message: error.error?.message || 'El código ingresado no es válido.',
+        });
+      })
+    );
+  }
+
+  /** F11 (S10): inicia el enrolamiento — genera el secreto y el QR, aún no activa el 2FA. */
+  setupTwoFactor(): Observable<TwoFactorSetupResponse> {
+    return this.http.post<TwoFactorSetupResponse>(`${this.apiUrl}/2fa/setup`, {});
+  }
+
+  /** F11 (S10): confirma el primer código y activa el 2FA — devuelve los códigos de recuperación una sola vez. */
+  verifyTwoFactor(code: string): Observable<TwoFactorVerifyResponse> {
+    const payload: TwoFactorVerifyRequest = { code };
+    return this.http.post<TwoFactorVerifyResponse>(`${this.apiUrl}/2fa/verify`, payload).pipe(
+      tap(() => this.patchCurrentUser({ twoFactorEnabled: true })),
+    );
+  }
+
+  /** F11 (S10): autodesactivación — exige contraseña + código vigente. */
+  disableTwoFactor(password: string, code: string): Observable<MessageResponse> {
+    const payload: TwoFactorDisableRequest = { password, code };
+    return this.http.post<MessageResponse>(`${this.apiUrl}/2fa/disable`, payload).pipe(
+      tap(() => this.patchCurrentUser({ twoFactorEnabled: false })),
+    );
+  }
+
+  /** Regenera los códigos de recuperación sin desactivar el 2FA — invalida los anteriores. */
+  regenerateTwoFactorRecoveryCodes(password: string, code: string): Observable<TwoFactorRecoveryCodesRegenerateResponse> {
+    const payload: TwoFactorRecoveryCodesRegenerateRequest = { password, code };
+    return this.http.post<TwoFactorRecoveryCodesRegenerateResponse>(
+      `${this.apiUrl}/2fa/recovery-codes/regenerate`,
+      payload,
+    );
+  }
+
+  /**
+   * Solicitud de restablecimiento de 2FA — respuesta ciega (no revela si el
+   * correo existe ni si tiene 2FA activo). Delta 2026-07-27: ya no completa
+   * nada por sí sola, solo notifica al usuario y a los admins del tenant con
+   * `users.manage-2fa`; es el admin quien ejecuta el restablecimiento desde
+   * la tabla de usuarios tras verificar identidad fuera de banda.
+   */
+  forgotTwoFactor(email: string): Observable<{ success: boolean; message?: string }> {
+    const payload: ForgotTwoFactorRequest = { email };
+
+    return this.http.post<MessageResponse>(`${this.apiUrl}/forgot-2fa`, payload).pipe(
+      map((response) => ({ success: true, message: response.message })),
+      catchError((error) => {
+        console.error('Error en forgot-2fa:', error);
+        return of({
+          success: false,
+          message: error.error?.message || 'No pudimos procesar tu solicitud. Intenta de nuevo en unos minutos.',
         });
       })
     );
@@ -112,6 +200,8 @@ export class AuthService {
           impersonating: profile.impersonating,
           emailVerified: profile.emailVerified,
           isOwner: profile.isOwner,
+          twoFactorEnabled: profile.twoFactorEnabled,
+          companyRequire2fa: profile.companyRequire2fa,
         };
         this.currentUserSignal.set(user);
         if (profile.themePreference) {
@@ -127,6 +217,8 @@ export class AuthService {
         impersonating: profile.impersonating,
         emailVerified: profile.emailVerified,
         isOwner: profile.isOwner,
+        twoFactorEnabled: profile.twoFactorEnabled,
+        companyRequire2fa: profile.companyRequire2fa,
       })),
       catchError((error) => {
         console.error('Error al obtener perfil:', error);
@@ -252,6 +344,16 @@ export class AuthService {
         return of(void 0);
       })
     );
+  }
+
+  private completeLogin(user: AuthUser): void {
+    this.clearTenantCaches();
+    // Guardar usuario en estado en memoria (NO localStorage)
+    this.currentUserSignal.set(user);
+    if (user.themePreference) {
+      this.themeService.setPreference(user.themePreference);
+    }
+    this.enrichCurrentUserWithProfile();
   }
 
   private enrichCurrentUserWithProfile(): void {

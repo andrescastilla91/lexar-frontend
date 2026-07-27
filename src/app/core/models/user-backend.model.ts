@@ -10,6 +10,10 @@ export interface UserBackend {
   createdAt: string;
   avatarUrl?: string | null;
   invitationStatus?: InvitationStatus;
+  /** F11 (S10): true si el usuario ya activó el segundo factor. */
+  twoFactorEnabled: boolean;
+  /** F11 delta 2026-07-27: true si hay una solicitud de restablecimiento de 2FA sin resolver. */
+  twoFactorResetRequestPending?: boolean;
   roles: RoleBasic[];
 }
 
