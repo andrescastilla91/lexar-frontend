@@ -9,6 +9,11 @@ import {
   CreatePlatformAdminRequest,
   PlatformAdminSummary,
   PlatformAdminUser,
+  PlatformLoginOutcome,
+  PlatformNotificationChannelSetting,
+  PlatformNotificationTypeSetting,
+  PlatformTwoFactorSetupResponse,
+  PlatformTwoFactorVerifySetupResponse,
   TenantDetail,
   TenantSummary,
   UpdatePlanRequest,
@@ -25,16 +30,59 @@ export class PlatformAdminService {
   readonly currentAdmin = computed(() => this.currentAdminSignal());
   readonly isAuthenticated = computed(() => this.currentAdminSignal() !== null);
 
-  login(email: string, password: string): Observable<PlatformAdminUser> {
+  /**
+   * F11 (S10): el 2FA es obligatorio sin excepción — este paso NUNCA abre
+   * sesión ni recibe cookie por sí solo, solo devuelve un pendingToken.
+   * Bug corregido 2026-07-27: antes esto se trataba como login completo
+   * (`response.user`), pero el backend nunca devuelve `user` aquí — el
+   * panel navegaba como si hubiera sesión sin que existiera la cookie
+   * `platform_access_token`, y todo request subsecuente a /admin/* volvía
+   * 403 desde PlatformAdminGuard.
+   */
+  login(email: string, password: string): Observable<PlatformLoginOutcome> {
     return this.http
-      .post<{ message: string; user: PlatformAdminUser }>(`${this.authUrl}/login`, { email, password })
+      .post<PlatformLoginOutcome>(`${this.authUrl}/login`, { email, password })
       .pipe(
-        map((response) => response.user),
-        tap((user) => this.currentAdminSignal.set(user)),
         catchError((error) => {
           this.currentAdminSignal.set(null);
           return throwError(() => new Error(error.error?.message || 'Credenciales inválidas'));
         })
+      );
+  }
+
+  /** Enrolamiento forzado (primer login, aún sin sesión): genera el secreto y el QR. */
+  setupTwoFactor(pendingToken: string): Observable<PlatformTwoFactorSetupResponse> {
+    return this.http
+      .post<PlatformTwoFactorSetupResponse>(`${this.authUrl}/2fa/setup`, { pendingToken })
+      .pipe(
+        catchError((error) =>
+          throwError(() => new Error(error.error?.message || 'No se pudo iniciar la verificación en dos pasos.'))
+        )
+      );
+  }
+
+  /** Confirma el primer código del enrolamiento forzado: aquí sí se abre sesión. */
+  verifyTwoFactorSetup(pendingToken: string, code: string): Observable<PlatformTwoFactorVerifySetupResponse> {
+    return this.http
+      .post<PlatformTwoFactorVerifySetupResponse>(`${this.authUrl}/2fa/verify`, { pendingToken, code })
+      .pipe(
+        tap((response) => this.currentAdminSignal.set(response.user)),
+        catchError((error) =>
+          throwError(() => new Error(error.error?.message || 'El código ingresado no es válido.'))
+        )
+      );
+  }
+
+  /** Segundo paso del login recurrente (2FA ya estaba activo). */
+  loginWithTwoFactor(pendingToken: string, code: string): Observable<PlatformAdminUser> {
+    return this.http
+      .post<{ message: string; user: PlatformAdminUser }>(`${this.authUrl}/login/2fa`, { pendingToken, code })
+      .pipe(
+        map((response) => response.user),
+        tap((user) => this.currentAdminSignal.set(user)),
+        catchError((error) =>
+          throwError(() => new Error(error.error?.message || 'El código ingresado no es válido.'))
+        )
       );
   }
 
@@ -140,5 +188,43 @@ export class PlatformAdminService {
       map((response) => response.metrics),
       catchError((error) => throwError(() => new Error(error.error?.message || 'Error al cargar las métricas')))
     );
+  }
+
+  getNotificationTypes(): Observable<PlatformNotificationTypeSetting[]> {
+    return this.http.get<{ types: PlatformNotificationTypeSetting[] }>(`${this.apiUrl}/notifications/types`).pipe(
+      map((response) => response.types),
+      catchError((error) => throwError(() => new Error(error.error?.message || 'Error al cargar los tipos de notificación')))
+    );
+  }
+
+  updateNotificationType(type: string, changes: { enabled?: boolean; label?: string | null }): Observable<void> {
+    return this.http
+      .patch<void>(`${this.apiUrl}/notifications/types`, { settings: [{ type, ...changes }] })
+      .pipe(
+        catchError((error) => throwError(() => new Error(error.error?.message || 'No se pudo actualizar el tipo de notificación')))
+      );
+  }
+
+  updateNotificationTypeChannel(type: string, channel: string, enabled: boolean): Observable<void> {
+    return this.http
+      .patch<void>(`${this.apiUrl}/notifications/types/channels`, { settings: [{ type, channel, enabled }] })
+      .pipe(
+        catchError((error) => throwError(() => new Error(error.error?.message || 'No se pudo actualizar el canal para este evento')))
+      );
+  }
+
+  getNotificationChannels(): Observable<PlatformNotificationChannelSetting[]> {
+    return this.http.get<{ channels: PlatformNotificationChannelSetting[] }>(`${this.apiUrl}/notifications/channels`).pipe(
+      map((response) => response.channels),
+      catchError((error) => throwError(() => new Error(error.error?.message || 'Error al cargar los canales de notificación')))
+    );
+  }
+
+  updateNotificationChannel(channel: string, enabled: boolean): Observable<void> {
+    return this.http
+      .patch<void>(`${this.apiUrl}/notifications/channels`, { settings: [{ channel, enabled }] })
+      .pipe(
+        catchError((error) => throwError(() => new Error(error.error?.message || 'No se pudo actualizar el canal de notificación')))
+      );
   }
 }

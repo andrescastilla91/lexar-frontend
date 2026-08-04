@@ -106,6 +106,7 @@ import { UsersTableComponent } from './components/users-table.component';
         (toggleStatus)="toggleUserStatus($event)"
         (assignRoles)="assignRoles($event)"
         (resendInvitation)="resendInvitation($event)"
+        (disableTwoFactor)="disableUserTwoFactor($event)"
       />
 
       @if (!isLoading() && filteredUsers().length > 0) {
@@ -363,6 +364,27 @@ export class UsersComponent implements OnInit {
       },
       error: (error) => {
         this.toastService.error(error.error?.message || 'Error al cambiar estado del usuario');
+      },
+    });
+  }
+
+  async disableUserTwoFactor(user: UserBackend): Promise<void> {
+    const confirmed = await this.confirmDialog.confirm({
+      title: 'Desactivar verificación en dos pasos',
+      message: `¿Estás seguro de desactivar el segundo factor de ${user.firstName} ${user.lastName}? Tendrá que activarlo de nuevo desde su perfil.`,
+      danger: true,
+    });
+    if (!confirmed) {
+      return;
+    }
+
+    this.usersService.disableTwoFactor(user.id).subscribe({
+      next: () => {
+        this.loadUsers();
+        this.toastService.success('Verificación en dos pasos desactivada exitosamente');
+      },
+      error: (error) => {
+        this.toastService.error(error.error?.message || 'Error al desactivar la verificación en dos pasos');
       },
     });
   }

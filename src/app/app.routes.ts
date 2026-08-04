@@ -3,6 +3,7 @@ import { authGuard } from './core/guards/auth.guard';
 import { platformAdminGuard } from './core/guards/platform-admin.guard';
 import { chatbotFeatureGuard } from './core/guards/feature-flag.guard';
 import { emailVerifiedGuard } from './core/guards/email-verified.guard';
+import { twoFactorRequiredGuard } from './core/guards/two-factor-required.guard';
 import { MainLayoutComponent } from './layout/main-layout.component';
 import { AdminLayoutComponent } from './layout/admin-layout.component';
 
@@ -31,6 +32,13 @@ export const routes: Routes = [
 			import('./features/auth/reset-password/reset-password.component').then((m) => m.ResetPasswordComponent),
 	},
 	{
+		path: 'olvide-2fa',
+		loadComponent: () =>
+			import('./features/auth/forgot-two-factor/forgot-two-factor.component').then(
+				(m) => m.ForgotTwoFactorComponent,
+			),
+	},
+	{
 		path: 'activar-cuenta',
 		loadComponent: () =>
 			import('./features/auth/activar-cuenta/activar-cuenta.component').then((m) => m.ActivarCuentaComponent),
@@ -45,6 +53,14 @@ export const routes: Routes = [
 		canActivate: [authGuard],
 		loadComponent: () =>
 			import('./features/auth/verify-required/verify-required.component').then((m) => m.VerifyRequiredComponent),
+	},
+	{
+		path: 'activar-2fa',
+		canActivate: [authGuard],
+		loadComponent: () =>
+			import('./features/auth/two-factor-required/two-factor-required.component').then(
+				(m) => m.TwoFactorRequiredComponent,
+			),
 	},
 	{
 		path: 'admin/login',
@@ -74,6 +90,11 @@ export const routes: Routes = [
 				loadComponent: () => import('./features/admin/team/admin-team.component').then((m) => m.AdminTeamComponent),
 			},
 			{
+				path: 'notifications',
+				loadComponent: () =>
+					import('./features/admin/notifications/admin-notifications.component').then((m) => m.AdminNotificationsComponent),
+			},
+			{
 				path: '',
 				pathMatch: 'full',
 				redirectTo: 'tenants',
@@ -83,7 +104,7 @@ export const routes: Routes = [
 	{
 		path: '',
 		component: MainLayoutComponent,
-		canActivate: [authGuard, emailVerifiedGuard],
+		canActivate: [authGuard, emailVerifiedGuard, twoFactorRequiredGuard],
 		children: [
 			{
 				path: 'dashboard',
@@ -96,6 +117,10 @@ export const routes: Routes = [
 			{
 				path: 'perfil',
 				loadComponent: () => import('./features/profile/profile.component').then((m) => m.ProfileComponent),
+			},
+			{
+				path: 'notificaciones',
+				loadComponent: () => import('./features/notifications/notifications.component').then((m) => m.NotificationsComponent),
 			},
 			{
 				path: 'usuarios',

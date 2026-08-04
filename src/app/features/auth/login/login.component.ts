@@ -33,75 +33,124 @@ import { AuthService } from '../../../core/services/auth.service';
 
         <section class="flex flex-1 items-center justify-center px-6 py-12 lg:px-12">
           <div class="w-full max-w-md rounded-lg border border-default bg-white/80 p-8 shadow-raised backdrop-blur">
-            <h2 class="text-2xl font-semibold text-text">Bienvenido de nuevo</h2>
-            <p class="mt-2 text-sm text-subtle">Ingresa tu correo corporativo para continuar.</p>
+            @if (!awaitingTwoFactor()) {
+              <h2 class="text-2xl font-semibold text-text">Bienvenido de nuevo</h2>
+              <p class="mt-2 text-sm text-subtle">Ingresa tu correo corporativo para continuar.</p>
 
-            <form class="mt-8 space-y-6" [formGroup]="form" (ngSubmit)="onSubmit()">
-              <div class="space-y-2">
-                <label class="block text-sm font-medium text-muted" for="email">Correo electrónico</label>
-                <input
-                  id="email"
-                  type="email"
-                  formControlName="email"
-                  autocomplete="off"
-                  class="w-full rounded-md border border-default bg-surface px-4 py-3 text-base text-text shadow-card transition focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
-                  placeholder="tucorreo@lexar.com"
-                />
-                @if (form.get('email')?.touched && form.get('email')?.invalid) {
-                  <p class="text-sm text-danger">Incluye un correo corporativo válido.</p>
-                }
-              </div>
-
-              <div class="space-y-2">
-                <label class="block text-sm font-medium text-muted" for="password">Contraseña</label>
-                <input
-                  id="password"
-                  type="password"
-                  formControlName="password"
-                  autocomplete="new-password"
-                  class="w-full rounded-md border border-default bg-surface px-4 py-3 text-base text-text shadow-card transition focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
-                  placeholder="••••••••"
-                />
-                @if (form.get('password')?.touched && form.get('password')?.invalid) {
-                  <p class="text-sm text-danger">La contraseña es obligatoria.</p>
-                }
-              </div>
-
-              <div class="flex items-center justify-between">
-                <label class="flex items-center gap-2 text-sm text-muted">
-                  <input type="checkbox" formControlName="remember" class="h-4 w-4 rounded border-strong text-navy-900" />
-                  Recordar sesión
-                </label>
-                <a routerLink="/recuperar" class="text-sm font-medium text-navy-900 hover:underline">¿Olvidaste tu contraseña?</a>
-              </div>
-
-              @if (errorMessage()) {
-                <div class="rounded-md border border-danger bg-danger-tint px-4 py-3 text-sm text-danger">
-                  {{ errorMessage() }}
+              <form class="mt-8 space-y-6" [formGroup]="form" (ngSubmit)="onSubmit()">
+                <div class="space-y-2">
+                  <label class="block text-sm font-medium text-muted" for="email">Correo electrónico</label>
+                  <input
+                    id="email"
+                    type="email"
+                    formControlName="email"
+                    autocomplete="off"
+                    class="w-full rounded-md border border-default bg-surface px-4 py-3 text-base text-text shadow-card transition focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
+                    placeholder="tucorreo@lexar.com"
+                  />
+                  @if (form.get('email')?.touched && form.get('email')?.invalid) {
+                    <p class="text-sm text-danger">Incluye un correo corporativo válido.</p>
+                  }
                 </div>
-              }
 
-              <button
-                type="submit"
-                class="flex w-full items-center justify-center gap-2 rounded-md bg-navy-900 px-4 py-3 text-base font-semibold text-white transition focus:outline-none focus:ring-2 focus:ring-navy-900/40 disabled:cursor-not-allowed disabled:bg-strong"
-                [disabled]="isSubmitting()"
-              >
-                <span>Iniciar sesión</span>
-                @if (isSubmitting()) {
-                  <svg class="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4l3.5-3.5L12 1v4a7 7 0 0 0-7 7h-1z"></path>
-                  </svg>
+                <div class="space-y-2">
+                  <label class="block text-sm font-medium text-muted" for="password">Contraseña</label>
+                  <input
+                    id="password"
+                    type="password"
+                    formControlName="password"
+                    autocomplete="new-password"
+                    class="w-full rounded-md border border-default bg-surface px-4 py-3 text-base text-text shadow-card transition focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
+                    placeholder="••••••••"
+                  />
+                  @if (form.get('password')?.touched && form.get('password')?.invalid) {
+                    <p class="text-sm text-danger">La contraseña es obligatoria.</p>
+                  }
+                </div>
+
+                <div class="flex items-center justify-between">
+                  <label class="flex items-center gap-2 text-sm text-muted">
+                    <input type="checkbox" formControlName="remember" class="h-4 w-4 rounded border-strong text-navy-900" />
+                    Recordar sesión
+                  </label>
+                  <a routerLink="/recuperar" class="text-sm font-medium text-navy-900 hover:underline">¿Olvidaste tu contraseña?</a>
+                </div>
+
+                @if (errorMessage()) {
+                  <div class="rounded-md border border-danger bg-danger-tint px-4 py-3 text-sm text-danger">
+                    {{ errorMessage() }}
+                  </div>
                 }
-              </button>
-            </form>
 
-            <p class="mt-8 text-center text-sm text-subtle">
-              ¿Aún no tienes acceso? <a routerLink="/registro" class="font-semibold text-navy-900 hover:underline">Crear cuenta</a>
-            </p>
-            <p class="mt-2 text-center text-xs text-subtle/60">
-              <a routerLink="/admin/login" class="hover:underline">Acceso equipo LexAr</a>
-            </p>
+                <button
+                  type="submit"
+                  class="flex w-full items-center justify-center gap-2 rounded-md bg-navy-900 px-4 py-3 text-base font-semibold text-white transition focus:outline-none focus:ring-2 focus:ring-navy-900/40 disabled:cursor-not-allowed disabled:bg-strong"
+                  [disabled]="isSubmitting()"
+                >
+                  <span>Iniciar sesión</span>
+                  @if (isSubmitting()) {
+                    <svg class="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4l3.5-3.5L12 1v4a7 7 0 0 0-7 7h-1z"></path>
+                    </svg>
+                  }
+                </button>
+              </form>
+
+              <p class="mt-8 text-center text-sm text-subtle">
+                ¿Aún no tienes acceso? <a routerLink="/registro" class="font-semibold text-navy-900 hover:underline">Crear cuenta</a>
+              </p>
+              <p class="mt-2 text-center text-xs text-subtle/60">
+                <a routerLink="/admin/login" class="hover:underline">Acceso equipo LexAr</a>
+              </p>
+            } @else {
+              <h2 class="text-2xl font-semibold text-text">Verificación en dos pasos</h2>
+              <p class="mt-2 text-sm text-subtle">
+                Ingresa el código de tu aplicación de autenticación (o un código de recuperación).
+              </p>
+
+              <form class="mt-8 space-y-6" [formGroup]="twoFactorForm" (ngSubmit)="onSubmitTwoFactor()">
+                <div class="space-y-2">
+                  <label class="block text-sm font-medium text-muted" for="code">Código</label>
+                  <input
+                    id="code"
+                    type="text"
+                    inputmode="numeric"
+                    formControlName="code"
+                    autocomplete="one-time-code"
+                    autofocus
+                    class="w-full rounded-md border border-default bg-surface px-4 py-3 text-base text-text shadow-card transition focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
+                    placeholder="123456"
+                  />
+                </div>
+
+                @if (twoFactorError()) {
+                  <div class="rounded-md border border-danger bg-danger-tint px-4 py-3 text-sm text-danger">
+                    {{ twoFactorError() }}
+                  </div>
+                }
+
+                <button
+                  type="submit"
+                  class="flex w-full items-center justify-center gap-2 rounded-md bg-navy-900 px-4 py-3 text-base font-semibold text-white transition focus:outline-none focus:ring-2 focus:ring-navy-900/40 disabled:cursor-not-allowed disabled:bg-strong"
+                  [disabled]="isSubmittingTwoFactor()"
+                >
+                  Verificar
+                </button>
+
+                <button
+                  type="button"
+                  class="w-full text-center text-sm font-medium text-navy-900 hover:underline"
+                  (click)="onBackToLogin()"
+                >
+                  Volver al inicio de sesión
+                </button>
+              </form>
+
+              <p class="mt-6 text-center text-sm text-subtle">
+                <a routerLink="/olvide-2fa" class="font-semibold text-navy-900 hover:underline">¿Perdiste acceso a tu app de autenticación y a tus códigos de recuperación?</a>
+              </p>
+            }
           </div>
         </section>
       </div>
@@ -124,6 +173,15 @@ export class LoginComponent implements OnInit {
   readonly isSubmitting = signal(false);
   readonly formInvalid = computed(() => this.form.invalid);
 
+  // F11 (S10): segundo paso del login cuando el usuario tiene 2FA activo.
+  readonly twoFactorForm = this.fb.nonNullable.group({
+    code: ['', Validators.required],
+  });
+  readonly awaitingTwoFactor = signal(false);
+  readonly pendingToken = signal<string | null>(null);
+  readonly twoFactorError = signal<string | null>(null);
+  readonly isSubmittingTwoFactor = signal(false);
+
   ngOnInit(): void {
     if (this.authService.isAuthenticated()) {
       this.router.navigate(['/dashboard']);
@@ -144,7 +202,7 @@ export class LoginComponent implements OnInit {
     this.errorMessage.set(null);
 
     const { email, password } = this.form.getRawValue();
-    
+
     this.authService.login(email, password).subscribe({
       next: (result) => {
         if (!result.success) {
@@ -153,15 +211,67 @@ export class LoginComponent implements OnInit {
           return;
         }
 
-        const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
-        const fallback = '/dashboard';
+        if (result.requires2fa) {
+          this.pendingToken.set(result.pendingToken ?? null);
+          this.awaitingTwoFactor.set(true);
+          this.isSubmitting.set(false);
+          return;
+        }
+
         this.isSubmitting.set(false);
-        this.router.navigateByUrl(returnUrl && returnUrl !== '/login' ? returnUrl : fallback);
+        this.navigateAfterLogin();
       },
       error: (error) => {
         this.errorMessage.set(error.message ?? 'Error al conectar con el servidor.');
         this.isSubmitting.set(false);
       },
     });
+  }
+
+  onSubmitTwoFactor(): void {
+    if (this.isSubmittingTwoFactor()) {
+      return;
+    }
+
+    const pendingToken = this.pendingToken();
+    if (this.twoFactorForm.invalid || !pendingToken) {
+      this.twoFactorForm.markAllAsTouched();
+      return;
+    }
+
+    this.isSubmittingTwoFactor.set(true);
+    this.twoFactorError.set(null);
+
+    const { code } = this.twoFactorForm.getRawValue();
+
+    this.authService.loginWithTwoFactor(pendingToken, code).subscribe({
+      next: (result) => {
+        if (!result.success) {
+          this.twoFactorError.set(result.message ?? 'El código ingresado no es válido.');
+          this.isSubmittingTwoFactor.set(false);
+          return;
+        }
+
+        this.isSubmittingTwoFactor.set(false);
+        this.navigateAfterLogin();
+      },
+      error: (error) => {
+        this.twoFactorError.set(error.message ?? 'Error al conectar con el servidor.');
+        this.isSubmittingTwoFactor.set(false);
+      },
+    });
+  }
+
+  onBackToLogin(): void {
+    this.awaitingTwoFactor.set(false);
+    this.pendingToken.set(null);
+    this.twoFactorError.set(null);
+    this.twoFactorForm.reset();
+  }
+
+  private navigateAfterLogin(): void {
+    const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
+    const fallback = '/dashboard';
+    this.router.navigateByUrl(returnUrl && returnUrl !== '/login' ? returnUrl : fallback);
   }
 }

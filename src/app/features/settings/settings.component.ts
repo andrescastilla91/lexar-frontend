@@ -8,8 +8,10 @@ import { SettingsBillingFormComponent } from './components/settings-billing-form
 import { SettingsBrandFormComponent } from './components/settings-brand-form.component';
 import { SettingsCatalogsComponent } from './components/settings-catalogs.component';
 import { SettingsPlanComponent } from './components/settings-plan.component';
+import { SettingsSecurityFormComponent } from './components/settings-security-form.component';
+import { SettingsNotificationsComponent } from './components/settings-notifications.component';
 
-type SettingsTab = 'legal' | 'billing' | 'brand' | 'catalogs' | 'plan';
+type SettingsTab = 'legal' | 'billing' | 'brand' | 'catalogs' | 'plan' | 'security' | 'notifications';
 
 @Component({
   selector: 'app-settings',
@@ -20,6 +22,8 @@ type SettingsTab = 'legal' | 'billing' | 'brand' | 'catalogs' | 'plan';
     SettingsBrandFormComponent,
     SettingsCatalogsComponent,
     SettingsPlanComponent,
+    SettingsSecurityFormComponent,
+    SettingsNotificationsComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -93,6 +97,17 @@ type SettingsTab = 'legal' | 'billing' | 'brand' | 'catalogs' | 'plan';
         @case ('plan') {
           <app-settings-plan />
         }
+        @case ('security') {
+          <app-settings-security-form
+            [form]="securityForm"
+            [isSubmitting]="isSubmittingSecurity()"
+            [errorMessage]="securityError()"
+            (submit)="onSubmitSecurity()"
+          />
+        }
+        @case ('notifications') {
+          <app-settings-notifications />
+        }
       }
     </div>
   `,
@@ -108,6 +123,8 @@ export class SettingsComponent implements OnInit {
     { id: 'brand', label: 'Marca' },
     { id: 'catalogs', label: 'Catálogos' },
     { id: 'plan', label: 'Plan y facturación' },
+    { id: 'security', label: 'Seguridad' },
+    { id: 'notifications', label: 'Notificaciones' },
   ];
   readonly activeTab = signal<SettingsTab>('legal');
 
@@ -117,10 +134,12 @@ export class SettingsComponent implements OnInit {
   readonly isSubmittingBilling = signal(false);
   readonly isSubmittingBrand = signal(false);
   readonly isUploadingLogo = signal(false);
+  readonly isSubmittingSecurity = signal(false);
 
   readonly legalError = signal<string | null>(null);
   readonly billingError = signal<string | null>(null);
   readonly brandError = signal<string | null>(null);
+  readonly securityError = signal<string | null>(null);
 
   readonly legalForm = this.fb.nonNullable.group({
     legalName: [''],
@@ -140,6 +159,10 @@ export class SettingsComponent implements OnInit {
 
   readonly brandForm = this.fb.nonNullable.group({
     website: [''],
+  });
+
+  readonly securityForm = this.fb.nonNullable.group({
+    require2fa: [false],
   });
 
   ngOnInit(): void {
@@ -223,6 +246,29 @@ export class SettingsComponent implements OnInit {
     });
   }
 
+  onSubmitSecurity(): void {
+    if (this.isSubmittingSecurity()) {
+      return;
+    }
+
+    this.isSubmittingSecurity.set(true);
+    this.securityError.set(null);
+
+    this.companyService.updateCompany(this.securityForm.getRawValue()).subscribe({
+      next: (company) => {
+        this.applyCompany(company);
+        this.isSubmittingSecurity.set(false);
+        this.toast.success('Política de seguridad guardada correctamente.');
+      },
+      error: (error) => {
+        const message = error.error?.message || 'No se pudo guardar la política de seguridad.';
+        this.securityError.set(message);
+        this.isSubmittingSecurity.set(false);
+        this.toast.error(message);
+      },
+    });
+  }
+
   onLogoSelected(file: File): void {
     if (this.isUploadingLogo()) {
       return;
@@ -263,6 +309,9 @@ export class SettingsComponent implements OnInit {
     });
     this.brandForm.patchValue({
       website: company.website ?? '',
+    });
+    this.securityForm.patchValue({
+      require2fa: company.require2fa,
     });
   }
 }

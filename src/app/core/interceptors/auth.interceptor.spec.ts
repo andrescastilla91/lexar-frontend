@@ -51,14 +51,28 @@ describe('authInterceptor', () => {
     expect(authServiceMock.refreshToken).not.toHaveBeenCalled();
   });
 
-  it('en 401 de /auth/me no navega ni intenta refresh (sonda de sesión en bootstrap)', () => {
+  it('en 401 de /auth/me intenta refresh y reintenta la sonda si funciona (recarga de página)', () => {
+    authServiceMock.refreshToken.mockReturnValue(of(true));
+    let result: unknown;
+
+    http.get('/api/auth/me').subscribe((r) => (result = r));
+    httpMock.expectOne('/api/auth/me').flush('unauthorized', { status: 401, statusText: 'Unauthorized' });
+    httpMock.expectOne('/api/auth/me').flush({ email: 'user@lexar.com' });
+
+    expect(authServiceMock.refreshToken).toHaveBeenCalled();
+    expect(result).toEqual({ email: 'user@lexar.com' });
+    expect(routerMock.navigate).not.toHaveBeenCalled();
+  });
+
+  it('en 401 de /auth/me, si el refresh también falla, no navega (puede ser visita anónima)', () => {
+    authServiceMock.refreshToken.mockReturnValue(of(false));
     let error: { status: number } | undefined;
 
     http.get('/api/auth/me').subscribe({ error: (e) => (error = e) });
     httpMock.expectOne('/api/auth/me').flush('unauthorized', { status: 401, statusText: 'Unauthorized' });
 
+    expect(authServiceMock.refreshToken).toHaveBeenCalled();
     expect(routerMock.navigate).not.toHaveBeenCalled();
-    expect(authServiceMock.refreshToken).not.toHaveBeenCalled();
     expect(error?.status).toBe(401);
   });
 

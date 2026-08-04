@@ -74,6 +74,14 @@ import { UserBackend } from '../../../core/models/user-backend.model';
                         Invitación vencida
                       </span>
                     }
+                    @if (user.twoFactorResetRequestPending) {
+                      <span
+                        class="inline-flex rounded-full bg-danger-tint px-2 py-1 text-xs font-semibold text-danger"
+                        title="El usuario solicitó restablecer su verificación en dos pasos"
+                      >
+                        Solicitud de 2FA pendiente
+                      </span>
+                    }
                   </div>
                 </td>
                 <td class="px-6 py-4 text-sm text-muted">
@@ -134,6 +142,19 @@ import { UserBackend } from '../../../core/models/user-backend.model';
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
                       </svg>
                     </button>
+                    @if (user.twoFactorEnabled) {
+                      <button
+                        *hasPermission="'users.manage-2fa'"
+                        type="button"
+                        (click)="disableTwoFactor.emit(user)"
+                        class="rounded-lg p-2 text-warning hover:bg-warning-tint hover:text-warning"
+                        title="Desactivar verificación en dos pasos"
+                      >
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                        </svg>
+                      </button>
+                    }
                   </div>
                 </td>
               </tr>
@@ -168,6 +189,14 @@ import { UserBackend } from '../../../core/models/user-backend.model';
                 } @else if (user.invitationStatus === 'EXPIRED') {
                   <span class="inline-flex whitespace-nowrap rounded-full bg-warning-tint px-2 py-1 text-xs font-semibold text-warning">
                     Vencida
+                  </span>
+                }
+                @if (user.twoFactorResetRequestPending) {
+                  <span
+                    class="inline-flex whitespace-nowrap rounded-full bg-danger-tint px-2 py-1 text-xs font-semibold text-danger"
+                    title="El usuario solicitó restablecer su verificación en dos pasos"
+                  >
+                    Solicitud 2FA
                   </span>
                 }
               </div>
@@ -229,6 +258,16 @@ import { UserBackend } from '../../../core/models/user-backend.model';
               >
                 {{ user.isActive ? 'Desactivar' : 'Activar' }}
               </button>
+              @if (user.twoFactorEnabled) {
+                <button
+                  *hasPermission="'users.manage-2fa'"
+                  type="button"
+                  (click)="disableTwoFactor.emit(user)"
+                  class="rounded-md border border-warning px-3 py-2 text-xs font-medium text-warning transition hover:bg-warning-tint"
+                >
+                  Desactivar 2FA
+                </button>
+              }
             </div>
           </div>
         }
@@ -244,6 +283,7 @@ export class UsersTableComponent {
   toggleStatus = output<UserBackend>();
   assignRoles = output<UserBackend>();
   resendInvitation = output<UserBackend>();
+  disableTwoFactor = output<UserBackend>();
 
   getUserInitials(user: UserBackend): string {
     return (user.firstName.charAt(0) + user.lastName.charAt(0)).toUpperCase();

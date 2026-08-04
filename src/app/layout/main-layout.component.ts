@@ -9,11 +9,13 @@ import { filter } from 'rxjs';
 import { ConfirmDialogComponent } from '../core/components/confirm-dialog.component';
 import { ToastComponent } from '../core/components/toast.component';
 import { UserMenuComponent } from '../core/components/user-menu.component';
+import { NotificationBellComponent } from '../core/components/notification-bell.component';
 import { ThemeService } from '../core/services/theme.service';
 import { ProfileService } from '../core/services/profile.service';
 import { CompanyService } from '../core/services/company.service';
 import { CompanyProfile } from '../core/models/company.model';
 import { SubscriptionService } from '../core/services/subscription.service';
+import { NotificationsService } from '../core/services/notifications.service';
 
 interface MenuItem {
   label: string;
@@ -26,7 +28,7 @@ interface MenuItem {
 @Component({
   selector: 'app-main-layout',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, ConfirmDialogComponent, ToastComponent, UserMenuComponent],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, ConfirmDialogComponent, ToastComponent, UserMenuComponent, NotificationBellComponent],
   template: `
     <div class="min-h-screen bg-surface-muted text-text">
       <div class="flex h-screen overflow-hidden">
@@ -118,6 +120,7 @@ interface MenuItem {
                     </svg>
                   }
                 </button>
+                <app-notification-bell />
                 <app-user-menu
                   [avatarUrl]="userAvatarUrl()"
                   [initials]="userInitials()"
@@ -179,6 +182,7 @@ export class MainLayoutComponent {
   private readonly profileService = inject(ProfileService);
   private readonly companyService = inject(CompanyService);
   private readonly subscriptionService = inject(SubscriptionService);
+  private readonly notificationsService = inject(NotificationsService);
   private readonly router = inject(Router);
   protected readonly themeService = inject(ThemeService);
 
@@ -350,6 +354,8 @@ export class MainLayoutComponent {
       error: () => {},
     });
 
+    this.notificationsService.connectStream();
+
     this.router.events
       .pipe(
         filter((event): event is NavigationEnd => event instanceof NavigationEnd),
@@ -376,6 +382,7 @@ export class MainLayoutComponent {
   }
 
   handleLogout(): void {
+    this.notificationsService.disconnectStream();
     this.authService.logout().subscribe({
       next: () => {
         this.router.navigate(['/login']);

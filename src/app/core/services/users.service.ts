@@ -58,4 +58,9 @@ export class UsersService {
   resendInvitation(id: string): Observable<{ message: string }> {
     return this.http.post<{ message: string }>(`${this.apiUrl}/${id}/resend-invitation`, {});
   }
+
+  /** F11 (S10): desactivación forzada del 2FA de otro usuario — requiere `users.manage-2fa`. */
+  disableTwoFactor(id: string): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(`${this.apiUrl}/${id}/disable-2fa`, {});
+  }
 }

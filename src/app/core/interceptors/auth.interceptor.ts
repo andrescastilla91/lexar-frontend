@@ -33,7 +33,7 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
 
   return next(authReq).pipe(
     catchError((error) => {
-      if (error.status !== 401 || isSessionProbeEndpoint(req.url)) {
+      if (error.status !== 401) {
         return throwError(() => error);
       }
 
@@ -47,17 +47,33 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
         return throwError(() => error);
       }
 
+      // Bug corregido 2026-07-27: /auth/me es la sonda de sesión del
+      // bootstrap (APP_INITIALIZER) — su 401 puede significar "access token
+      // vencido, pero el refresh token sigue vigente" (recarga de página
+      // normal) o "visita anónima sin sesión" (landing/registro/nadie logueado).
+      // Antes se propagaba el 401 tal cual sin intentar refrescar, así que
+      // un usuario con sesión real perdía su sesión en cada reload en cuanto
+      // el access token (más corto) vencía, aunque el refresh token (más
+      // largo) siguiera siendo válido. Ahora sí se intenta el refresh en
+      // silencio; solo se evita el `router.navigate(['/login'])` si falla,
+      // para no redirigir a un visitante anónimo en una página pública.
+      const isProbe = isSessionProbeEndpoint(req.url);
+
       return authService.refreshToken().pipe(
         switchMap((success) => {
           if (success) {
             return next(authReq);
           }
-          router.navigate(['/login']);
+          if (!isProbe) {
+            router.navigate(['/login']);
+          }
           return throwError(() => error);
         }),
         catchError((refreshError) => {
-          console.error('Error en refresh:', refreshError);
-          router.navigate(['/login']);
+          if (!isProbe) {
+            console.error('Error en refresh:', refreshError);
+            router.navigate(['/login']);
+          }
           return throwError(() => refreshError);
         })
       );

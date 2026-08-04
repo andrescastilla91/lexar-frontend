@@ -7,6 +7,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { ThemeService } from '../../core/services/theme.service';
 import { ConfirmDialogService } from '../../core/services/confirm-dialog.service';
 import { ToastService } from '../../core/services/toast.service';
+import { NotificationsService } from '../../core/services/notifications.service';
 import { ProfileUser, SessionInfo } from '../../core/models/profile.model';
 
 describe('ProfileComponent', () => {
@@ -18,10 +19,25 @@ describe('ProfileComponent', () => {
     revokeSession: jest.Mock;
     uploadAvatar: jest.Mock;
   };
-  let authServiceMock: { logout: jest.Mock; patchCurrentUser: jest.Mock };
+  let authServiceMock: {
+    logout: jest.Mock;
+    patchCurrentUser: jest.Mock;
+    currentUser: jest.Mock;
+    setupTwoFactor: jest.Mock;
+    verifyTwoFactor: jest.Mock;
+    disableTwoFactor: jest.Mock;
+    regenerateTwoFactorRecoveryCodes: jest.Mock;
+  };
   let themeServiceMock: { setPreference: jest.Mock };
   let confirmDialogMock: { confirm: jest.Mock };
   let toastServiceMock: { success: jest.Mock; error: jest.Mock };
+  let notificationsServiceMock: {
+    getPreferences: jest.Mock;
+    updatePreferences: jest.Mock;
+    getPushState: jest.Mock;
+    enablePush: jest.Mock;
+    disablePush: jest.Mock;
+  };
   let navigateByUrlSpy: jest.SpyInstance;
 
   const baseUser: ProfileUser = {
@@ -58,10 +74,22 @@ describe('ProfileComponent', () => {
     authServiceMock = {
       logout: jest.fn().mockReturnValue(of(undefined)),
       patchCurrentUser: jest.fn(),
+      currentUser: jest.fn().mockReturnValue({ email: baseUser.email, roles: [], permissions: [] }),
+      setupTwoFactor: jest.fn(),
+      verifyTwoFactor: jest.fn(),
+      disableTwoFactor: jest.fn(),
+      regenerateTwoFactorRecoveryCodes: jest.fn(),
     };
     themeServiceMock = { setPreference: jest.fn() };
     confirmDialogMock = { confirm: jest.fn() };
     toastServiceMock = { success: jest.fn(), error: jest.fn() };
+    notificationsServiceMock = {
+      getPreferences: jest.fn().mockReturnValue(of([])),
+      updatePreferences: jest.fn().mockReturnValue(of(undefined)),
+      getPushState: jest.fn().mockResolvedValue('not-subscribed'),
+      enablePush: jest.fn().mockResolvedValue(undefined),
+      disablePush: jest.fn().mockResolvedValue(undefined),
+    };
 
     TestBed.configureTestingModule({
       imports: [ProfileComponent],
@@ -72,6 +100,7 @@ describe('ProfileComponent', () => {
         { provide: ThemeService, useValue: themeServiceMock },
         { provide: ConfirmDialogService, useValue: confirmDialogMock },
         { provide: ToastService, useValue: toastServiceMock },
+        { provide: NotificationsService, useValue: notificationsServiceMock },
       ],
     });
 
@@ -229,5 +258,100 @@ describe('ProfileComponent', () => {
     expect(profileServiceMock.revokeSession).toHaveBeenCalledWith('s1');
     expect(component.sessions()).toEqual([]);
     expect(toastServiceMock.success).toHaveBeenCalledWith('Sesión cerrada correctamente.');
+  });
+
+  it('onStartTwoFactorSetup obtiene el secreto y muestra el formulario de confirmación', () => {
+    authServiceMock.setupTwoFactor.mockReturnValue(
+      of({ message: 'ok', otpauthUri: 'otpauth://totp/x', secret: 'SECRET123' }),
+    );
+    const component = createComponent();
+
+    component.onStartTwoFactorSetup();
+
+    expect(component.isSettingUpTwoFactor()).toBe(true);
+    expect(component.twoFactorSecret()).toBe('SECRET123');
+    expect(component.otpauthUri()).toBe('otpauth://totp/x');
+  });
+
+  it('onConfirmTwoFactorSetup activa el 2FA y muestra los códigos de recuperación', () => {
+    authServiceMock.verifyTwoFactor.mockReturnValue(
+      of({ message: 'ok', recoveryCodes: ['AAAAA-BBBBB'] }),
+    );
+    const component = createComponent();
+
+    component.onConfirmTwoFactorSetup('123456');
+
+    expect(authServiceMock.verifyTwoFactor).toHaveBeenCalledWith('123456');
+    expect(component.recoveryCodes()).toEqual(['AAAAA-BBBBB']);
+    expect(component.isSettingUpTwoFactor()).toBe(false);
+    expect(toastServiceMock.success).toHaveBeenCalledWith('Verificación en dos pasos activada correctamente.');
+  });
+
+  it('onConfirmTwoFactorSetup en error muestra el mensaje del backend', () => {
+    authServiceMock.verifyTwoFactor.mockReturnValue(
+      throwError(() => ({ error: { message: 'Código inválido' } })),
+    );
+    const component = createComponent();
+
+    component.onConfirmTwoFactorSetup('000000');
+
+    expect(component.twoFactorVerifyError()).toBe('Código inválido');
+    expect(component.isVerifyingTwoFactor()).toBe(false);
+  });
+
+  it('onDisableTwoFactor valida el formulario antes de enviar', () => {
+    const component = createComponent();
+
+    component.onDisableTwoFactor();
+
+    expect(authServiceMock.disableTwoFactor).not.toHaveBeenCalled();
+    expect(component.disableTwoFactorForm.get('password')?.touched).toBe(true);
+  });
+
+  it('onDisableTwoFactor en éxito limpia el formulario y muestra un toast', () => {
+    authServiceMock.disableTwoFactor.mockReturnValue(of({ message: 'ok' }));
+    const component = createComponent();
+    component.disableTwoFactorForm.setValue({ password: 'Passw0rd!', code: '123456' });
+
+    component.onDisableTwoFactor();
+
+    expect(authServiceMock.disableTwoFactor).toHaveBeenCalledWith('Passw0rd!', '123456');
+    expect(toastServiceMock.success).toHaveBeenCalledWith('Verificación en dos pasos desactivada correctamente.');
+  });
+
+  it('onRegenerateRecoveryCodes valida el formulario antes de enviar', () => {
+    const component = createComponent();
+
+    component.onRegenerateRecoveryCodes();
+
+    expect(authServiceMock.regenerateTwoFactorRecoveryCodes).not.toHaveBeenCalled();
+    expect(component.disableTwoFactorForm.get('password')?.touched).toBe(true);
+  });
+
+  it('onRegenerateRecoveryCodes en éxito muestra los nuevos códigos y limpia el formulario', () => {
+    authServiceMock.regenerateTwoFactorRecoveryCodes.mockReturnValue(
+      of({ message: 'ok', recoveryCodes: ['CCCCC-DDDDD'] }),
+    );
+    const component = createComponent();
+    component.disableTwoFactorForm.setValue({ password: 'Passw0rd!', code: '123456' });
+
+    component.onRegenerateRecoveryCodes();
+
+    expect(authServiceMock.regenerateTwoFactorRecoveryCodes).toHaveBeenCalledWith('Passw0rd!', '123456');
+    expect(component.recoveryCodes()).toEqual(['CCCCC-DDDDD']);
+    expect(toastServiceMock.success).toHaveBeenCalledWith('Códigos de recuperación regenerados correctamente.');
+  });
+
+  it('onRegenerateRecoveryCodes en error muestra el mensaje del backend', () => {
+    authServiceMock.regenerateTwoFactorRecoveryCodes.mockReturnValue(
+      throwError(() => ({ error: { message: 'La contraseña ingresada es incorrecta.' } })),
+    );
+    const component = createComponent();
+    component.disableTwoFactorForm.setValue({ password: 'mala', code: '123456' });
+
+    component.onRegenerateRecoveryCodes();
+
+    expect(component.regenerateCodesError()).toBe('La contraseña ingresada es incorrecta.');
+    expect(component.isRegeneratingRecoveryCodes()).toBe(false);
   });
 });
