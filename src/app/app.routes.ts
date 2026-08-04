@@ -90,6 +90,11 @@ export const routes: Routes = [
 				loadComponent: () => import('./features/admin/team/admin-team.component').then((m) => m.AdminTeamComponent),
 			},
 			{
+				path: 'notifications',
+				loadComponent: () =>
+					import('./features/admin/notifications/admin-notifications.component').then((m) => m.AdminNotificationsComponent),
+			},
+			{
 				path: '',
 				pathMatch: 'full',
 				redirectTo: 'tenants',
@@ -112,6 +117,10 @@ export const routes: Routes = [
 			{
 				path: 'perfil',
 				loadComponent: () => import('./features/profile/profile.component').then((m) => m.ProfileComponent),
+			},
+			{
+				path: 'notificaciones',
+				loadComponent: () => import('./features/notifications/notifications.component').then((m) => m.NotificationsComponent),
 			},
 			{
 				path: 'usuarios',

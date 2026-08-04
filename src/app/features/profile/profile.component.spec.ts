@@ -7,6 +7,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { ThemeService } from '../../core/services/theme.service';
 import { ConfirmDialogService } from '../../core/services/confirm-dialog.service';
 import { ToastService } from '../../core/services/toast.service';
+import { NotificationsService } from '../../core/services/notifications.service';
 import { ProfileUser, SessionInfo } from '../../core/models/profile.model';
 
 describe('ProfileComponent', () => {
@@ -30,6 +31,13 @@ describe('ProfileComponent', () => {
   let themeServiceMock: { setPreference: jest.Mock };
   let confirmDialogMock: { confirm: jest.Mock };
   let toastServiceMock: { success: jest.Mock; error: jest.Mock };
+  let notificationsServiceMock: {
+    getPreferences: jest.Mock;
+    updatePreferences: jest.Mock;
+    getPushState: jest.Mock;
+    enablePush: jest.Mock;
+    disablePush: jest.Mock;
+  };
   let navigateByUrlSpy: jest.SpyInstance;
 
   const baseUser: ProfileUser = {
@@ -75,6 +83,13 @@ describe('ProfileComponent', () => {
     themeServiceMock = { setPreference: jest.fn() };
     confirmDialogMock = { confirm: jest.fn() };
     toastServiceMock = { success: jest.fn(), error: jest.fn() };
+    notificationsServiceMock = {
+      getPreferences: jest.fn().mockReturnValue(of([])),
+      updatePreferences: jest.fn().mockReturnValue(of(undefined)),
+      getPushState: jest.fn().mockResolvedValue('not-subscribed'),
+      enablePush: jest.fn().mockResolvedValue(undefined),
+      disablePush: jest.fn().mockResolvedValue(undefined),
+    };
 
     TestBed.configureTestingModule({
       imports: [ProfileComponent],
@@ -85,6 +100,7 @@ describe('ProfileComponent', () => {
         { provide: ThemeService, useValue: themeServiceMock },
         { provide: ConfirmDialogService, useValue: confirmDialogMock },
         { provide: ToastService, useValue: toastServiceMock },
+        { provide: NotificationsService, useValue: notificationsServiceMock },
       ],
     });
 

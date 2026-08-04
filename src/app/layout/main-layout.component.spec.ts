@@ -10,6 +10,7 @@ import { CompanyService } from '../core/services/company.service';
 import { SubscriptionService } from '../core/services/subscription.service';
 import { ThemeService } from '../core/services/theme.service';
 import { ToastService } from '../core/services/toast.service';
+import { NotificationsService } from '../core/services/notifications.service';
 import { AuthUser } from '../core/models/auth.model';
 import { Entitlements } from '../core/models/subscription-backend.model';
 
@@ -46,6 +47,17 @@ describe('MainLayoutComponent — banner de impersonación (F9)', () => {
         },
         { provide: ThemeService, useValue: { theme: jest.fn().mockReturnValue('light'), toggle: jest.fn() } },
         { provide: ToastService, useValue: toastServiceMock },
+        {
+          provide: NotificationsService,
+          useValue: {
+            connectStream: jest.fn(),
+            disconnectStream: jest.fn(),
+            unreadCount: signal(0),
+            latestNotifications: signal([]),
+            markAllRead: jest.fn().mockReturnValue(of(undefined)),
+            markRead: jest.fn().mockReturnValue(of(undefined)),
+          },
+        },
       ],
     });
 

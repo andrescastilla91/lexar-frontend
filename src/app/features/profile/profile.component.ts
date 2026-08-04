@@ -6,11 +6,14 @@ import { AuthService } from '../../core/services/auth.service';
 import { ThemeService } from '../../core/services/theme.service';
 import { ConfirmDialogService } from '../../core/services/confirm-dialog.service';
 import { ToastService } from '../../core/services/toast.service';
+import { NotificationsService, PushState } from '../../core/services/notifications.service';
 import { ProfileUser, SessionInfo } from '../../core/models/profile.model';
+import { NotificationPreferenceItem } from '../../core/models/notification.model';
 import { ProfileInfoFormComponent } from './components/profile-info-form.component';
 import { ProfilePasswordFormComponent } from './components/profile-password-form.component';
 import { ProfileSessionsListComponent } from './components/profile-sessions-list.component';
 import { ProfileSecurityCardComponent } from './components/profile-security-card.component';
+import { ProfileNotificationsCardComponent } from './components/profile-notifications-card.component';
 
 @Component({
   selector: 'app-profile',
@@ -20,6 +23,7 @@ import { ProfileSecurityCardComponent } from './components/profile-security-card
     ProfilePasswordFormComponent,
     ProfileSessionsListComponent,
     ProfileSecurityCardComponent,
+    ProfileNotificationsCardComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -74,6 +78,17 @@ import { ProfileSecurityCardComponent } from './components/profile-security-card
         [isLoading]="isLoadingSessions()"
         (revoke)="onRevokeSession($event)"
       />
+
+      <app-profile-notifications-card
+        [preferences]="notificationPreferences()"
+        [isSaving]="isSavingPreferences()"
+        [pushState]="pushState()"
+        [isTogglingPush]="isTogglingPush()"
+        (change)="notificationPreferences.set($event)"
+        (save)="onSaveNotificationPreferences()"
+        (enablePush)="onEnablePush()"
+        (disablePush)="onDisablePush()"
+      />
     </div>
   `,
 })
@@ -84,7 +99,13 @@ export class ProfileComponent implements OnInit {
   private readonly themeService = inject(ThemeService);
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly toast = inject(ToastService);
+  private readonly notificationsService = inject(NotificationsService);
   private readonly router = inject(Router);
+
+  readonly notificationPreferences = signal<NotificationPreferenceItem[]>([]);
+  readonly isSavingPreferences = signal(false);
+  readonly pushState = signal<PushState>('unsupported');
+  readonly isTogglingPush = signal(false);
 
   readonly user = signal<ProfileUser | null>(null);
   readonly sessions = signal<SessionInfo[]>([]);
@@ -135,6 +156,69 @@ export class ProfileComponent implements OnInit {
     });
 
     this.loadSessions();
+
+    this.notificationsService.getPreferences().subscribe({
+      next: (preferences) => this.notificationPreferences.set(preferences),
+      error: () => {},
+    });
+
+    this.notificationsService.getPushState().then((state) => this.pushState.set(state));
+  }
+
+  onEnablePush(): void {
+    if (this.isTogglingPush()) {
+      return;
+    }
+
+    this.isTogglingPush.set(true);
+    this.notificationsService
+      .enablePush()
+      .then(() => {
+        this.pushState.set('subscribed');
+        this.isTogglingPush.set(false);
+        this.toast.success('Notificaciones push activadas en este dispositivo.');
+      })
+      .catch((error: Error) => {
+        this.isTogglingPush.set(false);
+        this.toast.error(error.message || 'No se pudo activar el push.');
+      });
+  }
+
+  onDisablePush(): void {
+    if (this.isTogglingPush()) {
+      return;
+    }
+
+    this.isTogglingPush.set(true);
+    this.notificationsService
+      .disablePush()
+      .then(() => {
+        this.pushState.set('not-subscribed');
+        this.isTogglingPush.set(false);
+        this.toast.success('Notificaciones push desactivadas en este dispositivo.');
+      })
+      .catch((error: Error) => {
+        this.isTogglingPush.set(false);
+        this.toast.error(error.message || 'No se pudo desactivar el push.');
+      });
+  }
+
+  onSaveNotificationPreferences(): void {
+    if (this.isSavingPreferences()) {
+      return;
+    }
+
+    this.isSavingPreferences.set(true);
+    this.notificationsService.updatePreferences(this.notificationPreferences()).subscribe({
+      next: () => {
+        this.isSavingPreferences.set(false);
+        this.toast.success('Preferencias de notificación actualizadas.');
+      },
+      error: (error) => {
+        this.isSavingPreferences.set(false);
+        this.toast.error(error.error?.message || 'No se pudieron guardar las preferencias.');
+      },
+    });
   }
 
   onSubmitProfile(): void {

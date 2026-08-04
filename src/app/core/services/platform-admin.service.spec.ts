@@ -23,17 +23,20 @@ describe('PlatformAdminService', () => {
     httpMock.verify();
   });
 
-  it('login hace POST a /admin/auth/login y guarda el admin autenticado', () => {
-    let result: { email: string } | undefined;
+  // Bug corregido 2026-07-27: el login por sí solo NUNCA abre sesión — el
+  // 2FA es obligatorio sin excepción para platform admins (F11/S10), así que
+  // /admin/auth/login solo devuelve un pendingToken, nunca cookie ni `user`.
+  it('login hace POST a /admin/auth/login y devuelve el resultado sin abrir sesión', () => {
+    let result: { requiresSetup: boolean; requires2fa: boolean; pendingToken: string } | undefined;
     service.login('admin@lexar.com', 'secret').subscribe((r) => (result = r));
 
     const req = httpMock.expectOne(`${authUrl}/login`);
     expect(req.request.method).toBe('POST');
     expect(req.request.body).toEqual({ email: 'admin@lexar.com', password: 'secret' });
-    req.flush({ message: 'ok', user: { email: 'admin@lexar.com' } });
+    req.flush({ requiresSetup: false, requires2fa: true, pendingToken: 'ptok-1' });
 
-    expect(result).toEqual({ email: 'admin@lexar.com' });
-    expect(service.isAuthenticated()).toBe(true);
+    expect(result).toEqual({ requiresSetup: false, requires2fa: true, pendingToken: 'ptok-1' });
+    expect(service.isAuthenticated()).toBe(false);
   });
 
   it('login en error no marca al admin como autenticado', () => {
@@ -46,9 +49,48 @@ describe('PlatformAdminService', () => {
     expect(service.isAuthenticated()).toBe(false);
   });
 
+  it('setupTwoFactor hace POST a /admin/auth/2fa/setup con el pendingToken', () => {
+    let result: { otpauthUri: string; secret: string } | undefined;
+    service.setupTwoFactor('ptok-2').subscribe((r) => (result = r));
+
+    const req = httpMock.expectOne(`${authUrl}/2fa/setup`);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ pendingToken: 'ptok-2' });
+    req.flush({ otpauthUri: 'otpauth://totp/x', secret: 'SECRET123' });
+
+    expect(result).toEqual({ otpauthUri: 'otpauth://totp/x', secret: 'SECRET123' });
+    expect(service.isAuthenticated()).toBe(false);
+  });
+
+  it('verifyTwoFactorSetup hace POST a /admin/auth/2fa/verify y ahí sí abre sesión', () => {
+    let result: { user: { email: string }; recoveryCodes: string[] } | undefined;
+    service.verifyTwoFactorSetup('ptok-2', '654321').subscribe((r) => (result = r));
+
+    const req = httpMock.expectOne(`${authUrl}/2fa/verify`);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ pendingToken: 'ptok-2', code: '654321' });
+    req.flush({ user: { email: 'admin@lexar.com' }, recoveryCodes: ['a1', 'a2'] });
+
+    expect(result?.recoveryCodes).toEqual(['a1', 'a2']);
+    expect(service.isAuthenticated()).toBe(true);
+  });
+
+  it('loginWithTwoFactor hace POST a /admin/auth/login/2fa y abre sesión', () => {
+    let result: { email: string } | undefined;
+    service.loginWithTwoFactor('ptok-1', '123456').subscribe((r) => (result = r));
+
+    const req = httpMock.expectOne(`${authUrl}/login/2fa`);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ pendingToken: 'ptok-1', code: '123456' });
+    req.flush({ message: 'ok', user: { email: 'admin@lexar.com' } });
+
+    expect(result).toEqual({ email: 'admin@lexar.com' });
+    expect(service.isAuthenticated()).toBe(true);
+  });
+
   it('logout hace POST a /admin/auth/logout y limpia el estado', () => {
-    service.login('admin@lexar.com', 'secret').subscribe();
-    httpMock.expectOne(`${authUrl}/login`).flush({ message: 'ok', user: { email: 'admin@lexar.com' } });
+    service.loginWithTwoFactor('ptok-1', '123456').subscribe();
+    httpMock.expectOne(`${authUrl}/login/2fa`).flush({ message: 'ok', user: { email: 'admin@lexar.com' } });
     expect(service.isAuthenticated()).toBe(true);
 
     service.logout().subscribe();

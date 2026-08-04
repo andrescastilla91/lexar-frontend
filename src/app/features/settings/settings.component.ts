@@ -9,8 +9,9 @@ import { SettingsBrandFormComponent } from './components/settings-brand-form.com
 import { SettingsCatalogsComponent } from './components/settings-catalogs.component';
 import { SettingsPlanComponent } from './components/settings-plan.component';
 import { SettingsSecurityFormComponent } from './components/settings-security-form.component';
+import { SettingsNotificationsComponent } from './components/settings-notifications.component';
 
-type SettingsTab = 'legal' | 'billing' | 'brand' | 'catalogs' | 'plan' | 'security';
+type SettingsTab = 'legal' | 'billing' | 'brand' | 'catalogs' | 'plan' | 'security' | 'notifications';
 
 @Component({
   selector: 'app-settings',
@@ -22,6 +23,7 @@ type SettingsTab = 'legal' | 'billing' | 'brand' | 'catalogs' | 'plan' | 'securi
     SettingsCatalogsComponent,
     SettingsPlanComponent,
     SettingsSecurityFormComponent,
+    SettingsNotificationsComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -103,6 +105,9 @@ type SettingsTab = 'legal' | 'billing' | 'brand' | 'catalogs' | 'plan' | 'securi
             (submit)="onSubmitSecurity()"
           />
         }
+        @case ('notifications') {
+          <app-settings-notifications />
+        }
       }
     </div>
   `,
@@ -119,6 +124,7 @@ export class SettingsComponent implements OnInit {
     { id: 'catalogs', label: 'Catálogos' },
     { id: 'plan', label: 'Plan y facturación' },
     { id: 'security', label: 'Seguridad' },
+    { id: 'notifications', label: 'Notificaciones' },
   ];
   readonly activeTab = signal<SettingsTab>('legal');
 
