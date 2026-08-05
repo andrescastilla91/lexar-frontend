@@ -47,7 +47,6 @@ export interface CreateLegalProcessRequest {
   riskLevelId?: string;
   court?: string;
   caseNumber?: string;
-  nextHearingDate?: string;
   startDate?: string;
   endDate?: string;
   clientId: string;
@@ -62,7 +61,6 @@ export interface UpdateLegalProcessRequest {
   riskLevelId?: string;
   court?: string;
   caseNumber?: string;
-  nextHearingDate?: string;
   startDate?: string;
   endDate?: string;
   clientId?: string;

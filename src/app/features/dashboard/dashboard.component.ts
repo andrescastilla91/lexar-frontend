@@ -3,7 +3,11 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { DashboardService } from '../../core/services/dashboard.service';
 import { AuthService } from '../../core/services/auth.service';
+import { DeadlinesService } from '../../core/services/deadlines.service';
 import { DashboardSummary, OnboardingChecklist } from '../../core/models/dashboard.model';
+import { DeadlineResponse } from '../../core/models/deadline.model';
+import { getCatalogBadgeClasses } from '../../core/utils/catalog-badge.util';
+import { getDeadlineStatusClasses, getDeadlineStatusLabel } from '../../core/utils/deadline-format.util';
 
 interface ChecklistItemView {
   label: string;
@@ -110,6 +114,60 @@ const STATUS_LABELS: Record<string, string> = {
           </button>
         </div>
       }
+
+      <!-- Hoy: plazos y audiencias del día -->
+      <section class="rounded-lg border border-default bg-surface p-6 shadow-card">
+        <header class="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <h3 class="text-lg font-semibold text-text">Hoy</h3>
+            <p class="text-sm text-subtle">Plazos y audiencias con vencimiento el día de hoy.</p>
+          </div>
+          <div class="flex flex-shrink-0 items-center gap-3">
+            @if (!isLoadingToday()) {
+              <span class="rounded-full bg-surface-muted px-3 py-1 text-xs font-semibold text-muted tabular-data">
+                {{ todayDeadlines().length }} {{ todayDeadlines().length === 1 ? 'evento' : 'eventos' }}
+              </span>
+            }
+            <a routerLink="/calendario" class="text-xs font-semibold text-primary underline"> Ver calendario </a>
+          </div>
+        </header>
+
+        @if (isLoadingToday()) {
+          <div class="space-y-3">
+            @for (i of [1, 2]; track i) {
+              <div class="h-14 animate-pulse rounded-lg bg-surface-sunken"></div>
+            }
+          </div>
+        } @else if (todayDeadlines().length === 0) {
+          <p class="rounded-lg border border-default bg-surface-muted px-4 py-6 text-center text-sm text-subtle">
+            No tienes plazos ni audiencias programadas para hoy.
+          </p>
+        } @else {
+          <div class="space-y-3">
+            @for (deadline of todayDeadlines(); track deadline.id) {
+              <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-default bg-surface-muted px-4 py-3">
+                <div class="min-w-0">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <p class="truncate text-sm font-semibold text-text">{{ deadline.title }}</p>
+                    @if (deadline.type) {
+                      <span class="rounded-full px-2 py-0.5 text-xs font-semibold" [class]="getCatalogBadgeClasses(deadline.type.color)">
+                        {{ deadline.type.label }}
+                      </span>
+                    }
+                    <span class="rounded-full px-2 py-0.5 text-xs font-semibold" [class]="getDeadlineStatusClasses(deadline.status)">
+                      {{ getDeadlineStatusLabel(deadline.status) }}
+                    </span>
+                  </div>
+                  <p class="truncate text-xs text-subtle">{{ deadline.process?.title }}</p>
+                </div>
+                <span class="flex-shrink-0 rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted tabular-data">
+                  {{ deadline.dueAt | date: 'HH:mm' }}
+                </span>
+              </div>
+            }
+          </div>
+        }
+      </section>
 
       @if (!isLoading() && summary()?.processesByStatus?.length) {
         <section class="flex flex-wrap gap-3">
@@ -338,10 +396,18 @@ const STATUS_LABELS: Record<string, string> = {
 export class DashboardComponent implements OnInit {
   private readonly dashboardService = inject(DashboardService);
   private readonly authService = inject(AuthService);
+  private readonly deadlinesService = inject(DeadlinesService);
 
   readonly summary = signal<DashboardSummary | null>(null);
   readonly isLoading = signal(true);
   readonly errorMessage = signal<string | null>(null);
+
+  readonly todayDeadlines = signal<DeadlineResponse[]>([]);
+  readonly isLoadingToday = signal(true);
+
+  protected readonly getCatalogBadgeClasses = getCatalogBadgeClasses;
+  protected readonly getDeadlineStatusClasses = getDeadlineStatusClasses;
+  protected readonly getDeadlineStatusLabel = getDeadlineStatusLabel;
 
   readonly checklist = signal<OnboardingChecklist | null>(null);
 
@@ -422,6 +488,27 @@ export class DashboardComponent implements OnInit {
   ngOnInit(): void {
     this.loadSummary();
     this.loadChecklist();
+    this.loadTodayDeadlines();
+  }
+
+  loadTodayDeadlines(): void {
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+    const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+
+    this.isLoadingToday.set(true);
+    this.deadlinesService.getAll({ from: startOfDay.toISOString(), to: endOfDay.toISOString() }).subscribe({
+      next: (deadlines) => {
+        this.todayDeadlines.set(
+          [...deadlines].sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime()),
+        );
+        this.isLoadingToday.set(false);
+      },
+      error: () => {
+        // Sección informativa — si falla, el dashboard sigue funcionando sin ella.
+        this.isLoadingToday.set(false);
+      },
+    });
   }
 
   loadChecklist(): void {

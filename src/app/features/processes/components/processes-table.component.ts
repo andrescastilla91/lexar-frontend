@@ -78,6 +78,17 @@ import { getCatalogBadgeClasses } from '../../../core/utils/catalog-badge.util';
                     </svg>
                   </button>
 
+                  <button
+                    type="button"
+                    (click)="viewDeadlines.emit(process)"
+                    class="rounded-lg p-2 text-warning transition hover:bg-warning-tint"
+                    title="Ver plazos y audiencias"
+                  >
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5m-9-6h.008v.008H12v-.008Z" />
+                    </svg>
+                  </button>
+
                   @if (process.status === ProcessStatus.ACTIVE) {
                     <button
                       type="button"
@@ -273,6 +284,16 @@ import { getCatalogBadgeClasses } from '../../../core/utils/catalog-badge.util';
                   </svg>
                   Historial
                 </button>
+                <button
+                  type="button"
+                  (click)="viewDeadlines.emit(process)"
+                  class="flex items-center justify-center gap-2 rounded-md bg-warning-tint px-3 py-2 text-xs font-semibold text-warning transition hover:opacity-80"
+                >
+                  <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5m-9-6h.008v.008H12v-.008Z" />
+                  </svg>
+                  Plazos
+                </button>
                 @if (process.status === ProcessStatus.ACTIVE) {
                   <button
                     type="button"
@@ -310,6 +331,7 @@ export class ProcessesTableComponent {
   edit = output<LegalProcessResponse>();
   changeStatus = output<LegalProcessResponse>();
   viewHistory = output<LegalProcessResponse>();
+  viewDeadlines = output<LegalProcessResponse>();
   annotate = output<LegalProcessResponse>();
   delete = output<LegalProcessResponse>();
 

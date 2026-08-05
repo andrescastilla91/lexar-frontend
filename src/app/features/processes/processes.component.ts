@@ -6,10 +6,12 @@ import { ProcessEventsService } from '../../core/services/process-events.service
 import { AdvisorsService } from '../../core/services/advisors.service';
 import { ClientsService } from '../../core/services/clients.service';
 import { FilesService } from '../../core/services/files.service';
+import { DeadlinesService } from '../../core/services/deadlines.service';
 import { AdvisorResponse } from '../../core/models/advisor-backend.model';
 import { ClientResponse } from '../../core/models/client-backend.model';
 import { CatalogsService } from '../../core/services/catalogs.service';
 import { CatalogItem } from '../../core/models/catalog-backend.model';
+import { CreateDeadlineRequest, DeadlineResponse, DeadlineStatus } from '../../core/models/deadline.model';
 import { PaginationComponent } from '../../core/components/pagination.component';
 import { FilePreviewModalComponent } from '../../core/components/file-preview-modal.component';
 import { forkJoin, of, Subscription } from 'rxjs';
@@ -23,11 +25,13 @@ import {
 } from '../../core/models/legal-process.model';
 import { ProcessEvent } from '../../core/models/process-event.model';
 import { ConfirmDialogService } from '../../core/services/confirm-dialog.service';
+import { ToastService } from '../../core/services/toast.service';
 import { ProcessesTableComponent } from './components/processes-table.component';
 import { ProcessFormComponent } from './components/process-form.component';
 import { ProcessStatusModalComponent } from './components/process-status-modal.component';
 import { ProcessAnnotationModalComponent } from './components/process-annotation-modal.component';
 import { ProcessHistoryModalComponent } from './components/process-history-modal.component';
+import { ProcessDeadlinesModalComponent } from './components/process-deadlines-modal.component';
 import { getStatusLabel, getValidNextStatuses, isProcessEditable } from './utils/process-format.utils';
 
 @Component({
@@ -41,6 +45,7 @@ import { getStatusLabel, getValidNextStatuses, isProcessEditable } from './utils
     ProcessStatusModalComponent,
     ProcessAnnotationModalComponent,
     ProcessHistoryModalComponent,
+    ProcessDeadlinesModalComponent,
     FilePreviewModalComponent,
   ],
   template: `
@@ -168,6 +173,24 @@ import { getStatusLabel, getValidNextStatuses, isProcessEditable } from './utils
         (downloadFile)="downloadFile($event)"
       />
 
+      <!-- HU F13: Modal de plazos y audiencias -->
+      <app-process-deadlines-modal
+        [isOpen]="deadlinesModalOpen()"
+        [processTitle]="editingProcess()?.title ?? null"
+        [isLoading]="isLoadingDeadlines()"
+        [isSubmitting]="isSubmittingDeadline()"
+        [errorMessage]="deadlineFormError()"
+        [deadlines]="processDeadlines()"
+        [deadlineTypes]="deadlineTypes()"
+        [advisors]="editingProcess()?.advisors ?? []"
+        [form]="deadlineForm"
+        (close)="closeDeadlinesModal()"
+        (submit)="submitDeadline()"
+        (toggleAssignee)="toggleDeadlineAssignee($event)"
+        (markDone)="markDeadlineDone($event)"
+        (deleteDeadline)="deleteDeadlineItem($event)"
+      />
+
       <!-- File Preview Modal -->
       <app-file-preview-modal
         [file]="previewingFile()"
@@ -197,6 +220,7 @@ import { getStatusLabel, getValidNextStatuses, isProcessEditable } from './utils
         (edit)="editProcess($event)"
         (changeStatus)="openStatusModal($event)"
         (viewHistory)="openHistoryModal($event)"
+        (viewDeadlines)="openDeadlinesModal($event)"
         (annotate)="openAnnotationModal($event)"
         (delete)="deleteProcess($event)"
       />
@@ -225,8 +249,10 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   private readonly clientsService = inject(ClientsService);
   private readonly catalogsService = inject(CatalogsService);
   private readonly filesService = inject(FilesService);
+  private readonly deadlinesService = inject(DeadlinesService);
   private readonly sanitizer = inject(DomSanitizer);
   private readonly confirmDialog = inject(ConfirmDialogService);
+  private readonly toast = inject(ToastService);
 
   private fileDeletedSubscription?: Subscription;
 
@@ -239,6 +265,12 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   readonly clients = signal<ClientResponse[]>([]);
   readonly stages = signal<CatalogItem[]>([]);
   readonly riskLevels = signal<CatalogItem[]>([]);
+  readonly deadlineTypes = signal<CatalogItem[]>([]); // F13
+  readonly deadlinesModalOpen = signal(false); // F13
+  readonly processDeadlines = signal<DeadlineResponse[]>([]); // F13
+  readonly isLoadingDeadlines = signal(false); // F13
+  readonly isSubmittingDeadline = signal(false); // F13
+  readonly deadlineFormError = signal<string | null>(null); // F13
   readonly isLoading = signal(false);
   readonly formError = signal<string | null>(null);
   readonly panelOpen = signal(false);
@@ -310,7 +342,6 @@ export class ProcessesComponent implements OnInit, OnDestroy {
     court: [''],
     caseNumber: [''],
     startDate: [''],
-    nextHearingDate: [''],
     endDate: [''],
   });
 
@@ -324,6 +355,16 @@ export class ProcessesComponent implements OnInit, OnDestroy {
     description: ['', [Validators.required, Validators.maxLength(2000)]],
   });
 
+  // F13: Formulario de creación de plazos
+  readonly deadlineForm = this.fb.nonNullable.group({
+    title: ['', [Validators.required, Validators.maxLength(200)]],
+    typeId: ['', [Validators.required]],
+    dueAt: ['', [Validators.required]],
+    allDay: [false],
+    notes: [''],
+    assigneeUserIds: [[] as string[]],
+  });
+
   constructor() {
     this.loadProcesses();
     this.loadAdvisors();
@@ -334,6 +375,7 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   loadCatalogs(): void {
     this.catalogsService.getActiveCatalog('process_stage').subscribe((items) => this.stages.set(items));
     this.catalogsService.getActiveCatalog('risk_level').subscribe((items) => this.riskLevels.set(items));
+    this.catalogsService.getActiveCatalog('deadline_type').subscribe((items) => this.deadlineTypes.set(items));
   }
 
   loadProcesses(): void {
@@ -421,7 +463,6 @@ export class ProcessesComponent implements OnInit, OnDestroy {
         court: '',
         caseNumber: '',
         startDate: '',
-        nextHearingDate: '',
         endDate: '',
       });
       // Habilitar todos los campos para nuevo proceso
@@ -458,7 +499,6 @@ export class ProcessesComponent implements OnInit, OnDestroy {
       court: formValue.court || undefined,
       caseNumber: formValue.caseNumber || undefined,
       startDate: formValue.startDate || undefined,
-      nextHearingDate: formValue.nextHearingDate || undefined,
       endDate: formValue.endDate || undefined,
       clientId: formValue.clientId,
       // Se envía siempre el array real: omitirlo cuando queda vacío hace que el backend nunca toque la relación.
@@ -502,7 +542,6 @@ export class ProcessesComponent implements OnInit, OnDestroy {
       court: process.court || '',
       caseNumber: process.caseNumber || '',
       startDate: process.startDate ? new Date(process.startDate).toISOString().slice(0, 10) : '',
-      nextHearingDate: process.nextHearingDate ? new Date(process.nextHearingDate).toISOString().slice(0, 10) : '',
       endDate: process.endDate ? new Date(process.endDate).toISOString().slice(0, 10) : '',
     });
     this.configureEditableFields(process.status);
@@ -636,6 +675,151 @@ export class ProcessesComponent implements OnInit, OnDestroy {
           this.isLoading.set(false);
         },
       });
+  }
+
+  // F13: Abrir modal de plazos y audiencias
+  openDeadlinesModal(process: LegalProcessResponse): void {
+    this.editingProcess.set(process);
+    this.deadlinesModalOpen.set(true);
+    this.deadlineFormError.set(null);
+    this.deadlineForm.reset({
+      title: '',
+      typeId: '',
+      dueAt: '',
+      allDay: false,
+      notes: '',
+      assigneeUserIds: [],
+    });
+    this.loadProcessDeadlines(process.id);
+  }
+
+  // F13: Cerrar modal de plazos y audiencias
+  closeDeadlinesModal(): void {
+    this.deadlinesModalOpen.set(false);
+    this.editingProcess.set(null);
+    this.processDeadlines.set([]);
+    this.deadlineFormError.set(null);
+  }
+
+  // F13: Cargar plazos del proceso
+  loadProcessDeadlines(processId: string): void {
+    this.isLoadingDeadlines.set(true);
+    this.deadlinesService.getForProcess(processId).subscribe({
+      next: (deadlines) => {
+        this.processDeadlines.set(deadlines);
+        this.isLoadingDeadlines.set(false);
+      },
+      error: (error) => {
+        console.error('Error loading process deadlines:', error);
+        this.toast.error('Error al cargar los plazos del proceso');
+        this.isLoadingDeadlines.set(false);
+      },
+    });
+  }
+
+  // F13: Alternar asignación de un asesor al nuevo plazo
+  toggleDeadlineAssignee(userId: string): void {
+    const currentIds = this.deadlineForm.get('assigneeUserIds')?.value || [];
+    const index = currentIds.indexOf(userId);
+
+    if (index > -1) {
+      this.deadlineForm.patchValue({
+        assigneeUserIds: currentIds.filter((id: string) => id !== userId),
+      });
+    } else {
+      this.deadlineForm.patchValue({
+        assigneeUserIds: [...currentIds, userId],
+      });
+    }
+  }
+
+  // F13: Crear plazo para el proceso en edición
+  submitDeadline(): void {
+    if (this.isSubmittingDeadline() || !this.editingProcess()) {
+      return;
+    }
+
+    if (this.deadlineForm.invalid) {
+      this.deadlineForm.markAllAsTouched();
+      this.deadlineFormError.set('Completa los campos obligatorios.');
+      return;
+    }
+
+    this.isSubmittingDeadline.set(true);
+    this.deadlineFormError.set(null);
+    const processId = this.editingProcess()!.id;
+    const formValue = this.deadlineForm.getRawValue();
+
+    const request: CreateDeadlineRequest = {
+      title: formValue.title,
+      typeId: formValue.typeId,
+      dueAt: new Date(formValue.dueAt).toISOString(),
+      allDay: formValue.allDay,
+      notes: formValue.notes || undefined,
+      assigneeUserIds: formValue.assigneeUserIds,
+    };
+
+    this.deadlinesService.create(processId, request).subscribe({
+      next: () => {
+        this.isSubmittingDeadline.set(false);
+        this.toast.success('Plazo creado correctamente.');
+        this.deadlineForm.reset({
+          title: '',
+          typeId: '',
+          dueAt: '',
+          allDay: false,
+          notes: '',
+          assigneeUserIds: [],
+        });
+        this.loadProcessDeadlines(processId);
+        this.loadProcesses();
+      },
+      error: (error) => {
+        console.error('Error creating deadline:', error);
+        this.deadlineFormError.set(error.message || 'Error al crear el plazo');
+        this.toast.error(error.message || 'Error al crear el plazo');
+        this.isSubmittingDeadline.set(false);
+      },
+    });
+  }
+
+  // F13: Marcar un plazo como completado
+  markDeadlineDone(deadline: DeadlineResponse): void {
+    this.deadlinesService.update(deadline.id, { status: DeadlineStatus.DONE }).subscribe({
+      next: () => {
+        this.toast.success('Plazo marcado como completado.');
+        this.loadProcessDeadlines(deadline.processId);
+        this.loadProcesses();
+      },
+      error: (error) => {
+        console.error('Error updating deadline:', error);
+        this.toast.error(error.message || 'Error al actualizar el plazo');
+      },
+    });
+  }
+
+  // F13: Eliminar un plazo
+  async deleteDeadlineItem(deadline: DeadlineResponse): Promise<void> {
+    const confirmed = await this.confirmDialog.confirm({
+      title: 'Eliminar plazo',
+      message: `¿Estás seguro de eliminar el plazo "${deadline.title}"?`,
+      danger: true,
+    });
+    if (!confirmed) {
+      return;
+    }
+
+    this.deadlinesService.delete(deadline.id).subscribe({
+      next: () => {
+        this.toast.success('Plazo eliminado correctamente.');
+        this.loadProcessDeadlines(deadline.processId);
+        this.loadProcesses();
+      },
+      error: (error) => {
+        console.error('Error deleting deadline:', error);
+        this.toast.error(error.message || 'Error al eliminar el plazo');
+      },
+    });
   }
 
   async updateStatus(): Promise<void> {

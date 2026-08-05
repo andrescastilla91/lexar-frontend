@@ -20,6 +20,8 @@ export interface AuthTokens {
 }
 
 export interface AuthUser {
+  /** Ausente solo en mocks de tests antiguos; el backend siempre lo envía. */
+  id?: string;
   email: string;
   roles: string[];
   permissions: string[];
@@ -100,6 +102,7 @@ export interface RegisterResponse {
 }
 
 export interface ProfileResponse {
+  id?: string;
   email: string;
   roles: string[];
   permissions?: string[];

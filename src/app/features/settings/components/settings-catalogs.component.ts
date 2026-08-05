@@ -13,6 +13,7 @@ const CATALOG_TABS: { id: CatalogType; label: string }[] = [
   { id: 'risk_level', label: 'Niveles de riesgo' },
   { id: 'process_stage', label: 'Etapas de proceso' },
   { id: 'advisor_specialty', label: 'Especialidades de asesor' },
+  { id: 'deadline_type', label: 'Tipos de plazo' },
 ];
 
 const COLOR_OPTIONS: { value: string; label: string }[] = [
