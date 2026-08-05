@@ -109,4 +109,25 @@ describe('authInterceptor', () => {
     expect(routerMock.navigate).toHaveBeenCalledWith(['/login']);
     expect(error?.status).toBe(401);
   });
+
+  it('en 401 de /admin/auth/me (sonda de sesión de platform-admin) no navega — puede ser cualquier visitante anónimo', () => {
+    let error: { status: number } | undefined;
+
+    http.get('/api/admin/auth/me').subscribe({ error: (e) => (error = e) });
+    httpMock.expectOne('/api/admin/auth/me').flush('unauthorized', { status: 401, statusText: 'Unauthorized' });
+
+    expect(routerMock.navigate).not.toHaveBeenCalled();
+    expect(authServiceMock.refreshToken).not.toHaveBeenCalled();
+    expect(error?.status).toBe(401);
+  });
+
+  it('en 401 de una acción real de admin, sí redirige a /admin/login', () => {
+    let error: { status: number } | undefined;
+
+    http.get('/api/admin/tenants').subscribe({ error: (e) => (error = e) });
+    httpMock.expectOne('/api/admin/tenants').flush('unauthorized', { status: 401, statusText: 'Unauthorized' });
+
+    expect(routerMock.navigate).toHaveBeenCalledWith(['/admin/login']);
+    expect(error?.status).toBe(401);
+  });
 });

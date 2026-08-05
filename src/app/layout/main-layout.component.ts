@@ -40,7 +40,7 @@ interface MenuItem {
         }
 
         <aside
-          class="fixed inset-y-0 left-0 z-40 w-72 transform bg-navy-900 text-white shadow-raised transition-transform duration-300 lg:translate-x-0 lg:static lg:flex lg:flex-col"
+          class="fixed inset-y-0 left-0 z-40 w-72 shrink-0 transform bg-navy-900 text-white shadow-raised transition-transform duration-300 lg:translate-x-0 lg:static lg:flex lg:flex-col"
           [class.-translate-x-full]="!sidebarOpen()"
           >
           <div class="flex h-16 items-center justify-between px-6">
@@ -83,7 +83,7 @@ interface MenuItem {
           </nav>
         </aside>
 
-        <div class="flex flex-1 flex-col">
+        <div class="flex min-w-0 flex-1 flex-col">
           <header class="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-default bg-surface/90 px-4 backdrop-blur lg:px-8">
             <div class="flex w-full items-center justify-between gap-4">
               <div class="flex items-center gap-3">

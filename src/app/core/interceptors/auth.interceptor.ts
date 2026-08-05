@@ -25,6 +25,20 @@ function isPlatformAdminEndpoint(url: string): boolean {
   return url.includes('/admin/');
 }
 
+// Bug corregido 2026-08-05: /admin/auth/me es la sonda de sesión de
+// platform-admin del bootstrap (APP_INITIALIZER, igual que /auth/me para
+// tenant) — se dispara en CADA carga de la app, para cualquier visitante,
+// no solo para quien usa el panel de plataforma. Su 401 es el caso normal
+// (nadie tiene sesión de admin) y nunca debe forzar una navegación: antes
+// de este fix, cualquier visita anónima a una página pública (activar
+// cuenta, login, registro) era expulsada a /admin/login apenas cargaba,
+// sin llegar nunca al contenido real. `platformAdminGuard` ya protege
+// /admin/** de forma independiente, así que no hace falta que el
+// interceptor también navegue en este caso.
+function isAdminSessionProbeEndpoint(url: string): boolean {
+  return url.includes('/admin/auth/me');
+}
+
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const router = inject(Router);
   const authService = inject(AuthService);
@@ -38,7 +52,9 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
       }
 
       if (isPlatformAdminEndpoint(req.url)) {
-        router.navigate(['/admin/login']);
+        if (!isAdminSessionProbeEndpoint(req.url)) {
+          router.navigate(['/admin/login']);
+        }
         return throwError(() => error);
       }
 
