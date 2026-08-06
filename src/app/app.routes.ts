@@ -151,6 +151,10 @@ export const routes: Routes = [
 				loadComponent: () => import('./features/calendar/calendar.component').then((m) => m.CalendarComponent),
 			},
 			{
+				path: 'tareas',
+				loadComponent: () => import('./features/tasks/tasks.component').then((m) => m.TasksComponent),
+			},
+			{
 				path: 'documentos',
 				loadComponent: () => import('./features/documents/documents.component').then((m) => m.DocumentsComponent),
 			},

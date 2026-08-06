@@ -7,11 +7,22 @@ import { SettingsLegalFormComponent } from './components/settings-legal-form.com
 import { SettingsBillingFormComponent } from './components/settings-billing-form.component';
 import { SettingsBrandFormComponent } from './components/settings-brand-form.component';
 import { SettingsCatalogsComponent } from './components/settings-catalogs.component';
+import { SettingsTaskTemplatesComponent } from './components/settings-task-templates.component';
+import { SettingsTaskStatusesComponent } from './components/settings-task-statuses.component';
 import { SettingsPlanComponent } from './components/settings-plan.component';
 import { SettingsSecurityFormComponent } from './components/settings-security-form.component';
 import { SettingsNotificationsComponent } from './components/settings-notifications.component';
 
-type SettingsTab = 'legal' | 'billing' | 'brand' | 'catalogs' | 'plan' | 'security' | 'notifications';
+type SettingsTab =
+  | 'legal'
+  | 'billing'
+  | 'brand'
+  | 'catalogs'
+  | 'task-templates'
+  | 'task-statuses'
+  | 'plan'
+  | 'security'
+  | 'notifications';
 
 @Component({
   selector: 'app-settings',
@@ -21,6 +32,8 @@ type SettingsTab = 'legal' | 'billing' | 'brand' | 'catalogs' | 'plan' | 'securi
     SettingsBillingFormComponent,
     SettingsBrandFormComponent,
     SettingsCatalogsComponent,
+    SettingsTaskTemplatesComponent,
+    SettingsTaskStatusesComponent,
     SettingsPlanComponent,
     SettingsSecurityFormComponent,
     SettingsNotificationsComponent,
@@ -94,6 +107,12 @@ type SettingsTab = 'legal' | 'billing' | 'brand' | 'catalogs' | 'plan' | 'securi
         @case ('catalogs') {
           <app-settings-catalogs />
         }
+        @case ('task-templates') {
+          <app-settings-task-templates />
+        }
+        @case ('task-statuses') {
+          <app-settings-task-statuses />
+        }
         @case ('plan') {
           <app-settings-plan />
         }
@@ -122,6 +141,8 @@ export class SettingsComponent implements OnInit {
     { id: 'billing', label: 'Facturación' },
     { id: 'brand', label: 'Marca' },
     { id: 'catalogs', label: 'Catálogos' },
+    { id: 'task-templates', label: 'Plantillas de tareas' },
+    { id: 'task-statuses', label: 'Estados de tareas' },
     { id: 'plan', label: 'Plan y facturación' },
     { id: 'security', label: 'Seguridad' },
     { id: 'notifications', label: 'Notificaciones' },

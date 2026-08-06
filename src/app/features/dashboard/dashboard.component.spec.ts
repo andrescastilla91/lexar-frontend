@@ -6,12 +6,14 @@ import { DashboardComponent } from './dashboard.component';
 import { DashboardService } from '../../core/services/dashboard.service';
 import { AuthService } from '../../core/services/auth.service';
 import { DeadlinesService } from '../../core/services/deadlines.service';
+import { TasksService } from '../../core/services/tasks.service';
 import { DashboardSummary, OnboardingChecklist } from '../../core/models/dashboard.model';
 import { AuthUser } from '../../core/models/auth.model';
 
 describe('DashboardComponent — checklist de primeros pasos (F10)', () => {
   let dashboardServiceMock: { getSummary: jest.Mock; getOnboardingChecklist: jest.Mock };
   let deadlinesServiceMock: { getAll: jest.Mock };
+  let tasksServiceMock: { getAll: jest.Mock };
 
   const summary: DashboardSummary = {
     totalProcesses: 0,
@@ -34,6 +36,9 @@ describe('DashboardComponent — checklist de primeros pasos (F10)', () => {
     deadlinesServiceMock = {
       getAll: jest.fn().mockReturnValue(of([])),
     };
+    tasksServiceMock = {
+      getAll: jest.fn().mockReturnValue(of([])),
+    };
 
     TestBed.configureTestingModule({
       imports: [DashboardComponent],
@@ -41,6 +46,7 @@ describe('DashboardComponent — checklist de primeros pasos (F10)', () => {
         provideRouter([]),
         { provide: DashboardService, useValue: dashboardServiceMock },
         { provide: DeadlinesService, useValue: deadlinesServiceMock },
+        { provide: TasksService, useValue: tasksServiceMock },
         {
           provide: AuthService,
           useValue: { currentUser: signal<AuthUser | null>({ email: 'ana@bufete.com', roles: [], permissions: [] }) },
@@ -94,6 +100,9 @@ describe('DashboardComponent — checklist de primeros pasos (F10)', () => {
     deadlinesServiceMock = {
       getAll: jest.fn().mockReturnValue(of([])),
     };
+    tasksServiceMock = {
+      getAll: jest.fn().mockReturnValue(of([])),
+    };
 
     TestBed.configureTestingModule({
       imports: [DashboardComponent],
@@ -101,6 +110,7 @@ describe('DashboardComponent — checklist de primeros pasos (F10)', () => {
         provideRouter([]),
         { provide: DashboardService, useValue: dashboardServiceMock },
         { provide: DeadlinesService, useValue: deadlinesServiceMock },
+        { provide: TasksService, useValue: tasksServiceMock },
         {
           provide: AuthService,
           useValue: { currentUser: signal<AuthUser | null>({ email: 'ana@bufete.com', roles: [], permissions: [] }) },

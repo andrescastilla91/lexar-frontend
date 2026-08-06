@@ -247,6 +247,13 @@ export class MainLayoutComponent {
       permissions: ['deadlines.view'],
     },
     {
+      label: 'Tareas',
+      description: 'Trabajo asignado y plantillas por proceso',
+      icon: 'M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z',
+      route: '/tareas',
+      permissions: ['tasks.view'],
+    },
+    {
       label: 'Documentos',
       description: 'Control y cargue seguro',
       icon: 'M9 17.25v1.125a2.625 2.625 0 0 0 2.625 2.625h6.75A2.625 2.625 0 0 0 21 18.375V9.017a2.625 2.625 0 0 0-.769-1.856l-4.266-4.266A2.625 2.625 0 0 0 14.109 2.25H8.625A2.625 2.625 0 0 0 6 4.875v1.875',

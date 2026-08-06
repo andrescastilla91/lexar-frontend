@@ -89,6 +89,17 @@ import { getCatalogBadgeClasses } from '../../../core/utils/catalog-badge.util';
                     </svg>
                   </button>
 
+                  <button
+                    type="button"
+                    (click)="viewTasks.emit(process)"
+                    class="rounded-lg p-2 text-info transition hover:bg-info-tint"
+                    title="Ver tareas"
+                  >
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                    </svg>
+                  </button>
+
                   @if (process.status === ProcessStatus.ACTIVE) {
                     <button
                       type="button"
@@ -294,6 +305,16 @@ import { getCatalogBadgeClasses } from '../../../core/utils/catalog-badge.util';
                   </svg>
                   Plazos
                 </button>
+                <button
+                  type="button"
+                  (click)="viewTasks.emit(process)"
+                  class="flex items-center justify-center gap-2 rounded-md bg-info-tint px-3 py-2 text-xs font-semibold text-info transition hover:opacity-80"
+                >
+                  <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                  </svg>
+                  Tareas
+                </button>
                 @if (process.status === ProcessStatus.ACTIVE) {
                   <button
                     type="button"
@@ -332,6 +353,7 @@ export class ProcessesTableComponent {
   changeStatus = output<LegalProcessResponse>();
   viewHistory = output<LegalProcessResponse>();
   viewDeadlines = output<LegalProcessResponse>();
+  viewTasks = output<LegalProcessResponse>();
   annotate = output<LegalProcessResponse>();
   delete = output<LegalProcessResponse>();
 

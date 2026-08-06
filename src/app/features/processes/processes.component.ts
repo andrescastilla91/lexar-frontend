@@ -7,11 +7,15 @@ import { AdvisorsService } from '../../core/services/advisors.service';
 import { ClientsService } from '../../core/services/clients.service';
 import { FilesService } from '../../core/services/files.service';
 import { DeadlinesService } from '../../core/services/deadlines.service';
+import { TasksService } from '../../core/services/tasks.service';
+import { TaskStatusesService } from '../../core/services/task-statuses.service';
 import { AdvisorResponse } from '../../core/models/advisor-backend.model';
 import { ClientResponse } from '../../core/models/client-backend.model';
 import { CatalogsService } from '../../core/services/catalogs.service';
 import { CatalogItem } from '../../core/models/catalog-backend.model';
 import { CreateDeadlineRequest, DeadlineResponse, DeadlineStatus } from '../../core/models/deadline.model';
+import { CreateTaskRequest, TaskResponse, TaskTemplateResponse } from '../../core/models/task.model';
+import { TaskStatusResponse } from '../../core/models/task-status.model';
 import { PaginationComponent } from '../../core/components/pagination.component';
 import { FilePreviewModalComponent } from '../../core/components/file-preview-modal.component';
 import { forkJoin, of, Subscription } from 'rxjs';
@@ -32,6 +36,7 @@ import { ProcessStatusModalComponent } from './components/process-status-modal.c
 import { ProcessAnnotationModalComponent } from './components/process-annotation-modal.component';
 import { ProcessHistoryModalComponent } from './components/process-history-modal.component';
 import { ProcessDeadlinesModalComponent } from './components/process-deadlines-modal.component';
+import { ProcessTasksModalComponent } from './components/process-tasks-modal.component';
 import { getStatusLabel, getValidNextStatuses, isProcessEditable } from './utils/process-format.utils';
 
 @Component({
@@ -46,6 +51,7 @@ import { getStatusLabel, getValidNextStatuses, isProcessEditable } from './utils
     ProcessAnnotationModalComponent,
     ProcessHistoryModalComponent,
     ProcessDeadlinesModalComponent,
+    ProcessTasksModalComponent,
     FilePreviewModalComponent,
   ],
   template: `
@@ -191,6 +197,26 @@ import { getStatusLabel, getValidNextStatuses, isProcessEditable } from './utils
         (deleteDeadline)="deleteDeadlineItem($event)"
       />
 
+      <!-- F14: Modal de tareas -->
+      <app-process-tasks-modal
+        [isOpen]="tasksModalOpen()"
+        [processTitle]="editingProcess()?.title ?? null"
+        [isLoading]="isLoadingTasks()"
+        [isSubmitting]="isSubmittingTask()"
+        [isInstantiating]="isInstantiatingTemplate()"
+        [errorMessage]="taskFormError()"
+        [tasks]="processTasks()"
+        [advisors]="editingProcess()?.advisors ?? []"
+        [templates]="taskTemplates()"
+        [statuses]="taskStatuses()"
+        [form]="taskForm"
+        (close)="closeTasksModal()"
+        (submit)="submitTask()"
+        (taskUpdated)="onProcessTaskUpdated($event)"
+        (deleteTask)="deleteTaskItem($event)"
+        (instantiateTemplate)="instantiateTaskTemplate($event)"
+      />
+
       <!-- File Preview Modal -->
       <app-file-preview-modal
         [file]="previewingFile()"
@@ -221,6 +247,7 @@ import { getStatusLabel, getValidNextStatuses, isProcessEditable } from './utils
         (changeStatus)="openStatusModal($event)"
         (viewHistory)="openHistoryModal($event)"
         (viewDeadlines)="openDeadlinesModal($event)"
+        (viewTasks)="openTasksModal($event)"
         (annotate)="openAnnotationModal($event)"
         (delete)="deleteProcess($event)"
       />
@@ -250,6 +277,8 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   private readonly catalogsService = inject(CatalogsService);
   private readonly filesService = inject(FilesService);
   private readonly deadlinesService = inject(DeadlinesService);
+  private readonly tasksService = inject(TasksService);
+  private readonly taskStatusesService = inject(TaskStatusesService);
   private readonly sanitizer = inject(DomSanitizer);
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly toast = inject(ToastService);
@@ -271,6 +300,14 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   readonly isLoadingDeadlines = signal(false); // F13
   readonly isSubmittingDeadline = signal(false); // F13
   readonly deadlineFormError = signal<string | null>(null); // F13
+  readonly tasksModalOpen = signal(false); // F14
+  readonly processTasks = signal<TaskResponse[]>([]); // F14
+  readonly taskTemplates = signal<TaskTemplateResponse[]>([]); // F14
+  readonly taskStatuses = signal<TaskStatusResponse[]>([]); // F14
+  readonly isLoadingTasks = signal(false); // F14
+  readonly isSubmittingTask = signal(false); // F14
+  readonly isInstantiatingTemplate = signal(false); // F14
+  readonly taskFormError = signal<string | null>(null); // F14
   readonly isLoading = signal(false);
   readonly formError = signal<string | null>(null);
   readonly panelOpen = signal(false);
@@ -365,11 +402,20 @@ export class ProcessesComponent implements OnInit, OnDestroy {
     assigneeUserIds: [[] as string[]],
   });
 
+  // F14: Formulario de creación de tareas
+  readonly taskForm = this.fb.nonNullable.group({
+    title: ['', [Validators.required, Validators.maxLength(200)]],
+    assigneeUserId: [''],
+    dueAt: [''],
+  });
+
   constructor() {
     this.loadProcesses();
     this.loadAdvisors();
     this.loadClients();
     this.loadCatalogs();
+    this.loadTaskTemplates();
+    this.loadTaskStatuses();
   }
 
   loadCatalogs(): void {
@@ -818,6 +864,150 @@ export class ProcessesComponent implements OnInit, OnDestroy {
       error: (error) => {
         console.error('Error deleting deadline:', error);
         this.toast.error(error.message || 'Error al eliminar el plazo');
+      },
+    });
+  }
+
+  // F14: Plantillas disponibles para instanciar (independiente del proceso)
+  loadTaskStatuses(): void {
+    this.taskStatusesService.getAll().subscribe({
+      next: (statuses) => this.taskStatuses.set(statuses),
+      error: (error) => console.error('Error loading task statuses:', error),
+    });
+  }
+
+  loadTaskTemplates(): void {
+    this.tasksService.getTemplates().subscribe({
+      next: (templates) => this.taskTemplates.set(templates),
+      error: (error) => console.error('Error loading task templates:', error),
+    });
+  }
+
+  // F14: Abrir modal de tareas
+  openTasksModal(process: LegalProcessResponse): void {
+    this.editingProcess.set(process);
+    this.tasksModalOpen.set(true);
+    this.taskFormError.set(null);
+    this.taskForm.reset({ title: '', assigneeUserId: '', dueAt: '' });
+    this.loadProcessTasks(process.id);
+  }
+
+  // F14: Cerrar modal de tareas
+  closeTasksModal(): void {
+    this.tasksModalOpen.set(false);
+    this.editingProcess.set(null);
+    this.processTasks.set([]);
+    this.taskFormError.set(null);
+  }
+
+  // F14: Cargar tareas del proceso
+  loadProcessTasks(processId: string): void {
+    this.isLoadingTasks.set(true);
+    this.tasksService.getForProcess(processId).subscribe({
+      next: (tasks) => {
+        this.processTasks.set(tasks);
+        this.isLoadingTasks.set(false);
+      },
+      error: (error) => {
+        console.error('Error loading process tasks:', error);
+        this.toast.error('Error al cargar las tareas del proceso');
+        this.isLoadingTasks.set(false);
+      },
+    });
+  }
+
+  // F14: Crear tarea para el proceso en edición
+  submitTask(): void {
+    if (this.isSubmittingTask() || !this.editingProcess()) {
+      return;
+    }
+
+    if (this.taskForm.invalid) {
+      this.taskForm.markAllAsTouched();
+      this.taskFormError.set('Completa los campos obligatorios.');
+      return;
+    }
+
+    this.isSubmittingTask.set(true);
+    this.taskFormError.set(null);
+    const processId = this.editingProcess()!.id;
+    const formValue = this.taskForm.getRawValue();
+
+    const request: CreateTaskRequest = {
+      title: formValue.title,
+      processId,
+      assigneeUserId: formValue.assigneeUserId || undefined,
+      dueAt: formValue.dueAt ? new Date(formValue.dueAt).toISOString() : undefined,
+    };
+
+    this.tasksService.create(request).subscribe({
+      next: () => {
+        this.isSubmittingTask.set(false);
+        this.toast.success('Tarea creada correctamente.');
+        this.taskForm.reset({ title: '', assigneeUserId: '', dueAt: '' });
+        this.loadProcessTasks(processId);
+      },
+      error: (error) => {
+        console.error('Error creating task:', error);
+        this.taskFormError.set(error.message || 'Error al crear la tarea');
+        this.toast.error(error.message || 'Error al crear la tarea');
+        this.isSubmittingTask.set(false);
+      },
+    });
+  }
+
+  // F14: TaskStatusControlComponent (dentro del modal) ya hizo el PATCH y
+  // mostró el toast — aquí solo se refleja el resultado en la lista local.
+  onProcessTaskUpdated(updated: TaskResponse): void {
+    this.processTasks.update((tasks) => tasks.map((t) => (t.id === updated.id ? updated : t)));
+  }
+
+  // F14: Eliminar una tarea
+  async deleteTaskItem(task: TaskResponse): Promise<void> {
+    if (task.status.isTerminal) {
+      return;
+    }
+    const confirmed = await this.confirmDialog.confirm({
+      title: 'Eliminar tarea',
+      message: `¿Estás seguro de eliminar la tarea "${task.title}"?`,
+      danger: true,
+    });
+    if (!confirmed) {
+      return;
+    }
+
+    this.tasksService.delete(task.id).subscribe({
+      next: () => {
+        this.toast.success('Tarea eliminada correctamente.');
+        if (task.processId) {
+          this.loadProcessTasks(task.processId);
+        }
+      },
+      error: (error) => {
+        console.error('Error deleting task:', error);
+        this.toast.error(error.message || 'Error al eliminar la tarea');
+      },
+    });
+  }
+
+  // F14: Instanciar una plantilla de tareas en el proceso en edición
+  instantiateTaskTemplate(templateId: string): void {
+    const process = this.editingProcess();
+    if (!process || !templateId || this.isInstantiatingTemplate()) {
+      return;
+    }
+
+    this.isInstantiatingTemplate.set(true);
+    this.tasksService.instantiateTemplate(process.id, templateId).subscribe({
+      next: (tasks) => {
+        this.isInstantiatingTemplate.set(false);
+        this.toast.success(`Se crearon ${tasks.length} tarea(s) desde la plantilla.`);
+        this.loadProcessTasks(process.id);
+      },
+      error: (error) => {
+        console.error('Error instantiating task template:', error);
+        this.toast.error(error.message || 'Error al instanciar la plantilla');
+        this.isInstantiatingTemplate.set(false);
       },
     });
   }
