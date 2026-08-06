@@ -177,6 +177,7 @@ import { getStatusLabel, getValidNextStatuses, isProcessEditable } from './utils
         (close)="closeHistoryModal()"
         (previewFile)="previewFileFromHistory($event.fileId, $event.filename)"
         (downloadFile)="downloadFile($event)"
+        (toggleVisibility)="toggleEventVisibility($event)"
       />
 
       <!-- HU F13: Modal de plazos y audiencias -->
@@ -637,6 +638,28 @@ export class ProcessesComponent implements OnInit, OnDestroy {
         this.isLoadingHistory.set(false);
       },
     });
+  }
+
+  // F16: toggle "compartir con cliente" desde el modal de historial
+  toggleEventVisibility(event: { eventId: string; visibleToClient: boolean }): void {
+    const processId = this.editingProcess()?.id;
+    if (!processId) {
+      return;
+    }
+    this.processEventsService
+      .setEventVisibility(processId, event.eventId, event.visibleToClient)
+      .subscribe({
+        next: () => {
+          this.processHistory.update((events) =>
+            events.map((e) =>
+              e.id === event.eventId ? { ...e, visibleToClient: event.visibleToClient } : e,
+            ),
+          );
+        },
+        error: (error) => {
+          console.error('Error al actualizar la visibilidad del evento:', error);
+        },
+      });
   }
 
   // HU-16: Abrir modal de anotación

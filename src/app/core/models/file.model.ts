@@ -21,6 +21,8 @@ export interface FileModel {
   isPdf: boolean;
   createdAt: Date;
   updatedAt: Date;
+  /** F16: toggle "compartir con cliente" en el portal. */
+  visibleToClient?: boolean;
 }
 
 /**

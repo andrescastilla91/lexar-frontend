@@ -32,6 +32,8 @@ export interface ProcessEvent {
   legalProcessId: string;
   user: ProcessEventUser;
   createdAt: Date;
+  /** F16: toggle "compartir con cliente" — nunca disponible para ANNOTATION. */
+  visibleToClient?: boolean;
 }
 
 export interface CreateAnnotationRequest {

@@ -185,6 +185,17 @@ export class FilesService {
   }
 
   /**
+   * F16: toggle "compartir con cliente" en el portal.
+   */
+  setVisibility(id: string, visibleToClient: boolean): Observable<FileModel> {
+    return this.http
+      .patch<{ file: Pick<FileModel, 'id' | 'visibleToClient'> }>(`${this.apiUrl}/${id}/visibility`, {
+        visibleToClient,
+      })
+      .pipe(map((response) => response.file as FileModel));
+  }
+
+  /**
    * Descarga un archivo abriendo la URL firmada
    */
   downloadFile(id: string): Observable<void> {

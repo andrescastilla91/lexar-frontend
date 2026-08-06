@@ -1,12 +1,13 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { EntityFilesComponent } from '../../../core/components/entity-files.component';
+import { ClientPortalInvitationsComponent } from '../../../core/components/client-portal-invitations.component';
 import { CatalogItem } from '../../../core/models/catalog-backend.model';
 
 @Component({
   selector: 'app-client-form',
   standalone: true,
-  imports: [ReactiveFormsModule, EntityFilesComponent],
+  imports: [ReactiveFormsModule, EntityFilesComponent, ClientPortalInvitationsComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (isOpen()) {
@@ -174,6 +175,9 @@ import { CatalogItem } from '../../../core/models/catalog-backend.model';
                   entityType="client"
                   [entityId]="editingClientId()!"
                 />
+
+                <h4 class="mt-6 mb-4 text-sm font-semibold text-text">Portal del cliente</h4>
+                <app-client-portal-invitations [clientId]="editingClientId()!" />
               </div>
             }
           </div>

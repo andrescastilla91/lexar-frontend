@@ -4,8 +4,10 @@ import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { routes } from './app.routes';
 import { authInterceptor } from './core/interceptors/auth.interceptor';
 import { errorInterceptor } from './core/interceptors/error.interceptor';
+import { portalAuthInterceptor } from './core/interceptors/portal-auth.interceptor';
 import { AuthService } from './core/services/auth.service';
 import { PlatformAdminService } from './core/services/platform-admin.service';
+import { PortalAuthService } from './core/services/portal-auth.service';
 import { catchError, of } from 'rxjs';
 
 export const appConfig: ApplicationConfig = {
@@ -13,7 +15,7 @@ export const appConfig: ApplicationConfig = {
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideRouter(routes),
     provideHttpClient(
-      withInterceptors([authInterceptor, errorInterceptor])
+      withInterceptors([authInterceptor, portalAuthInterceptor, errorInterceptor])
     ),
     // Cargar usuario desde /me al iniciar la aplicación (F5/refresh)
     provideAppInitializer(() => {
@@ -25,6 +27,13 @@ export const appConfig: ApplicationConfig = {
     provideAppInitializer(() => {
       const platformAdminService = inject(PlatformAdminService);
       return platformAdminService.getProfile().pipe(catchError(() => of(null)));
+    }),
+    // F16: igual que arriba pero para la sesión del portal de cliente —
+    // cookie independiente (portal_access_token, path /api/portal), no
+    // interfiere con tenant ni con platform-admin.
+    provideAppInitializer(() => {
+      const portalAuthService = inject(PortalAuthService);
+      return portalAuthService.getProfile().pipe(catchError(() => of(null)));
     }),
   ],
 };
