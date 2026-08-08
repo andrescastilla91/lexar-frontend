@@ -1,7 +1,10 @@
 import { Component, ViewChild, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { RouterLink } from '@angular/router';
-import { FullCalendarComponent, FullCalendarModule } from '@fullcalendar/angular';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import {
+  FullCalendarComponent,
+  FullCalendarModule,
+} from '@fullcalendar/angular';
 import { CalendarOptions, EventClickArg, EventInput } from '@fullcalendar/core';
 import esLocale from '@fullcalendar/core/locales/es';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -17,7 +20,11 @@ import { ToastService } from '../../core/services/toast.service';
 import { AuthService } from '../../core/services/auth.service';
 import { AdvisorResponse } from '../../core/models/advisor-backend.model';
 import { CatalogItem } from '../../core/models/catalog-backend.model';
-import { CreateDeadlineRequest, DeadlineResponse, DeadlineStatus } from '../../core/models/deadline.model';
+import {
+  CreateDeadlineRequest,
+  DeadlineResponse,
+  DeadlineStatus,
+} from '../../core/models/deadline.model';
 import { LegalProcessResponse } from '../../core/models/legal-process.model';
 import { getCatalogBadgeClasses } from '../../core/utils/catalog-badge.util';
 import {
@@ -33,25 +40,41 @@ import { formatDate } from '../processes/utils/process-format.utils';
   imports: [ReactiveFormsModule, FullCalendarModule, RouterLink],
   template: `
     <div class="space-y-6">
-      <header class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <header
+        class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
+      >
         <div>
           <h2 class="text-2xl font-semibold text-text">Calendario legal</h2>
-          <p class="text-sm text-subtle">Plazos y audiencias de todos los procesos del despacho.</p>
+          <p class="text-sm text-subtle">
+            Plazos y audiencias de todos los procesos del despacho.
+          </p>
         </div>
         <button
           type="button"
           class="flex items-center gap-2 rounded-md bg-navy-900 px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:bg-navy-950"
           (click)="openCreateModal()"
         >
-          <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          <svg
+            class="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M12 4.5v15m7.5-7.5h-15"
+            />
           </svg>
           Nuevo plazo
         </button>
       </header>
 
       @if (processes().length === 0) {
-        <div class="rounded-lg border border-default bg-warning-tint px-4 py-3 text-sm text-warning">
+        <div
+          class="rounded-lg border border-default bg-warning-tint px-4 py-3 text-sm text-warning"
+        >
           Aún no tienes procesos registrados. Crea un proceso en
           <a routerLink="/procesos" class="font-semibold underline">Procesos</a>
           antes de poder registrar plazos o audiencias.
@@ -59,7 +82,10 @@ import { formatDate } from '../processes/utils/process-format.utils';
       }
 
       <!-- Filtros -->
-      <form [formGroup]="filterForm" class="grid gap-4 rounded-lg border border-default bg-surface p-6 shadow-card md:grid-cols-4">
+      <form
+        [formGroup]="filterForm"
+        class="grid gap-4 rounded-lg border border-default bg-surface p-6 shadow-card md:grid-cols-4"
+      >
         <div class="flex flex-col justify-end text-sm text-muted">
           <span class="mb-2 block">&nbsp;</span>
           <button
@@ -67,10 +93,24 @@ import { formatDate } from '../processes/utils/process-format.utils';
             (click)="toggleOnlyMine()"
             [disabled]="!currentUserId()"
             class="flex items-center justify-center gap-2 rounded-md border px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50"
-            [class]="onlyMine() ? 'border-navy-900 bg-navy-900 text-white' : 'border-default text-text hover:bg-surface-muted'"
+            [class]="
+              onlyMine()
+                ? 'border-navy-900 bg-navy-900 text-white'
+                : 'border-default text-text hover:bg-surface-muted'
+            "
           >
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
+            <svg
+              class="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z"
+              />
             </svg>
             Mis plazos
           </button>
@@ -84,7 +124,9 @@ import { formatDate } from '../processes/utils/process-format.utils';
             <option value="">Todos</option>
             @for (advisor of advisors(); track advisor.id) {
               @if (advisor.user) {
-                <option [value]="advisor.user.id">{{ advisor.user.firstName }} {{ advisor.user.lastName }}</option>
+                <option [value]="advisor.user.id">
+                  {{ advisor.user.firstName }} {{ advisor.user.lastName }}
+                </option>
               }
             }
           </select>
@@ -123,11 +165,17 @@ import { formatDate } from '../processes/utils/process-format.utils';
 
     <!-- Panel de detalle del plazo seleccionado -->
     @if (selectedDeadline(); as deadline) {
-      <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-        <div class="w-full max-w-md rounded-lg border border-default bg-surface p-6 shadow-2xl">
+      <div
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      >
+        <div
+          class="w-full max-w-md rounded-lg border border-default bg-surface p-6 shadow-2xl"
+        >
           <div class="mb-4 flex items-start justify-between">
             <div>
-              <h3 class="text-lg font-semibold text-text">{{ deadline.title }}</h3>
+              <h3 class="text-lg font-semibold text-text">
+                {{ deadline.title }}
+              </h3>
               <p class="text-sm text-subtle">{{ deadline.process?.title }}</p>
             </div>
             <button
@@ -135,8 +183,18 @@ import { formatDate } from '../processes/utils/process-format.utils';
               (click)="closeDetail()"
               class="rounded-md p-1 text-subtle hover:bg-surface-muted hover:text-muted"
             >
-              <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+              <svg
+                class="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M6 18 18 6M6 6l12 12"
+                />
               </svg>
             </button>
           </div>
@@ -144,11 +202,17 @@ import { formatDate } from '../processes/utils/process-format.utils';
           <div class="space-y-3">
             <div class="flex flex-wrap items-center gap-2">
               @if (deadline.type) {
-                <span class="rounded-full px-2 py-0.5 text-xs font-semibold" [class]="getCatalogBadgeClasses(deadline.type.color)">
+                <span
+                  class="rounded-full px-2 py-0.5 text-xs font-semibold"
+                  [class]="getCatalogBadgeClasses(deadline.type.color)"
+                >
                   {{ deadline.type.label }}
                 </span>
               }
-              <span class="rounded-full px-2 py-0.5 text-xs font-semibold" [class]="getDeadlineStatusClasses(deadline.status)">
+              <span
+                class="rounded-full px-2 py-0.5 text-xs font-semibold"
+                [class]="getDeadlineStatusClasses(deadline.status)"
+              >
                 {{ getDeadlineStatusLabel(deadline.status) }}
               </span>
             </div>
@@ -160,7 +224,12 @@ import { formatDate } from '../processes/utils/process-format.utils';
               <p class="text-xs text-subtle">
                 Asignado a:
                 @for (assignee of deadline.assignees; track assignee.id) {
-                  <span class="text-text">{{ assignee.firstName }} {{ assignee.lastName }}@if (!$last) {, }</span>
+                  <span class="text-text"
+                    >{{ assignee.firstName }} {{ assignee.lastName }}
+                    @if (!$last) {
+                      ,
+                    }
+                  </span>
                 }
               </p>
             }
@@ -190,13 +259,17 @@ import { formatDate } from '../processes/utils/process-format.utils';
 
     <!-- Modal de creación de plazo -->
     @if (createModalOpen()) {
-      <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      >
         <form
           class="w-full max-w-lg grid gap-4 rounded-lg border border-default bg-surface p-4 md:p-6 shadow-2xl max-h-[90vh] overflow-y-auto"
           [formGroup]="createForm"
           (ngSubmit)="submitCreate()"
         >
-          <h3 class="text-lg font-semibold text-text">Nuevo plazo o audiencia</h3>
+          <h3 class="text-lg font-semibold text-text">
+            Nuevo plazo o audiencia
+          </h3>
 
           <label class="text-sm text-muted">
             Proceso *
@@ -244,7 +317,9 @@ import { formatDate } from '../processes/utils/process-format.utils';
                 class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
               />
             </label>
-            <label class="mt-6 flex items-center gap-2 text-sm text-muted md:mt-8">
+            <label
+              class="mt-6 flex items-center gap-2 text-sm text-muted md:mt-8"
+            >
               <input
                 formControlName="allDay"
                 type="checkbox"
@@ -267,11 +342,15 @@ import { formatDate } from '../processes/utils/process-format.utils';
           @if (advisors().length > 0) {
             <div class="text-sm text-muted">
               <label class="mb-2 block">Asignar a</label>
-              <div class="max-h-32 overflow-y-auto rounded-md border border-default bg-surface-muted p-2 shadow-card">
+              <div
+                class="max-h-32 overflow-y-auto rounded-md border border-default bg-surface-muted p-2 shadow-card"
+              >
                 <div class="space-y-1">
                   @for (advisor of advisors(); track advisor.id) {
                     @if (advisor.user) {
-                      <label class="flex cursor-pointer items-center gap-3 rounded-lg p-2 transition hover:bg-surface">
+                      <label
+                        class="flex cursor-pointer items-center gap-3 rounded-lg p-2 transition hover:bg-surface"
+                      >
                         <input
                           type="checkbox"
                           [checked]="isAssigneeSelected(advisor.user.id)"
@@ -279,7 +358,8 @@ import { formatDate } from '../processes/utils/process-format.utils';
                           class="h-4 w-4 rounded border-strong text-navy-900 focus:ring-2 focus:ring-navy-900/30"
                         />
                         <span class="text-xs font-medium text-text">
-                          {{ advisor.user.firstName }} {{ advisor.user.lastName }}
+                          {{ advisor.user.firstName }}
+                          {{ advisor.user.lastName }}
                         </span>
                       </label>
                     }
@@ -290,7 +370,11 @@ import { formatDate } from '../processes/utils/process-format.utils';
           }
 
           @if (createError()) {
-            <p class="rounded-md border border-danger bg-danger-tint px-3 py-2 text-sm text-danger">{{ createError() }}</p>
+            <p
+              class="rounded-md border border-danger bg-danger-tint px-3 py-2 text-sm text-danger"
+            >
+              {{ createError() }}
+            </p>
           }
 
           <div class="flex gap-2">
@@ -319,6 +403,8 @@ export class CalendarComponent {
 
   private readonly fb = inject(FormBuilder);
   private readonly deadlinesService = inject(DeadlinesService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly catalogsService = inject(CatalogsService);
   private readonly advisorsService = inject(AdvisorsService);
   private readonly legalProcessesService = inject(LegalProcessesService);
@@ -335,7 +421,9 @@ export class CalendarComponent {
   readonly createError = signal<string | null>(null);
   readonly onlyMine = signal(false);
 
-  readonly currentUserId = computed(() => this.authService.currentUser()?.id ?? null);
+  readonly currentUserId = computed(
+    () => this.authService.currentUser()?.id ?? null,
+  );
 
   protected readonly DeadlineStatus = DeadlineStatus;
   protected readonly formatDate = formatDate;
@@ -386,9 +474,14 @@ export class CalendarComponent {
           processId: filters.processId || undefined,
         })
         .subscribe({
-          next: (deadlines) => successCallback(deadlines.map((deadline) => this.toEventInput(deadline))),
+          next: (deadlines) =>
+            successCallback(
+              deadlines.map((deadline) => this.toEventInput(deadline)),
+            ),
           error: (error) => {
-            this.toast.error(error.message || 'Error al cargar el calendario de plazos');
+            this.toast.error(
+              error.message || 'Error al cargar el calendario de plazos',
+            );
             failureCallback(error);
           },
         });
@@ -407,17 +500,40 @@ export class CalendarComponent {
       next: (response) => this.advisors.set(response.advisors),
       error: (error) => console.error('Error loading advisors:', error),
     });
-    this.catalogsService.getActiveCatalog('deadline_type').subscribe((items) => this.deadlineTypes.set(items));
+    this.catalogsService
+      .getActiveCatalog('deadline_type')
+      .subscribe((items) => this.deadlineTypes.set(items));
     this.legalProcessesService.getLegalProcesses(1, 100).subscribe({
       next: (response) => this.processes.set(response.legalProcesses),
       error: (error) => console.error('Error loading processes:', error),
     });
+
+    this.openFromQueryParam();
 
     this.filterForm.valueChanges.subscribe((value) => {
       if (this.onlyMine() && value.assignee !== this.currentUserId()) {
         this.onlyMine.set(false);
       }
       this.calendarComponent?.getApi().refetchEvents();
+    });
+  }
+
+  /** F18 — al llegar desde un resultado de búsqueda global (?openId=), abre
+   * el detalle de ese plazo/audiencia directamente, sin depender de que el
+   * calendario ya lo haya renderizado en el rango visible. */
+  private openFromQueryParam(): void {
+    const openId = this.route.snapshot.queryParamMap.get('openId');
+    if (!openId) {
+      return;
+    }
+    this.deadlinesService.getOne(openId).subscribe({
+      next: (deadline) => this.selectedDeadline.set(deadline),
+      error: () => {},
+    });
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: {},
+      replaceUrl: true,
     });
   }
 
@@ -445,7 +561,10 @@ export class CalendarComponent {
       allDay: deadline.allDay,
       backgroundColor: color,
       borderColor: color,
-      classNames: deadline.status === DeadlineStatus.DONE ? ['opacity-60', 'line-through'] : [],
+      classNames:
+        deadline.status === DeadlineStatus.DONE
+          ? ['opacity-60', 'line-through']
+          : [],
       extendedProps: { deadline },
     };
   }
@@ -455,17 +574,19 @@ export class CalendarComponent {
   }
 
   markDone(deadline: DeadlineResponse): void {
-    this.deadlinesService.update(deadline.id, { status: DeadlineStatus.DONE }).subscribe({
-      next: () => {
-        this.toast.success('Plazo marcado como completado.');
-        this.closeDetail();
-        this.calendarComponent?.getApi().refetchEvents();
-      },
-      error: (error) => {
-        console.error('Error updating deadline:', error);
-        this.toast.error(error.message || 'Error al actualizar el plazo');
-      },
-    });
+    this.deadlinesService
+      .update(deadline.id, { status: DeadlineStatus.DONE })
+      .subscribe({
+        next: () => {
+          this.toast.success('Plazo marcado como completado.');
+          this.closeDetail();
+          this.calendarComponent?.getApi().refetchEvents();
+        },
+        error: (error) => {
+          console.error('Error updating deadline:', error);
+          this.toast.error(error.message || 'Error al actualizar el plazo');
+        },
+      });
   }
 
   openCreateModal(prefillDate?: Date): void {
@@ -502,7 +623,9 @@ export class CalendarComponent {
     const index = currentIds.indexOf(userId);
 
     if (index > -1) {
-      this.createForm.patchValue({ assigneeUserIds: currentIds.filter((id: string) => id !== userId) });
+      this.createForm.patchValue({
+        assigneeUserIds: currentIds.filter((id: string) => id !== userId),
+      });
     } else {
       this.createForm.patchValue({ assigneeUserIds: [...currentIds, userId] });
     }
@@ -514,7 +637,12 @@ export class CalendarComponent {
     }
 
     const formValue = this.createForm.getRawValue();
-    if (!formValue.processId || !formValue.title || !formValue.typeId || !formValue.dueAt) {
+    if (
+      !formValue.processId ||
+      !formValue.title ||
+      !formValue.typeId ||
+      !formValue.dueAt
+    ) {
       this.createForm.markAllAsTouched();
       this.createError.set('Completa los campos obligatorios.');
       return;

@@ -1,5 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { of, throwError } from 'rxjs';
 import { signal } from '@angular/core';
 import { MainLayoutComponent } from './main-layout.component';
@@ -37,6 +39,8 @@ describe('MainLayoutComponent — banner de impersonación (F9)', () => {
       imports: [MainLayoutComponent],
       providers: [
         provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
         { provide: AuthService, useValue: authServiceMock },
         { provide: PermissionsService, useValue: { hasAnyPermission: jest.fn().mockReturnValue(true), hasPermission: jest.fn().mockReturnValue(false) } },
         { provide: ProfileService, useValue: { updateMe: jest.fn().mockReturnValue(of(undefined)) } },

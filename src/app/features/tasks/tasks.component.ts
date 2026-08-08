@@ -1,6 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { TasksService } from '../../core/services/tasks.service';
 import { TaskStatusesService } from '../../core/services/task-statuses.service';
 import { AdvisorsService } from '../../core/services/advisors.service';
@@ -10,7 +10,11 @@ import { ToastService } from '../../core/services/toast.service';
 import { AuthService } from '../../core/services/auth.service';
 import { AdvisorResponse } from '../../core/models/advisor-backend.model';
 import { LegalProcessResponse } from '../../core/models/legal-process.model';
-import { CreateTaskRequest, TaskPriority, TaskResponse } from '../../core/models/task.model';
+import {
+  CreateTaskRequest,
+  TaskPriority,
+  TaskResponse,
+} from '../../core/models/task.model';
 import { TaskStatusResponse } from '../../core/models/task-status.model';
 import { TaskStatusControlComponent } from '../../shared/components/task-status-control/task-status-control.component';
 import { TaskApprovalsInboxComponent } from './components/task-approvals-inbox.component';
@@ -34,21 +38,41 @@ interface TaskGroup {
 @Component({
   selector: 'app-tasks',
   standalone: true,
-  imports: [ReactiveFormsModule, RouterLink, TaskStatusControlComponent, TaskApprovalsInboxComponent, HasPermissionDirective],
+  imports: [
+    ReactiveFormsModule,
+    RouterLink,
+    TaskStatusControlComponent,
+    TaskApprovalsInboxComponent,
+    HasPermissionDirective,
+  ],
   template: `
     <div class="space-y-6">
-      <header class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <header
+        class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
+      >
         <div>
           <h2 class="text-2xl font-semibold text-text">Tareas</h2>
-          <p class="text-sm text-subtle">Trabajo asignado y seguimiento por proceso.</p>
+          <p class="text-sm text-subtle">
+            Trabajo asignado y seguimiento por proceso.
+          </p>
         </div>
         <button
           type="button"
           class="flex items-center gap-2 rounded-md bg-navy-900 px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:bg-navy-950"
           (click)="openCreateModal()"
         >
-          <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          <svg
+            class="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M12 4.5v15m7.5-7.5h-15"
+            />
           </svg>
           Nueva tarea
         </button>
@@ -59,15 +83,21 @@ interface TaskGroup {
       </div>
 
       @if (processes().length === 0) {
-        <div class="rounded-lg border border-default bg-warning-tint px-4 py-3 text-sm text-warning">
+        <div
+          class="rounded-lg border border-default bg-warning-tint px-4 py-3 text-sm text-warning"
+        >
           Aún no tienes procesos registrados. Puedes crear tareas generales o
-          <a routerLink="/procesos" class="font-semibold underline">crear un proceso</a>
+          <a routerLink="/procesos" class="font-semibold underline"
+            >crear un proceso</a
+          >
           para ligarlas a un caso.
         </div>
       }
 
       <!-- Filtros y toggle de vista -->
-      <div class="flex flex-col gap-4 rounded-lg border border-default bg-surface p-6 shadow-card md:flex-row md:items-end md:justify-between">
+      <div
+        class="flex flex-col gap-4 rounded-lg border border-default bg-surface p-6 shadow-card md:flex-row md:items-end md:justify-between"
+      >
         <form [formGroup]="filterForm" class="grid flex-1 gap-4 md:grid-cols-3">
           <label class="text-sm text-muted">
             Asignado a
@@ -78,7 +108,9 @@ interface TaskGroup {
               <option value="">Todos</option>
               @for (advisor of advisors(); track advisor.id) {
                 @if (advisor.user) {
-                  <option [value]="advisor.user.id">{{ advisor.user.firstName }} {{ advisor.user.lastName }}</option>
+                  <option [value]="advisor.user.id">
+                    {{ advisor.user.firstName }} {{ advisor.user.lastName }}
+                  </option>
                 }
               }
             </select>
@@ -101,7 +133,11 @@ interface TaskGroup {
               (click)="toggleOnlyMine()"
               [disabled]="!currentUserId()"
               class="flex w-full items-center justify-center gap-2 rounded-md border px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50"
-              [class]="onlyMine() ? 'border-navy-900 bg-navy-900 text-white' : 'border-default text-text hover:bg-surface-muted'"
+              [class]="
+                onlyMine()
+                  ? 'border-navy-900 bg-navy-900 text-white'
+                  : 'border-default text-text hover:bg-surface-muted'
+              "
             >
               Mis tareas
             </button>
@@ -113,7 +149,11 @@ interface TaskGroup {
             type="button"
             (click)="viewMode.set('lista')"
             class="rounded-md border px-4 py-2 text-sm font-semibold transition"
-            [class]="viewMode() === 'lista' ? 'border-navy-900 bg-navy-900 text-white' : 'border-default text-text hover:bg-surface-muted'"
+            [class]="
+              viewMode() === 'lista'
+                ? 'border-navy-900 bg-navy-900 text-white'
+                : 'border-default text-text hover:bg-surface-muted'
+            "
           >
             Lista
           </button>
@@ -121,7 +161,11 @@ interface TaskGroup {
             type="button"
             (click)="viewMode.set('tablero')"
             class="rounded-md border px-4 py-2 text-sm font-semibold transition"
-            [class]="viewMode() === 'tablero' ? 'border-navy-900 bg-navy-900 text-white' : 'border-default text-text hover:bg-surface-muted'"
+            [class]="
+              viewMode() === 'tablero'
+                ? 'border-navy-900 bg-navy-900 text-white'
+                : 'border-default text-text hover:bg-surface-muted'
+            "
           >
             Tablero
           </button>
@@ -131,16 +175,26 @@ interface TaskGroup {
       @if (isLoading()) {
         <p class="text-sm text-subtle">Cargando tareas…</p>
       } @else if (allTasks().length === 0) {
-        <div class="rounded-lg border border-default bg-surface p-8 text-center shadow-card">
-          <p class="text-sm text-subtle">No hay tareas que coincidan con los filtros.</p>
+        <div
+          class="rounded-lg border border-default bg-surface p-8 text-center shadow-card"
+        >
+          <p class="text-sm text-subtle">
+            No hay tareas que coincidan con los filtros.
+          </p>
         </div>
       } @else if (viewMode() === 'lista') {
         <div class="space-y-6">
           @for (group of taskGroups(); track group.key) {
             @if (group.tasks.length > 0) {
               <section>
-                <h3 class="mb-2 text-sm font-semibold uppercase tracking-wide text-subtle">{{ group.label }} ({{ group.tasks.length }})</h3>
-                <div class="divide-y divide-default rounded-lg border border-default bg-surface shadow-card">
+                <h3
+                  class="mb-2 text-sm font-semibold uppercase tracking-wide text-subtle"
+                >
+                  {{ group.label }} ({{ group.tasks.length }})
+                </h3>
+                <div
+                  class="divide-y divide-default rounded-lg border border-default bg-surface shadow-card"
+                >
                   @for (task of group.tasks; track task.id) {
                     <button
                       type="button"
@@ -148,7 +202,9 @@ interface TaskGroup {
                       class="flex w-full flex-col gap-2 px-4 py-3 text-left transition hover:bg-surface-muted sm:flex-row sm:items-center sm:justify-between"
                     >
                       <div class="min-w-0">
-                        <p class="truncate text-sm font-medium text-text">{{ task.title }}</p>
+                        <p class="truncate text-sm font-medium text-text">
+                          {{ task.title }}
+                        </p>
                         <p class="truncate text-xs text-subtle">
                           @if (task.process) {
                             {{ task.process.title }}
@@ -156,27 +212,39 @@ interface TaskGroup {
                             Tarea general
                           }
                           @if (task.assignee) {
-                            · {{ task.assignee.firstName }} {{ task.assignee.lastName }}
+                            · {{ task.assignee.firstName }}
+                            {{ task.assignee.lastName }}
                           }
                         </p>
                       </div>
                       <div class="flex shrink-0 items-center gap-2">
-                        <span class="rounded-full px-2 py-0.5 text-xs font-semibold" [class]="getTaskPriorityClasses(task.priority)">
+                        <span
+                          class="rounded-full px-2 py-0.5 text-xs font-semibold"
+                          [class]="getTaskPriorityClasses(task.priority)"
+                        >
                           {{ getTaskPriorityLabel(task.priority) }}
                         </span>
-                        <span class="rounded-full px-2 py-0.5 text-xs font-semibold" [class]="getTaskStatusClasses(task.status)">
+                        <span
+                          class="rounded-full px-2 py-0.5 text-xs font-semibold"
+                          [class]="getTaskStatusClasses(task.status)"
+                        >
                           {{ getTaskStatusLabel(task.status) }}
                         </span>
                         @if (task.pendingApproval; as pending) {
                           <span
                             class="rounded-full border border-warning bg-warning-tint px-2 py-0.5 text-xs font-semibold text-warning"
-                            [title]="'Esperando aprobación para pasar a: ' + pending.toStatusLabel"
+                            [title]="
+                              'Esperando aprobación para pasar a: ' +
+                              pending.toStatusLabel
+                            "
                           >
                             En revisión → {{ pending.toStatusLabel }}
                           </span>
                         }
                         @if (task.dueAt) {
-                          <span class="text-xs text-subtle">{{ formatDate(task.dueAt) }}</span>
+                          <span class="text-xs text-subtle">{{
+                            formatDate(task.dueAt)
+                          }}</span>
                         }
                       </div>
                     </button>
@@ -187,14 +255,21 @@ interface TaskGroup {
           }
         </div>
       } @else {
-        <div class="grid gap-4" [style.grid-template-columns]="'repeat(' + statuses().length + ', minmax(0, 1fr))'">
+        <div
+          class="grid gap-4"
+          [style.grid-template-columns]="
+            'repeat(' + statuses().length + ', minmax(0, 1fr))'
+          "
+        >
           @for (column of statuses(); track column.id) {
             <div
               class="flex flex-col gap-3 rounded-lg border border-default bg-surface-muted p-3"
               (dragover)="$event.preventDefault()"
               (drop)="onDrop($event, column)"
             >
-              <h3 class="text-sm font-semibold text-text">{{ column.label }} ({{ tasksByStatus(column.id)().length }})</h3>
+              <h3 class="text-sm font-semibold text-text">
+                {{ column.label }} ({{ tasksByStatus(column.id)().length }})
+              </h3>
               <div class="flex flex-col gap-2">
                 @for (task of tasksByStatus(column.id)(); track task.id) {
                   <div
@@ -205,25 +280,40 @@ interface TaskGroup {
                     [class]="kanbanCardClasses(task)"
                     [title]="kanbanCardTitle(task)"
                   >
-                    <p class="text-sm font-medium text-text">{{ task.title }}</p>
+                    <p class="text-sm font-medium text-text">
+                      {{ task.title }}
+                    </p>
                     <p class="truncate text-xs text-subtle">
-                      @if (task.process) { {{ task.process.title }} } @else { Tarea general }
+                      @if (task.process) {
+                        {{ task.process.title }}
+                      } @else {
+                        Tarea general
+                      }
                     </p>
                     <div class="mt-2 flex flex-wrap items-center gap-2">
-                      <span class="rounded-full px-2 py-0.5 text-xs font-semibold" [class]="getTaskPriorityClasses(task.priority)">
+                      <span
+                        class="rounded-full px-2 py-0.5 text-xs font-semibold"
+                        [class]="getTaskPriorityClasses(task.priority)"
+                      >
                         {{ getTaskPriorityLabel(task.priority) }}
                       </span>
                       @if (task.status.isTerminal) {
-                        <span class="rounded-full border border-default bg-surface-muted px-2 py-0.5 text-xs font-semibold text-muted">
+                        <span
+                          class="rounded-full border border-default bg-surface-muted px-2 py-0.5 text-xs font-semibold text-muted"
+                        >
                           Terminada
                         </span>
                       } @else if (task.pendingApproval; as pending) {
-                        <span class="rounded-full border border-warning bg-warning-tint px-2 py-0.5 text-xs font-semibold text-warning">
+                        <span
+                          class="rounded-full border border-warning bg-warning-tint px-2 py-0.5 text-xs font-semibold text-warning"
+                        >
                           En revisión → {{ pending.toStatusLabel }}
                         </span>
                       }
                       @if (task.dueAt) {
-                        <span class="text-xs text-subtle">{{ formatDate(task.dueAt) }}</span>
+                        <span class="text-xs text-subtle">{{
+                          formatDate(task.dueAt)
+                        }}</span>
                       }
                     </div>
                   </div>
@@ -237,8 +327,12 @@ interface TaskGroup {
 
     <!-- Panel de detalle -->
     @if (selectedTask(); as task) {
-      <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-        <div class="w-full max-w-md rounded-lg border border-default bg-surface p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      >
+        <div
+          class="w-full max-w-md rounded-lg border border-default bg-surface p-6 shadow-2xl max-h-[90vh] overflow-y-auto"
+        >
           <div class="mb-4 flex items-start justify-between">
             <div>
               <h3 class="text-lg font-semibold text-text">{{ task.title }}</h3>
@@ -246,27 +340,52 @@ interface TaskGroup {
                 <p class="text-sm text-subtle">{{ task.process.title }}</p>
               }
             </div>
-            <button type="button" (click)="closeDetail()" class="rounded-md p-1 text-subtle hover:bg-surface-muted hover:text-muted">
-              <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+            <button
+              type="button"
+              (click)="closeDetail()"
+              class="rounded-md p-1 text-subtle hover:bg-surface-muted hover:text-muted"
+            >
+              <svg
+                class="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M6 18 18 6M6 6l12 12"
+                />
               </svg>
             </button>
           </div>
 
           <div class="space-y-3">
             <div class="flex flex-wrap items-center gap-2">
-              <span class="rounded-full px-2 py-0.5 text-xs font-semibold" [class]="getTaskPriorityClasses(task.priority)">
+              <span
+                class="rounded-full px-2 py-0.5 text-xs font-semibold"
+                [class]="getTaskPriorityClasses(task.priority)"
+              >
                 {{ getTaskPriorityLabel(task.priority) }}
               </span>
             </div>
             @if (task.dueAt) {
-              <p class="text-sm text-text">Vence: {{ formatDate(task.dueAt) }}</p>
+              <p class="text-sm text-text">
+                Vence: {{ formatDate(task.dueAt) }}
+              </p>
             }
             @if (task.description) {
               <p class="text-sm text-subtle">{{ task.description }}</p>
             }
             @if (task.assignee) {
-              <p class="text-xs text-subtle">Asignado a: <span class="text-text">{{ task.assignee.firstName }} {{ task.assignee.lastName }}</span></p>
+              <p class="text-xs text-subtle">
+                Asignado a:
+                <span class="text-text"
+                  >{{ task.assignee.firstName }}
+                  {{ task.assignee.lastName }}</span
+                >
+              </p>
             }
 
             <app-task-status-control
@@ -281,7 +400,11 @@ interface TaskGroup {
               type="button"
               [disabled]="task.status.isTerminal"
               (click)="deleteTask(task)"
-              [title]="task.status.isTerminal ? 'Tarea terminada: no se puede eliminar' : ''"
+              [title]="
+                task.status.isTerminal
+                  ? 'Tarea terminada: no se puede eliminar'
+                  : ''
+              "
               class="flex-1 rounded-md border border-danger px-4 py-2 text-sm font-semibold text-danger transition hover:bg-danger-tint disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
             >
               Eliminar
@@ -293,7 +416,9 @@ interface TaskGroup {
 
     <!-- Modal de creación -->
     @if (createModalOpen()) {
-      <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      >
         <form
           class="grid w-full max-w-lg gap-4 rounded-lg border border-default bg-surface p-4 shadow-2xl max-h-[90vh] overflow-y-auto md:p-6"
           [formGroup]="createForm"
@@ -342,7 +467,9 @@ interface TaskGroup {
                 <option value="">Sin asignar</option>
                 @for (advisor of advisors(); track advisor.id) {
                   @if (advisor.user) {
-                    <option [value]="advisor.user.id">{{ advisor.user.firstName }} {{ advisor.user.lastName }}</option>
+                    <option [value]="advisor.user.id">
+                      {{ advisor.user.firstName }} {{ advisor.user.lastName }}
+                    </option>
                   }
                 }
               </select>
@@ -372,7 +499,11 @@ interface TaskGroup {
           </div>
 
           @if (createError()) {
-            <p class="rounded-md border border-danger bg-danger-tint px-3 py-2 text-sm text-danger">{{ createError() }}</p>
+            <p
+              class="rounded-md border border-danger bg-danger-tint px-3 py-2 text-sm text-danger"
+            >
+              {{ createError() }}
+            </p>
           }
 
           <div class="flex gap-2">
@@ -405,6 +536,8 @@ export class TasksComponent {
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly toast = inject(ToastService);
   private readonly authService = inject(AuthService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
 
   readonly advisors = signal<AdvisorResponse[]>([]);
   readonly processes = signal<LegalProcessResponse[]>([]);
@@ -419,7 +552,9 @@ export class TasksComponent {
   readonly onlyMine = signal(false);
   private draggedTaskId: string | null = null;
 
-  readonly currentUserId = computed(() => this.authService.currentUser()?.id ?? null);
+  readonly currentUserId = computed(
+    () => this.authService.currentUser()?.id ?? null,
+  );
 
   protected readonly TaskPriority = TaskPriority;
   protected readonly formatDate = formatDate;
@@ -445,9 +580,15 @@ export class TasksComponent {
   readonly taskGroups = computed<TaskGroup[]>(() => {
     const tasks = this.allTasks().filter((t) => !t.status.isTerminal);
     const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfToday = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    );
     const endOfToday = new Date(startOfToday.getTime() + 24 * 60 * 60 * 1000);
-    const endOfWeek = new Date(startOfToday.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const endOfWeek = new Date(
+      startOfToday.getTime() + 7 * 24 * 60 * 60 * 1000,
+    );
 
     const groups: TaskGroup[] = [
       { key: 'overdue', label: 'Vencidas', tasks: [] },
@@ -503,10 +644,31 @@ export class TasksComponent {
     });
 
     this.loadTasks();
+    this.openFromQueryParam();
+  }
+
+  /** F18 — al llegar desde un resultado de búsqueda global (?openId=), abre
+   * el detalle de esa tarea aunque no esté en el filtro/página actual. */
+  private openFromQueryParam(): void {
+    const openId = this.route.snapshot.queryParamMap.get('openId');
+    if (!openId) {
+      return;
+    }
+    this.tasksService.getOne(openId).subscribe({
+      next: (task) => this.openDetail(task),
+      error: () => {},
+    });
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: {},
+      replaceUrl: true,
+    });
   }
 
   tasksByStatus(statusId: string) {
-    return computed(() => this.allTasks().filter((t) => t.status.id === statusId));
+    return computed(() =>
+      this.allTasks().filter((t) => t.status.id === statusId),
+    );
   }
 
   loadTasks(): void {
@@ -563,7 +725,9 @@ export class TasksComponent {
    * PATCH y mostró el toast — aquí solo se refleja el resultado en el
    * estado local sin recargar todo el listado. */
   onTaskUpdated(updated: TaskResponse): void {
-    this.allTasks.update((tasks) => tasks.map((t) => (t.id === updated.id ? updated : t)));
+    this.allTasks.update((tasks) =>
+      tasks.map((t) => (t.id === updated.id ? updated : t)),
+    );
     if (this.selectedTask()?.id === updated.id) {
       this.selectedTask.set(updated);
     }
@@ -651,7 +815,8 @@ export class TasksComponent {
 
   onDrop(event: DragEvent, column: TaskStatusResponse): void {
     event.preventDefault();
-    const taskId = this.draggedTaskId ?? event.dataTransfer?.getData('text/plain');
+    const taskId =
+      this.draggedTaskId ?? event.dataTransfer?.getData('text/plain');
     this.draggedTaskId = null;
     if (!taskId) {
       return;
@@ -707,7 +872,9 @@ export class TasksComponent {
       description: formValue.description || undefined,
       processId: formValue.processId || undefined,
       assigneeUserId: formValue.assigneeUserId || undefined,
-      dueAt: formValue.dueAt ? new Date(formValue.dueAt).toISOString() : undefined,
+      dueAt: formValue.dueAt
+        ? new Date(formValue.dueAt).toISOString()
+        : undefined,
       priority: formValue.priority,
     };
 

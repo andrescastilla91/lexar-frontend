@@ -1,9 +1,14 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { startWith } from 'rxjs';
 import { ClientsService } from '../../core/services/clients.service';
-import { ClientResponse, CreateClientRequest, UpdateClientRequest } from '../../core/models/client-backend.model';
+import {
+  ClientResponse,
+  CreateClientRequest,
+  UpdateClientRequest,
+} from '../../core/models/client-backend.model';
 import { CatalogsService } from '../../core/services/catalogs.service';
 import { CatalogItem } from '../../core/models/catalog-backend.model';
 import { HasPermissionDirective } from '../../core/directives/has-permission.directive';
@@ -16,13 +21,23 @@ import { identificationNumberValidator } from './utils/identification-number.val
 @Component({
   selector: 'app-clients',
   standalone: true,
-  imports: [ReactiveFormsModule, HasPermissionDirective, PaginationComponent, ClientFormComponent, ClientsTableComponent],
+  imports: [
+    ReactiveFormsModule,
+    HasPermissionDirective,
+    PaginationComponent,
+    ClientFormComponent,
+    ClientsTableComponent,
+  ],
   template: `
     <div class="space-y-6">
-      <header class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <header
+        class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
+      >
         <div>
           <h2 class="text-2xl font-semibold text-text">Gestión de clientes</h2>
-          <p class="text-sm text-subtle">Administra la información de tus clientes.</p>
+          <p class="text-sm text-subtle">
+            Administra la información de tus clientes.
+          </p>
         </div>
         <button
           *hasPermission="'clients.create'"
@@ -30,8 +45,18 @@ import { identificationNumberValidator } from './utils/identification-number.val
           class="flex items-center gap-2 rounded-md bg-navy-900 px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:bg-navy-950"
           (click)="togglePanel()"
         >
-          <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          <svg
+            class="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M12 4.5v15m7.5-7.5h-15"
+            />
           </svg>
           Nuevo cliente
         </button>
@@ -68,28 +93,44 @@ import { identificationNumberValidator } from './utils/identification-number.val
               >
                 <option value="all">Todos</option>
                 @for (riskLevel of riskLevels(); track riskLevel.id) {
-                  <option [value]="riskLevel.code">{{ riskLevel.label }}</option>
+                  <option [value]="riskLevel.code">
+                    {{ riskLevel.label }}
+                  </option>
                 }
               </select>
             </label>
           </div>
 
           <div class="grid gap-4 sm:grid-cols-4">
-            <div class="rounded-md border border-default bg-surface-muted px-4 py-3">
+            <div
+              class="rounded-md border border-default bg-surface-muted px-4 py-3"
+            >
               <p class="text-xs text-subtle">Total clientes</p>
               <p class="text-2xl font-semibold text-text">{{ total() }}</p>
             </div>
-            <div class="rounded-md border border-default bg-surface-muted px-4 py-3">
+            <div
+              class="rounded-md border border-default bg-surface-muted px-4 py-3"
+            >
               <p class="text-xs text-subtle">Activos</p>
-              <p class="text-2xl font-semibold text-success">{{ activeCount() }}</p>
+              <p class="text-2xl font-semibold text-success">
+                {{ activeCount() }}
+              </p>
             </div>
-            <div class="rounded-md border border-default bg-surface-muted px-4 py-3">
+            <div
+              class="rounded-md border border-default bg-surface-muted px-4 py-3"
+            >
               <p class="text-xs text-subtle">Riesgo alto</p>
-              <p class="text-2xl font-semibold text-danger">{{ highRiskCount() }}</p>
+              <p class="text-2xl font-semibold text-danger">
+                {{ highRiskCount() }}
+              </p>
             </div>
-            <div class="rounded-md border border-default bg-surface-muted px-4 py-3">
+            <div
+              class="rounded-md border border-default bg-surface-muted px-4 py-3"
+            >
               <p class="text-xs text-subtle">Riesgo bajo</p>
-              <p class="text-2xl font-semibold text-success">{{ lowRiskCount() }}</p>
+              <p class="text-2xl font-semibold text-success">
+                {{ lowRiskCount() }}
+              </p>
             </div>
           </div>
         </form>
@@ -135,6 +176,8 @@ export class ClientsComponent implements OnInit {
   private readonly clientsService = inject(ClientsService);
   private readonly catalogsService = inject(CatalogsService);
   private readonly confirmDialog = inject(ConfirmDialogService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
 
   readonly clients = signal<ClientResponse[]>([]);
   readonly isLoading = signal(false);
@@ -156,22 +199,25 @@ export class ClientsComponent implements OnInit {
     riskLevel: ['all'],
   });
 
-  readonly clientForm = this.fb.nonNullable.group({
-    fullName: ['', [Validators.required, Validators.minLength(3)]],
-    companyName: [''],
-    phone: [''],
-    email: ['', [Validators.required, Validators.email]],
-    address: [''],
-    documentTypeId: ['', [Validators.required]],
-    identificationNumber: ['', [Validators.required]],
-    riskLevelId: [''],
-  }, {
-    validators: [identificationNumberValidator(() => this.documentTypes())]
-  });
+  readonly clientForm = this.fb.nonNullable.group(
+    {
+      fullName: ['', [Validators.required, Validators.minLength(3)]],
+      companyName: [''],
+      phone: [''],
+      email: ['', [Validators.required, Validators.email]],
+      address: [''],
+      documentTypeId: ['', [Validators.required]],
+      identificationNumber: ['', [Validators.required]],
+      riskLevelId: [''],
+    },
+    {
+      validators: [identificationNumberValidator(() => this.documentTypes())],
+    },
+  );
 
   readonly filterValues = toSignal(
     this.filterForm.valueChanges.pipe(startWith(this.filterForm.value)),
-    { initialValue: this.filterForm.value }
+    { initialValue: this.filterForm.value },
   );
 
   readonly filteredClients = computed(() => {
@@ -192,7 +238,7 @@ export class ClientsComponent implements OnInit {
           c.fullName.toLowerCase().includes(search) ||
           c.email.toLowerCase().includes(search) ||
           c.identificationNumber.toLowerCase().includes(search) ||
-          c.companyName?.toLowerCase().includes(search)
+          c.companyName?.toLowerCase().includes(search),
       );
     }
 
@@ -211,44 +257,77 @@ export class ClientsComponent implements OnInit {
 
   readonly activeCount = computed(() => {
     const clients = this.clients();
-    return Array.isArray(clients) ? clients.filter((c) => c.isActive).length : 0;
+    return Array.isArray(clients)
+      ? clients.filter((c) => c.isActive).length
+      : 0;
   });
 
   readonly highRiskCount = computed(() => {
     const clients = this.clients();
-    return Array.isArray(clients) ? clients.filter((c) => c.riskLevel?.code === 'HIGH').length : 0;
+    return Array.isArray(clients)
+      ? clients.filter((c) => c.riskLevel?.code === 'HIGH').length
+      : 0;
   });
 
   readonly lowRiskCount = computed(() => {
     const clients = this.clients();
-    return Array.isArray(clients) ? clients.filter((c) => c.riskLevel?.code === 'LOW').length : 0;
+    return Array.isArray(clients)
+      ? clients.filter((c) => c.riskLevel?.code === 'LOW').length
+      : 0;
   });
 
   ngOnInit(): void {
     this.loadCatalogs();
     this.loadClients();
+    this.openFromQueryParam();
+  }
+
+  /** F18 — al llegar desde un resultado de búsqueda global (?openId=), abre
+   * el panel de edición de ese cliente aunque no esté en la página cargada. */
+  private openFromQueryParam(): void {
+    const openId = this.route.snapshot.queryParamMap.get('openId');
+    if (!openId) {
+      return;
+    }
+    this.clientsService.getClient(openId).subscribe({
+      next: (client) => this.editClient(client),
+      error: () => {},
+    });
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: {},
+      replaceUrl: true,
+    });
   }
 
   loadCatalogs(): void {
-    this.catalogsService.getActiveCatalog('document_type').subscribe((items) => this.documentTypes.set(items));
-    this.catalogsService.getActiveCatalog('risk_level').subscribe((items) => this.riskLevels.set(items));
+    this.catalogsService
+      .getActiveCatalog('document_type')
+      .subscribe((items) => this.documentTypes.set(items));
+    this.catalogsService
+      .getActiveCatalog('risk_level')
+      .subscribe((items) => this.riskLevels.set(items));
   }
 
   loadClients(): void {
     this.isLoading.set(true);
-    this.clientsService.getClients(this.currentPage(), this.pageSize).subscribe({
-      next: (response) => {
-        this.clients.set(Array.isArray(response.clients) ? response.clients : []);
-        this.total.set(response.total || 0);
-        this.isLoading.set(false);
-      },
-      error: (error) => {
-        console.error('Error al cargar clientes:', error);
-        this.clients.set([]);
-        this.total.set(0);
-        this.isLoading.set(false);
-      },
-    });
+    this.clientsService
+      .getClients(this.currentPage(), this.pageSize)
+      .subscribe({
+        next: (response) => {
+          this.clients.set(
+            Array.isArray(response.clients) ? response.clients : [],
+          );
+          this.total.set(response.total || 0);
+          this.isLoading.set(false);
+        },
+        error: (error) => {
+          console.error('Error al cargar clientes:', error);
+          this.clients.set([]);
+          this.total.set(0);
+          this.isLoading.set(false);
+        },
+      });
   }
 
   togglePanel(): void {
@@ -316,17 +395,21 @@ export class ClientsComponent implements OnInit {
         riskLevelId: formValue.riskLevelId || undefined,
       };
 
-      this.clientsService.updateClient(this.editingClient()!.id, updateData).subscribe({
-        next: () => {
-          this.loadClients();
-          this.cancelEdit();
-          this.isSubmitting.set(false);
-        },
-        error: (error) => {
-          this.errorMessage.set(error.message || 'Error al actualizar cliente');
-          this.isSubmitting.set(false);
-        },
-      });
+      this.clientsService
+        .updateClient(this.editingClient()!.id, updateData)
+        .subscribe({
+          next: () => {
+            this.loadClients();
+            this.cancelEdit();
+            this.isSubmitting.set(false);
+          },
+          error: (error) => {
+            this.errorMessage.set(
+              error.message || 'Error al actualizar cliente',
+            );
+            this.isSubmitting.set(false);
+          },
+        });
     } else {
       const createData: CreateClientRequest = {
         fullName: formValue.fullName,

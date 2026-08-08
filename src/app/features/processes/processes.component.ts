@@ -1,4 +1,12 @@
-import { Component, computed, inject, signal, OnInit, OnDestroy } from '@angular/core';
+import {
+  Component,
+  computed,
+  inject,
+  signal,
+  OnInit,
+  OnDestroy,
+} from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { LegalProcessesService } from '../../core/services/legal-processes.service';
@@ -13,8 +21,16 @@ import { AdvisorResponse } from '../../core/models/advisor-backend.model';
 import { ClientResponse } from '../../core/models/client-backend.model';
 import { CatalogsService } from '../../core/services/catalogs.service';
 import { CatalogItem } from '../../core/models/catalog-backend.model';
-import { CreateDeadlineRequest, DeadlineResponse, DeadlineStatus } from '../../core/models/deadline.model';
-import { CreateTaskRequest, TaskResponse, TaskTemplateResponse } from '../../core/models/task.model';
+import {
+  CreateDeadlineRequest,
+  DeadlineResponse,
+  DeadlineStatus,
+} from '../../core/models/deadline.model';
+import {
+  CreateTaskRequest,
+  TaskResponse,
+  TaskTemplateResponse,
+} from '../../core/models/task.model';
 import { TaskStatusResponse } from '../../core/models/task-status.model';
 import { PaginationComponent } from '../../core/components/pagination.component';
 import { FilePreviewModalComponent } from '../../core/components/file-preview-modal.component';
@@ -37,7 +53,11 @@ import { ProcessAnnotationModalComponent } from './components/process-annotation
 import { ProcessHistoryModalComponent } from './components/process-history-modal.component';
 import { ProcessDeadlinesModalComponent } from './components/process-deadlines-modal.component';
 import { ProcessTasksModalComponent } from './components/process-tasks-modal.component';
-import { getStatusLabel, getValidNextStatuses, isProcessEditable } from './utils/process-format.utils';
+import {
+  getStatusLabel,
+  getValidNextStatuses,
+  isProcessEditable,
+} from './utils/process-format.utils';
 
 @Component({
   selector: 'app-processes',
@@ -57,18 +77,34 @@ import { getStatusLabel, getValidNextStatuses, isProcessEditable } from './utils
   template: `
     <div class="space-y-8">
       <!-- Header -->
-      <header class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <header
+        class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
+      >
         <div>
-          <h2 class="text-2xl font-semibold text-text">Procesos judiciales y administrativos</h2>
-          <p class="text-sm text-subtle">Monitorea etapas, responsables y niveles de riesgo procesal.</p>
+          <h2 class="text-2xl font-semibold text-text">
+            Procesos judiciales y administrativos
+          </h2>
+          <p class="text-sm text-subtle">
+            Monitorea etapas, responsables y niveles de riesgo procesal.
+          </p>
         </div>
         <button
           type="button"
           class="flex items-center gap-2 rounded-md bg-navy-900 px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:bg-navy-950"
           (click)="togglePanel()"
         >
-          <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          <svg
+            class="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M12 4.5v15m7.5-7.5h-15"
+            />
           </svg>
           Nuevo proceso
         </button>
@@ -100,7 +136,9 @@ import { getStatusLabel, getValidNextStatuses, isProcessEditable } from './utils
                 <option [value]="null">Todos</option>
                 <option [value]="ProcessStatus.DRAFT">Borrador</option>
                 <option [value]="ProcessStatus.ACTIVE">Activo</option>
-                <option [value]="ProcessStatus.UNDER_REVIEW">En Revisión</option>
+                <option [value]="ProcessStatus.UNDER_REVIEW">
+                  En Revisión
+                </option>
                 <option [value]="ProcessStatus.SUSPENDED">Suspendido</option>
                 <option [value]="ProcessStatus.COMPLETED">Completado</option>
                 <option [value]="ProcessStatus.CANCELLED">Cancelado</option>
@@ -283,6 +321,8 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   private readonly sanitizer = inject(DomSanitizer);
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly toast = inject(ToastService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
 
   private fileDeletedSubscription?: Subscription;
 
@@ -319,7 +359,12 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   readonly editingProcess = signal<LegalProcessResponse | null>(null);
   readonly processHistory = signal<ProcessEvent[]>([]); // HU-17
   readonly isLoadingHistory = signal(false); // HU-17
-  readonly previewingFile = signal<{ id: string; originalFilename: string; isImage: boolean; isPdf: boolean } | null>(null);
+  readonly previewingFile = signal<{
+    id: string;
+    originalFilename: string;
+    isImage: boolean;
+    isPdf: boolean;
+  } | null>(null);
   readonly previewUrl = signal<SafeResourceUrl | null>(null);
   readonly currentPage = signal(1);
   readonly totalItems = signal(0);
@@ -360,7 +405,9 @@ export class ProcessesComponent implements OnInit, OnDestroy {
 
   readonly pageSize = 10;
 
-  readonly totalPages = computed(() => Math.ceil(this.totalItems() / this.pageSize));
+  readonly totalPages = computed(() =>
+    Math.ceil(this.totalItems() / this.pageSize),
+  );
 
   // Forms
   readonly filterForm = this.fb.nonNullable.group({
@@ -420,9 +467,15 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   }
 
   loadCatalogs(): void {
-    this.catalogsService.getActiveCatalog('process_stage').subscribe((items) => this.stages.set(items));
-    this.catalogsService.getActiveCatalog('risk_level').subscribe((items) => this.riskLevels.set(items));
-    this.catalogsService.getActiveCatalog('deadline_type').subscribe((items) => this.deadlineTypes.set(items));
+    this.catalogsService
+      .getActiveCatalog('process_stage')
+      .subscribe((items) => this.stages.set(items));
+    this.catalogsService
+      .getActiveCatalog('risk_level')
+      .subscribe((items) => this.riskLevels.set(items));
+    this.catalogsService
+      .getActiveCatalog('deadline_type')
+      .subscribe((items) => this.deadlineTypes.set(items));
   }
 
   loadProcesses(): void {
@@ -554,13 +607,19 @@ export class ProcessesComponent implements OnInit, OnDestroy {
 
     // El estado solo se incluye al crear (siempre DRAFT)
     // Al editar, el estado se cambia mediante el modal dedicado
-    const request: CreateLegalProcessRequest | UpdateLegalProcessRequest = this.editingProcess()
-      ? baseRequest
-      : { ...baseRequest, status: ProcessStatus.DRAFT };
+    const request: CreateLegalProcessRequest | UpdateLegalProcessRequest =
+      this.editingProcess()
+        ? baseRequest
+        : { ...baseRequest, status: ProcessStatus.DRAFT };
 
     const operation = this.editingProcess()
-      ? this.legalProcessesService.updateLegalProcess(this.editingProcess()!.id, request)
-      : this.legalProcessesService.createLegalProcess(request as CreateLegalProcessRequest);
+      ? this.legalProcessesService.updateLegalProcess(
+          this.editingProcess()!.id,
+          request,
+        )
+      : this.legalProcessesService.createLegalProcess(
+          request as CreateLegalProcessRequest,
+        );
 
     operation.subscribe({
       next: () => {
@@ -570,7 +629,9 @@ export class ProcessesComponent implements OnInit, OnDestroy {
       },
       error: (error) => {
         console.error('Error saving process:', error);
-        this.formError.set(error.error?.message || 'Error al guardar el proceso');
+        this.formError.set(
+          error.error?.message || 'Error al guardar el proceso',
+        );
         this.isLoading.set(false);
       },
     });
@@ -588,8 +649,12 @@ export class ProcessesComponent implements OnInit, OnDestroy {
       riskLevelId: process.riskLevel?.id || '',
       court: process.court || '',
       caseNumber: process.caseNumber || '',
-      startDate: process.startDate ? new Date(process.startDate).toISOString().slice(0, 10) : '',
-      endDate: process.endDate ? new Date(process.endDate).toISOString().slice(0, 10) : '',
+      startDate: process.startDate
+        ? new Date(process.startDate).toISOString().slice(0, 10)
+        : '',
+      endDate: process.endDate
+        ? new Date(process.endDate).toISOString().slice(0, 10)
+        : '',
     });
     this.configureEditableFields(process.status);
     this.panelOpen.set(true);
@@ -641,7 +706,10 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   }
 
   // F16: toggle "compartir con cliente" desde el modal de historial
-  toggleEventVisibility(event: { eventId: string; visibleToClient: boolean }): void {
+  toggleEventVisibility(event: {
+    eventId: string;
+    visibleToClient: boolean;
+  }): void {
     const processId = this.editingProcess()?.id;
     if (!processId) {
       return;
@@ -652,12 +720,17 @@ export class ProcessesComponent implements OnInit, OnDestroy {
         next: () => {
           this.processHistory.update((events) =>
             events.map((e) =>
-              e.id === event.eventId ? { ...e, visibleToClient: event.visibleToClient } : e,
+              e.id === event.eventId
+                ? { ...e, visibleToClient: event.visibleToClient }
+                : e,
             ),
           );
         },
         error: (error) => {
-          console.error('Error al actualizar la visibilidad del evento:', error);
+          console.error(
+            'Error al actualizar la visibilidad del evento:',
+            error,
+          );
         },
       });
   }
@@ -724,7 +797,13 @@ export class ProcessesComponent implements OnInit, OnDestroy {
           const annotationEventId = annotationEvent.id;
           // Subir todos los archivos en paralelo, vinculados a la anotación
           const uploads = files.map((file) =>
-            this.filesService.uploadFile(file, 'legal_process', processId, undefined, annotationEventId),
+            this.filesService.uploadFile(
+              file,
+              'legal_process',
+              processId,
+              undefined,
+              annotationEventId,
+            ),
           );
           return forkJoin(uploads);
         }),
@@ -740,7 +819,9 @@ export class ProcessesComponent implements OnInit, OnDestroy {
         },
         error: (error) => {
           console.error('Error creating annotation:', error);
-          this.formError.set(error.error?.message || 'Error al crear anotación o subir archivos');
+          this.formError.set(
+            error.error?.message || 'Error al crear anotación o subir archivos',
+          );
           this.isLoading.set(false);
         },
       });
@@ -854,17 +935,19 @@ export class ProcessesComponent implements OnInit, OnDestroy {
 
   // F13: Marcar un plazo como completado
   markDeadlineDone(deadline: DeadlineResponse): void {
-    this.deadlinesService.update(deadline.id, { status: DeadlineStatus.DONE }).subscribe({
-      next: () => {
-        this.toast.success('Plazo marcado como completado.');
-        this.loadProcessDeadlines(deadline.processId);
-        this.loadProcesses();
-      },
-      error: (error) => {
-        console.error('Error updating deadline:', error);
-        this.toast.error(error.message || 'Error al actualizar el plazo');
-      },
-    });
+    this.deadlinesService
+      .update(deadline.id, { status: DeadlineStatus.DONE })
+      .subscribe({
+        next: () => {
+          this.toast.success('Plazo marcado como completado.');
+          this.loadProcessDeadlines(deadline.processId);
+          this.loadProcesses();
+        },
+        error: (error) => {
+          console.error('Error updating deadline:', error);
+          this.toast.error(error.message || 'Error al actualizar el plazo');
+        },
+      });
   }
 
   // F13: Eliminar un plazo
@@ -960,7 +1043,9 @@ export class ProcessesComponent implements OnInit, OnDestroy {
       title: formValue.title,
       processId,
       assigneeUserId: formValue.assigneeUserId || undefined,
-      dueAt: formValue.dueAt ? new Date(formValue.dueAt).toISOString() : undefined,
+      dueAt: formValue.dueAt
+        ? new Date(formValue.dueAt).toISOString()
+        : undefined,
     };
 
     this.tasksService.create(request).subscribe({
@@ -982,7 +1067,9 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   // F14: TaskStatusControlComponent (dentro del modal) ya hizo el PATCH y
   // mostró el toast — aquí solo se refleja el resultado en la lista local.
   onProcessTaskUpdated(updated: TaskResponse): void {
-    this.processTasks.update((tasks) => tasks.map((t) => (t.id === updated.id ? updated : t)));
+    this.processTasks.update((tasks) =>
+      tasks.map((t) => (t.id === updated.id ? updated : t)),
+    );
   }
 
   // F14: Eliminar una tarea
@@ -1024,7 +1111,9 @@ export class ProcessesComponent implements OnInit, OnDestroy {
     this.tasksService.instantiateTemplate(process.id, templateId).subscribe({
       next: (tasks) => {
         this.isInstantiatingTemplate.set(false);
-        this.toast.success(`Se crearon ${tasks.length} tarea(s) desde la plantilla.`);
+        this.toast.success(
+          `Se crearon ${tasks.length} tarea(s) desde la plantilla.`,
+        );
         this.loadProcessTasks(process.id);
       },
       error: (error) => {
@@ -1060,18 +1149,22 @@ export class ProcessesComponent implements OnInit, OnDestroy {
     this.isLoading.set(true);
     this.formError.set(null);
 
-    this.legalProcessesService.updateProcessStatus(this.editingProcess()!.id, request).subscribe({
-      next: () => {
-        this.isLoading.set(false);
-        this.closeStatusModal();
-        this.loadProcesses();
-      },
-      error: (error) => {
-        console.error('Error updating status:', error);
-        this.formError.set(error.error?.message || 'Error al actualizar el estado');
-        this.isLoading.set(false);
-      },
-    });
+    this.legalProcessesService
+      .updateProcessStatus(this.editingProcess()!.id, request)
+      .subscribe({
+        next: () => {
+          this.isLoading.set(false);
+          this.closeStatusModal();
+          this.loadProcesses();
+        },
+        error: (error) => {
+          console.error('Error updating status:', error);
+          this.formError.set(
+            error.error?.message || 'Error al actualizar el estado',
+          );
+          this.isLoading.set(false);
+        },
+      });
   }
 
   async deleteProcess(process: LegalProcessResponse): Promise<void> {
@@ -1195,7 +1288,9 @@ export class ProcessesComponent implements OnInit, OnDestroy {
           isImage: contentType.startsWith('image/'),
           isPdf: contentType === 'application/pdf',
         });
-        this.previewUrl.set(this.sanitizer.bypassSecurityTrustResourceUrl(response.url));
+        this.previewUrl.set(
+          this.sanitizer.bypassSecurityTrustResourceUrl(response.url),
+        );
       },
       error: (error) => {
         console.error('Error al obtener URL del archivo:', error);
@@ -1232,11 +1327,33 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   // Lifecycle hooks
   ngOnInit(): void {
     // Suscribirse a eventos de eliminación de archivos para sincronizar vistas
-    this.fileDeletedSubscription = this.filesService.fileDeleted$.subscribe(() => {
-      // Si el modal de historial está abierto, recargar el historial del proceso actual
-      if (this.historyModalOpen() && this.editingProcess()) {
-        this.loadProcessHistory(this.editingProcess()!.id);
-      }
+    this.fileDeletedSubscription = this.filesService.fileDeleted$.subscribe(
+      () => {
+        // Si el modal de historial está abierto, recargar el historial del proceso actual
+        if (this.historyModalOpen() && this.editingProcess()) {
+          this.loadProcessHistory(this.editingProcess()!.id);
+        }
+      },
+    );
+
+    this.openFromQueryParam();
+  }
+
+  /** F18 — al llegar desde un resultado de búsqueda global (?openId=), abre
+   * el panel de edición de ese proceso aunque no esté en la página cargada. */
+  private openFromQueryParam(): void {
+    const openId = this.route.snapshot.queryParamMap.get('openId');
+    if (!openId) {
+      return;
+    }
+    this.legalProcessesService.getLegalProcess(openId).subscribe({
+      next: (process) => this.editProcess(process),
+      error: () => {},
+    });
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: {},
+      replaceUrl: true,
     });
   }
 

@@ -27,25 +27,37 @@ export class DeadlinesService {
   /** Plazos de un proceso puntual (A3.6 — tab "Plazos" en detalle del proceso). */
   getForProcess(processId: string): Observable<DeadlineResponse[]> {
     return this.http
-      .get<DeadlinesListResponse>(`${this.apiUrl}/legal-processes/${processId}/deadlines`)
+      .get<DeadlinesListResponse>(
+        `${this.apiUrl}/legal-processes/${processId}/deadlines`,
+      )
       .pipe(
         map((response) => response.deadlines),
         catchError((error) => {
           console.error('Error al obtener plazos del proceso:', error);
-          return throwError(() => new Error(error.error?.message || 'Error al cargar plazos'));
-        })
+          return throwError(
+            () => new Error(error.error?.message || 'Error al cargar plazos'),
+          );
+        }),
       );
   }
 
-  create(processId: string, data: CreateDeadlineRequest): Observable<DeadlineResponse> {
+  create(
+    processId: string,
+    data: CreateDeadlineRequest,
+  ): Observable<DeadlineResponse> {
     return this.http
-      .post<DeadlineItemResponse>(`${this.apiUrl}/legal-processes/${processId}/deadlines`, data)
+      .post<DeadlineItemResponse>(
+        `${this.apiUrl}/legal-processes/${processId}/deadlines`,
+        data,
+      )
       .pipe(
         map((response) => response.deadline),
         catchError((error) => {
           console.error('Error al crear plazo:', error);
-          return throwError(() => new Error(error.error?.message || 'Error al crear plazo'));
-        })
+          return throwError(
+            () => new Error(error.error?.message || 'Error al crear plazo'),
+          );
+        }),
       );
   }
 
@@ -58,32 +70,63 @@ export class DeadlinesService {
     if (filters?.type) params['type'] = filters.type;
     if (filters?.processId) params['processId'] = filters.processId;
 
-    return this.http.get<DeadlinesListResponse>(`${this.apiUrl}/deadlines`, { params }).pipe(
-      map((response) => response.deadlines),
-      catchError((error) => {
-        console.error('Error al obtener plazos:', error);
-        return throwError(() => new Error(error.error?.message || 'Error al cargar plazos'));
-      })
-    );
+    return this.http
+      .get<DeadlinesListResponse>(`${this.apiUrl}/deadlines`, { params })
+      .pipe(
+        map((response) => response.deadlines),
+        catchError((error) => {
+          console.error('Error al obtener plazos:', error);
+          return throwError(
+            () => new Error(error.error?.message || 'Error al cargar plazos'),
+          );
+        }),
+      );
   }
 
-  update(id: string, data: UpdateDeadlineRequest): Observable<DeadlineResponse> {
-    return this.http.patch<DeadlineItemResponse>(`${this.apiUrl}/deadlines/${id}`, data).pipe(
-      map((response) => response.deadline),
-      catchError((error) => {
-        console.error('Error al actualizar plazo:', error);
-        return throwError(() => new Error(error.error?.message || 'Error al actualizar plazo'));
-      })
-    );
+  /** Plazo puntual por id (F18 — deep link desde búsqueda global). */
+  getOne(id: string): Observable<DeadlineResponse> {
+    return this.http
+      .get<DeadlineItemResponse>(`${this.apiUrl}/deadlines/${id}`)
+      .pipe(
+        map((response) => response.deadline),
+        catchError((error) => {
+          console.error('Error al obtener el plazo:', error);
+          return throwError(
+            () => new Error(error.error?.message || 'Error al cargar el plazo'),
+          );
+        }),
+      );
+  }
+
+  update(
+    id: string,
+    data: UpdateDeadlineRequest,
+  ): Observable<DeadlineResponse> {
+    return this.http
+      .patch<DeadlineItemResponse>(`${this.apiUrl}/deadlines/${id}`, data)
+      .pipe(
+        map((response) => response.deadline),
+        catchError((error) => {
+          console.error('Error al actualizar plazo:', error);
+          return throwError(
+            () =>
+              new Error(error.error?.message || 'Error al actualizar plazo'),
+          );
+        }),
+      );
   }
 
   delete(id: string): Observable<void> {
-    return this.http.delete<{ message: string }>(`${this.apiUrl}/deadlines/${id}`).pipe(
-      map(() => undefined),
-      catchError((error) => {
-        console.error('Error al eliminar plazo:', error);
-        return throwError(() => new Error(error.error?.message || 'Error al eliminar plazo'));
-      })
-    );
+    return this.http
+      .delete<{ message: string }>(`${this.apiUrl}/deadlines/${id}`)
+      .pipe(
+        map(() => undefined),
+        catchError((error) => {
+          console.error('Error al eliminar plazo:', error);
+          return throwError(
+            () => new Error(error.error?.message || 'Error al eliminar plazo'),
+          );
+        }),
+      );
   }
 }
