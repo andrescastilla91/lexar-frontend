@@ -155,4 +155,46 @@ describe('SettingsComponent', () => {
 
     expect(companyServiceMock.uploadLogo).not.toHaveBeenCalled();
   });
+
+  // Mitigación temporal (2026-08-08, versión 3): el corte mobile/desktop se
+  // movió de 640px (sm) a 1024px (lg) — por debajo de 1024px sigue el
+  // select de siempre (celular Y tablet, sin cambios de comportamiento en
+  // ese rango); desde 1024px se muestra un sidebar real a la izquierda en
+  // vez de una lista apilada arriba del contenido.
+  it('el sidebar de escritorio está oculto por debajo de lg y visible desde lg, con las 9 secciones', () => {
+    const fixture = TestBed.createComponent(SettingsComponent);
+    fixture.detectChanges();
+
+    const nav = fixture.nativeElement.querySelector('nav[aria-label="Secciones de configuración"]');
+    const buttons = nav?.querySelectorAll('button');
+
+    expect(nav?.className).toContain('hidden');
+    expect(nav?.className).toContain('lg:flex');
+    expect(nav?.className).toContain('lg:flex-col');
+    expect(buttons?.length).toBe(9);
+  });
+
+  it('el select cubre mobile y tablet (oculto solo desde lg), con las mismas 9 opciones', () => {
+    const fixture = TestBed.createComponent(SettingsComponent);
+    fixture.detectChanges();
+
+    const mobileWrapper = fixture.nativeElement.querySelector('.lg\\:hidden');
+    const options = mobileWrapper?.querySelectorAll('option');
+
+    expect(options?.length).toBe(9);
+  });
+
+  it('click en un ítem del sidebar cambia de tab directamente', () => {
+    const fixture = TestBed.createComponent(SettingsComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+
+    const nav = fixture.nativeElement.querySelector('nav[aria-label="Secciones de configuración"]');
+    const billingButton = Array.from(nav.querySelectorAll('button')).find((btn) =>
+      (btn as HTMLElement).textContent?.includes('Facturación'),
+    ) as HTMLElement;
+    billingButton.click();
+
+    expect(component.activeTab()).toBe('billing');
+  });
 });

@@ -40,94 +40,112 @@ type SettingsTab =
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6 md:px-6 lg:px-8">
+    <div class="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6 md:px-6 lg:max-w-5xl lg:px-8">
       <div>
         <h1 class="text-2xl font-semibold text-text">Configuración de la empresa</h1>
         <p class="mt-1 text-sm text-subtle">Administra los datos legales, de facturación y de marca de tu empresa.</p>
       </div>
 
-      <div class="border-b border-default">
-        <nav class="hidden gap-6 sm:flex" aria-label="Secciones de configuración">
+      <!-- Mitigación temporal (2026-08-08, versión 3) mientras diseño define
+           el rediseño definitivo. El corte mobile/desktop se mueve de 640px
+           (sm) a 1024px (lg): por debajo de 1024px (celular Y tablet) sigue
+           el select desplegable de siempre, sin ningún cambio de
+           comportamiento en ese rango. Desde 1024px (desktop grande) se
+           muestra un sidebar real a la izquierda en vez de una fila o lista
+           apilada arriba. Se eligió 1024px y no 640px a propósito: los
+           formularios internos (ej. datos legales) usan sus propios
+           sm:grid-cols-2/3 que se activan por ancho de VIEWPORT, no por el
+           espacio que les quede — si el sidebar apareciera ya en 640px,
+           esos formularios perderían ancho real sin que sus columnas
+           internas se enteren y se verían apretados. Por eso también el
+           contenedor pasa a max-w-5xl solo en lg: (antes max-w-3xl), para
+           que el contenido conserve un ancho similar al que tenía antes de
+           que el sidebar le quitara esos ~250px. -->
+      <div class="lg:hidden">
+        <select
+          class="w-full rounded-md border border-default bg-surface px-3 py-2 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
+          [value]="activeTab()"
+          (change)="onTabSelect($event)"
+        >
+          @for (tab of tabs; track tab.id) {
+            <option [value]="tab.id">{{ tab.label }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="flex flex-col gap-6 lg:grid lg:grid-cols-[220px_1fr] lg:items-start lg:gap-8">
+        <nav class="hidden lg:flex lg:flex-col lg:gap-1" aria-label="Secciones de configuración">
           @for (tab of tabs; track tab.id) {
             <button
               type="button"
               (click)="activeTab.set(tab.id)"
-              class="border-b-2 px-1 pb-3 text-sm font-medium transition"
-              [class.border-navy-900]="activeTab() === tab.id"
-              [class.text-text]="activeTab() === tab.id"
-              [class.border-transparent]="activeTab() !== tab.id"
+              class="rounded-md px-3 py-2 text-left text-sm font-medium transition"
+              [class.bg-navy-900]="activeTab() === tab.id"
+              [class.text-white]="activeTab() === tab.id"
               [class.text-subtle]="activeTab() !== tab.id"
+              [class.hover:bg-surface-muted]="activeTab() !== tab.id"
             >
               {{ tab.label }}
             </button>
           }
         </nav>
-        <div class="pb-3 sm:hidden">
-          <select
-            class="w-full rounded-md border border-default bg-surface px-3 py-2 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
-            [value]="activeTab()"
-            (change)="onTabSelect($event)"
-          >
-            @for (tab of tabs; track tab.id) {
-              <option [value]="tab.id">{{ tab.label }}</option>
+
+        <div class="min-w-0">
+          @switch (activeTab()) {
+            @case ('legal') {
+              <app-settings-legal-form
+                [form]="legalForm"
+                [taxId]="company()?.taxId ?? ''"
+                [isSubmitting]="isSubmittingLegal()"
+                [errorMessage]="legalError()"
+                (submit)="onSubmitLegal()"
+              />
             }
-          </select>
+            @case ('billing') {
+              <app-settings-billing-form
+                [form]="billingForm"
+                [isSubmitting]="isSubmittingBilling()"
+                [errorMessage]="billingError()"
+                (submit)="onSubmitBilling()"
+              />
+            }
+            @case ('brand') {
+              <app-settings-brand-form
+                [form]="brandForm"
+                [logoUrl]="company()?.logoUrl ?? null"
+                [isSubmitting]="isSubmittingBrand()"
+                [isUploadingLogo]="isUploadingLogo()"
+                [errorMessage]="brandError()"
+                (submit)="onSubmitBrand()"
+                (logoSelected)="onLogoSelected($event)"
+              />
+            }
+            @case ('catalogs') {
+              <app-settings-catalogs />
+            }
+            @case ('task-templates') {
+              <app-settings-task-templates />
+            }
+            @case ('task-statuses') {
+              <app-settings-task-statuses />
+            }
+            @case ('plan') {
+              <app-settings-plan />
+            }
+            @case ('security') {
+              <app-settings-security-form
+                [form]="securityForm"
+                [isSubmitting]="isSubmittingSecurity()"
+                [errorMessage]="securityError()"
+                (submit)="onSubmitSecurity()"
+              />
+            }
+            @case ('notifications') {
+              <app-settings-notifications />
+            }
+          }
         </div>
       </div>
-
-      @switch (activeTab()) {
-        @case ('legal') {
-          <app-settings-legal-form
-            [form]="legalForm"
-            [taxId]="company()?.taxId ?? ''"
-            [isSubmitting]="isSubmittingLegal()"
-            [errorMessage]="legalError()"
-            (submit)="onSubmitLegal()"
-          />
-        }
-        @case ('billing') {
-          <app-settings-billing-form
-            [form]="billingForm"
-            [isSubmitting]="isSubmittingBilling()"
-            [errorMessage]="billingError()"
-            (submit)="onSubmitBilling()"
-          />
-        }
-        @case ('brand') {
-          <app-settings-brand-form
-            [form]="brandForm"
-            [logoUrl]="company()?.logoUrl ?? null"
-            [isSubmitting]="isSubmittingBrand()"
-            [isUploadingLogo]="isUploadingLogo()"
-            [errorMessage]="brandError()"
-            (submit)="onSubmitBrand()"
-            (logoSelected)="onLogoSelected($event)"
-          />
-        }
-        @case ('catalogs') {
-          <app-settings-catalogs />
-        }
-        @case ('task-templates') {
-          <app-settings-task-templates />
-        }
-        @case ('task-statuses') {
-          <app-settings-task-statuses />
-        }
-        @case ('plan') {
-          <app-settings-plan />
-        }
-        @case ('security') {
-          <app-settings-security-form
-            [form]="securityForm"
-            [isSubmitting]="isSubmittingSecurity()"
-            [errorMessage]="securityError()"
-            (submit)="onSubmitSecurity()"
-          />
-        }
-        @case ('notifications') {
-          <app-settings-notifications />
-        }
-      }
     </div>
   `,
 })
