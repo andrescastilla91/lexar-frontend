@@ -25,9 +25,36 @@ function isPlatformAdminEndpoint(url: string): boolean {
   return url.includes('/admin/');
 }
 
+// Bug corregido 2026-08-05: /admin/auth/me es la sonda de sesión de
+// platform-admin del bootstrap (APP_INITIALIZER, igual que /auth/me para
+// tenant) — se dispara en CADA carga de la app, para cualquier visitante,
+// no solo para quien usa el panel de plataforma. Su 401 es el caso normal
+// (nadie tiene sesión de admin) y nunca debe forzar una navegación: antes
+// de este fix, cualquier visita anónima a una página pública (activar
+// cuenta, login, registro) era expulsada a /admin/login apenas cargaba,
+// sin llegar nunca al contenido real. `platformAdminGuard` ya protege
+// /admin/** de forma independiente, así que no hace falta que el
+// interceptor también navegue en este caso.
+function isAdminSessionProbeEndpoint(url: string): boolean {
+  return url.includes('/admin/auth/me');
+}
+
+// F16: /portal/* autentica con una cookie e identidad totalmente aparte
+// (portal_access_token, sin roles internos) — la maneja exclusivamente
+// portal-auth.interceptor.ts. Un 401 de portal jamás debe disparar el
+// refresh interno ni navegar a /login (mismo razonamiento que
+// isPlatformAdminEndpoint arriba, en la dirección opuesta de confianza).
+function isPortalEndpoint(url: string): boolean {
+  return url.includes('/portal/');
+}
+
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const router = inject(Router);
   const authService = inject(AuthService);
+
+  if (isPortalEndpoint(req.url)) {
+    return next(req.clone({ withCredentials: true }));
+  }
 
   const authReq = req.clone({ withCredentials: true });
 
@@ -38,12 +65,26 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
       }
 
       if (isPlatformAdminEndpoint(req.url)) {
-        router.navigate(['/admin/login']);
+        if (!isAdminSessionProbeEndpoint(req.url)) {
+          router.navigate(['/admin/login']);
+        }
         return throwError(() => error);
       }
 
+      // Bug corregido 2026-08-06: esta rama también se dispara cuando ESTA
+      // MISMA petición es el refresh recursivo lanzado más abajo (isProbe)
+      // al fallar la sonda /auth/me en CADA carga de página, para CUALQUIER
+      // ruta. Navegar aquí sin mirar el contexto secuestraba la navegación
+      // inicial y expulsaba a /login a cualquier visitante anónimo de una
+      // página pública que no fuera /login (portal/login, portal/activar-
+      // cuenta, admin/login...) — la redirección ganaba la carrera contra la
+      // navegación real del router hacia la URL pedida. Los componentes de
+      // login/registro/forgot/reset ya muestran su propio error inline, y el
+      // caso real de "la sesión murió con el usuario ya adentro" lo sigue
+      // cubriendo el bloque de abajo (isProbe) para la petición ORIGINAL que
+      // falló — no para este refresh recursivo. No volver a agregar un
+      // navigate() aquí.
       if (isAuthActionEndpoint(req.url)) {
-        router.navigate(['/login']);
         return throwError(() => error);
       }
 

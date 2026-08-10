@@ -149,19 +149,11 @@ import { CatalogItem } from '../../../core/models/catalog-backend.model';
                 <p class="mt-1 text-xs text-subtle">Puedes generar un número automático o ingresarlo manualmente</p>
               </div>
             </div>
-            <div class="grid gap-4 md:grid-cols-3">
+            <div class="grid gap-4 md:grid-cols-2">
               <label class="text-sm text-muted">
                 Fecha de Inicio
                 <input
                   formControlName="startDate"
-                  type="date"
-                  class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
-                />
-              </label>
-              <label class="text-sm text-muted">
-                Próxima Audiencia
-                <input
-                  formControlName="nextHearingDate"
                   type="date"
                   class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
                 />
@@ -175,6 +167,10 @@ import { CatalogItem } from '../../../core/models/catalog-backend.model';
                 />
               </label>
             </div>
+            <p class="text-xs text-subtle">
+              La próxima audiencia se calcula automáticamente a partir de los plazos de tipo "Audiencia" registrados
+              en la pestaña Plazos.
+            </p>
           </div>
           @if (errorMessage()) {
             <p class="rounded-md border border-danger bg-danger-tint px-3 py-2 text-sm text-danger">{{ errorMessage() }}</p>

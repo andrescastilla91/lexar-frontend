@@ -1,14 +1,15 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { NotificationsService } from '../services/notifications.service';
+import { ClickOutsideDirective } from '../directives/click-outside.directive';
 
 @Component({
   selector: 'app-notification-bell',
   standalone: true,
-  imports: [RouterLink],
+  imports: [RouterLink, ClickOutsideDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="relative">
+    <div class="relative" appClickOutside (appClickOutside)="close()">
       <button
         type="button"
         (click)="toggle()"
@@ -26,7 +27,6 @@ import { NotificationsService } from '../services/notifications.service';
       </button>
 
       @if (open()) {
-        <div class="fixed inset-0 z-30" (click)="close()"></div>
         <div class="absolute right-0 z-40 mt-2 w-80 overflow-hidden rounded-lg border border-default bg-surface shadow-raised">
           <div class="flex items-center justify-between border-b border-default px-4 py-2.5">
             <p class="text-sm font-semibold text-text">Notificaciones</p>

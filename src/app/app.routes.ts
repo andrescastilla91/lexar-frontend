@@ -4,8 +4,10 @@ import { platformAdminGuard } from './core/guards/platform-admin.guard';
 import { chatbotFeatureGuard } from './core/guards/feature-flag.guard';
 import { emailVerifiedGuard } from './core/guards/email-verified.guard';
 import { twoFactorRequiredGuard } from './core/guards/two-factor-required.guard';
+import { portalAuthGuard } from './core/guards/portal-auth.guard';
 import { MainLayoutComponent } from './layout/main-layout.component';
 import { AdminLayoutComponent } from './layout/admin-layout.component';
+import { PortalLayoutComponent } from './layout/portal-layout.component';
 
 export const routes: Routes = [
 	{
@@ -147,6 +149,14 @@ export const routes: Routes = [
 				loadComponent: () => import('./features/processes/processes.component').then((m) => m.ProcessesComponent),
 			},
 			{
+				path: 'calendario',
+				loadComponent: () => import('./features/calendar/calendar.component').then((m) => m.CalendarComponent),
+			},
+			{
+				path: 'tareas',
+				loadComponent: () => import('./features/tasks/tasks.component').then((m) => m.TasksComponent),
+			},
+			{
 				path: 'documentos',
 				loadComponent: () => import('./features/documents/documents.component').then((m) => m.DocumentsComponent),
 			},
@@ -159,6 +169,56 @@ export const routes: Routes = [
 				path: '',
 				pathMatch: 'full',
 				redirectTo: 'dashboard',
+			},
+		],
+	},
+	// F16: portal del cliente — actor y layout completamente separados del
+	{
+		path: 'portal/login',
+		loadComponent: () => import('./features/portal/login/portal-login.component').then((m) => m.PortalLoginComponent),
+	},
+	{
+		path: 'portal/activar-cuenta',
+		loadComponent: () =>
+			import('./features/portal/activar-cuenta/portal-activar-cuenta.component').then(
+				(m) => m.PortalActivarCuentaComponent,
+			),
+	},
+	{
+		path: 'portal/recuperar',
+		loadComponent: () =>
+			import('./features/portal/forgot-password/portal-forgot-password.component').then(
+				(m) => m.PortalForgotPasswordComponent,
+			),
+	},
+	{
+		path: 'portal/restablecer',
+		loadComponent: () =>
+			import('./features/portal/reset-password/portal-reset-password.component').then(
+				(m) => m.PortalResetPasswordComponent,
+			),
+	},
+	{
+		path: 'portal',
+		component: PortalLayoutComponent,
+		canActivate: [portalAuthGuard],
+		children: [
+			{
+				path: 'procesos',
+				loadComponent: () =>
+					import('./features/portal/procesos/portal-procesos.component').then((m) => m.PortalProcesosComponent),
+			},
+			{
+				path: 'procesos/:id',
+				loadComponent: () =>
+					import('./features/portal/proceso-detalle/portal-proceso-detalle.component').then(
+						(m) => m.PortalProcesoDetalleComponent,
+					),
+			},
+			{
+				path: '',
+				pathMatch: 'full',
+				redirectTo: 'procesos',
 			},
 		],
 	},

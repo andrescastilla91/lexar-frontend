@@ -76,13 +76,18 @@ describe('authInterceptor', () => {
     expect(error?.status).toBe(401);
   });
 
-  it('en 401 de un endpoint de auth, redirige a login sin intentar refresh', () => {
+  it('en 401 de un endpoint de auth, no navega ni intenta refresh (evita secuestrar la navegación inicial en páginas públicas)', () => {
+    // Bug corregido 2026-08-06: esta rama también se dispara cuando la
+    // petición es el refresh recursivo lanzado por la sonda /auth/me en
+    // CADA carga de página — navegar aquí sacaba a cualquier visitante
+    // anónimo de páginas públicas que no fueran /login (portal/login,
+    // portal/activar-cuenta, admin/login...). Ver auth.interceptor.ts.
     let error: { status: number } | undefined;
 
     http.post('/api/auth/login', {}).subscribe({ error: (e) => (error = e) });
     httpMock.expectOne('/api/auth/login').flush('unauthorized', { status: 401, statusText: 'Unauthorized' });
 
-    expect(routerMock.navigate).toHaveBeenCalledWith(['/login']);
+    expect(routerMock.navigate).not.toHaveBeenCalled();
     expect(authServiceMock.refreshToken).not.toHaveBeenCalled();
     expect(error?.status).toBe(401);
   });
@@ -107,6 +112,27 @@ describe('authInterceptor', () => {
     httpMock.expectOne('/api/clients').flush('unauthorized', { status: 401, statusText: 'Unauthorized' });
 
     expect(routerMock.navigate).toHaveBeenCalledWith(['/login']);
+    expect(error?.status).toBe(401);
+  });
+
+  it('en 401 de /admin/auth/me (sonda de sesión de platform-admin) no navega — puede ser cualquier visitante anónimo', () => {
+    let error: { status: number } | undefined;
+
+    http.get('/api/admin/auth/me').subscribe({ error: (e) => (error = e) });
+    httpMock.expectOne('/api/admin/auth/me').flush('unauthorized', { status: 401, statusText: 'Unauthorized' });
+
+    expect(routerMock.navigate).not.toHaveBeenCalled();
+    expect(authServiceMock.refreshToken).not.toHaveBeenCalled();
+    expect(error?.status).toBe(401);
+  });
+
+  it('en 401 de una acción real de admin, sí redirige a /admin/login', () => {
+    let error: { status: number } | undefined;
+
+    http.get('/api/admin/tenants').subscribe({ error: (e) => (error = e) });
+    httpMock.expectOne('/api/admin/tenants').flush('unauthorized', { status: 401, statusText: 'Unauthorized' });
+
+    expect(routerMock.navigate).toHaveBeenCalledWith(['/admin/login']);
     expect(error?.status).toBe(401);
   });
 });

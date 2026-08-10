@@ -1,5 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { of, throwError } from 'rxjs';
 import { signal } from '@angular/core';
 import { MainLayoutComponent } from './main-layout.component';
@@ -37,6 +39,8 @@ describe('MainLayoutComponent — banner de impersonación (F9)', () => {
       imports: [MainLayoutComponent],
       providers: [
         provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
         { provide: AuthService, useValue: authServiceMock },
         { provide: PermissionsService, useValue: { hasAnyPermission: jest.fn().mockReturnValue(true), hasPermission: jest.fn().mockReturnValue(false) } },
         { provide: ProfileService, useValue: { updateMe: jest.fn().mockReturnValue(of(undefined)) } },
@@ -104,5 +108,23 @@ describe('MainLayoutComponent — banner de impersonación (F9)', () => {
     component.exitImpersonation();
 
     expect(navigateSpy).toHaveBeenCalledWith(['/admin/tenants']);
+  });
+
+  // Bug corregido 2026-08-05: el <aside> no tenía `shrink-0` y el contenedor
+  // de contenido no tenía `min-w-0`, así que un contenido ancho (ej. la
+  // tabla de asesores) hacía que el navegador encogiera el sidebar en vez
+  // de dejar que el contenido generara su propio scroll horizontal. jsdom
+  // no calcula flexbox real, así que este test solo puede verificar que las
+  // clases siguen presentes (guarda barata) — la verificación visual real
+  // vive en el test de Playwright a nivel de viewport.
+  it('el aside mantiene un ancho fijo (shrink-0) y el contenedor de contenido puede encogerse (min-w-0)', () => {
+    configure({ email: 'admin@bufete.com', roles: ['ADMIN'], permissions: [] });
+    const { fixture } = createComponent();
+
+    const aside = fixture.nativeElement.querySelector('aside');
+    const contentColumn = aside?.nextElementSibling;
+
+    expect(aside?.className).toContain('shrink-0');
+    expect(contentColumn?.className).toContain('min-w-0');
   });
 });

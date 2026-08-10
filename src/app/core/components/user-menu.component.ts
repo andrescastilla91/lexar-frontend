@@ -1,14 +1,15 @@
 import { ChangeDetectionStrategy, Component, input, output, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AvatarComponent } from './avatar.component';
+import { ClickOutsideDirective } from '../directives/click-outside.directive';
 
 @Component({
   selector: 'app-user-menu',
   standalone: true,
-  imports: [RouterLink, AvatarComponent],
+  imports: [RouterLink, AvatarComponent, ClickOutsideDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="relative">
+    <div class="relative" appClickOutside (appClickOutside)="close()">
       <button
         type="button"
         (click)="toggle()"
@@ -25,7 +26,6 @@ import { AvatarComponent } from './avatar.component';
       </button>
 
       @if (open()) {
-        <div class="fixed inset-0 z-30" (click)="close()"></div>
         <div class="absolute right-0 z-40 mt-2 w-60 overflow-hidden rounded-lg border border-default bg-surface shadow-raised">
           @if (companyName()) {
             <div class="flex items-center gap-2 border-b border-default bg-surface-muted px-4 py-2.5">

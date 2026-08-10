@@ -1,4 +1,12 @@
-import { Component, computed, inject, signal, OnInit, OnDestroy } from '@angular/core';
+import {
+  Component,
+  computed,
+  inject,
+  signal,
+  OnInit,
+  OnDestroy,
+} from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { LegalProcessesService } from '../../core/services/legal-processes.service';
@@ -6,10 +14,24 @@ import { ProcessEventsService } from '../../core/services/process-events.service
 import { AdvisorsService } from '../../core/services/advisors.service';
 import { ClientsService } from '../../core/services/clients.service';
 import { FilesService } from '../../core/services/files.service';
+import { DeadlinesService } from '../../core/services/deadlines.service';
+import { TasksService } from '../../core/services/tasks.service';
+import { TaskStatusesService } from '../../core/services/task-statuses.service';
 import { AdvisorResponse } from '../../core/models/advisor-backend.model';
 import { ClientResponse } from '../../core/models/client-backend.model';
 import { CatalogsService } from '../../core/services/catalogs.service';
 import { CatalogItem } from '../../core/models/catalog-backend.model';
+import {
+  CreateDeadlineRequest,
+  DeadlineResponse,
+  DeadlineStatus,
+} from '../../core/models/deadline.model';
+import {
+  CreateTaskRequest,
+  TaskResponse,
+  TaskTemplateResponse,
+} from '../../core/models/task.model';
+import { TaskStatusResponse } from '../../core/models/task-status.model';
 import { PaginationComponent } from '../../core/components/pagination.component';
 import { FilePreviewModalComponent } from '../../core/components/file-preview-modal.component';
 import { forkJoin, of, Subscription } from 'rxjs';
@@ -23,12 +45,19 @@ import {
 } from '../../core/models/legal-process.model';
 import { ProcessEvent } from '../../core/models/process-event.model';
 import { ConfirmDialogService } from '../../core/services/confirm-dialog.service';
+import { ToastService } from '../../core/services/toast.service';
 import { ProcessesTableComponent } from './components/processes-table.component';
 import { ProcessFormComponent } from './components/process-form.component';
 import { ProcessStatusModalComponent } from './components/process-status-modal.component';
 import { ProcessAnnotationModalComponent } from './components/process-annotation-modal.component';
 import { ProcessHistoryModalComponent } from './components/process-history-modal.component';
-import { getStatusLabel, getValidNextStatuses, isProcessEditable } from './utils/process-format.utils';
+import { ProcessDeadlinesModalComponent } from './components/process-deadlines-modal.component';
+import { ProcessTasksModalComponent } from './components/process-tasks-modal.component';
+import {
+  getStatusLabel,
+  getValidNextStatuses,
+  isProcessEditable,
+} from './utils/process-format.utils';
 
 @Component({
   selector: 'app-processes',
@@ -41,23 +70,41 @@ import { getStatusLabel, getValidNextStatuses, isProcessEditable } from './utils
     ProcessStatusModalComponent,
     ProcessAnnotationModalComponent,
     ProcessHistoryModalComponent,
+    ProcessDeadlinesModalComponent,
+    ProcessTasksModalComponent,
     FilePreviewModalComponent,
   ],
   template: `
     <div class="space-y-8">
       <!-- Header -->
-      <header class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <header
+        class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
+      >
         <div>
-          <h2 class="text-2xl font-semibold text-text">Procesos judiciales y administrativos</h2>
-          <p class="text-sm text-subtle">Monitorea etapas, responsables y niveles de riesgo procesal.</p>
+          <h2 class="text-2xl font-semibold text-text">
+            Procesos judiciales y administrativos
+          </h2>
+          <p class="text-sm text-subtle">
+            Monitorea etapas, responsables y niveles de riesgo procesal.
+          </p>
         </div>
         <button
           type="button"
           class="flex items-center gap-2 rounded-md bg-navy-900 px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:bg-navy-950"
           (click)="togglePanel()"
         >
-          <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          <svg
+            class="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M12 4.5v15m7.5-7.5h-15"
+            />
           </svg>
           Nuevo proceso
         </button>
@@ -89,7 +136,9 @@ import { getStatusLabel, getValidNextStatuses, isProcessEditable } from './utils
                 <option [value]="null">Todos</option>
                 <option [value]="ProcessStatus.DRAFT">Borrador</option>
                 <option [value]="ProcessStatus.ACTIVE">Activo</option>
-                <option [value]="ProcessStatus.UNDER_REVIEW">En Revisión</option>
+                <option [value]="ProcessStatus.UNDER_REVIEW">
+                  En Revisión
+                </option>
                 <option [value]="ProcessStatus.SUSPENDED">Suspendido</option>
                 <option [value]="ProcessStatus.COMPLETED">Completado</option>
                 <option [value]="ProcessStatus.CANCELLED">Cancelado</option>
@@ -166,6 +215,45 @@ import { getStatusLabel, getValidNextStatuses, isProcessEditable } from './utils
         (close)="closeHistoryModal()"
         (previewFile)="previewFileFromHistory($event.fileId, $event.filename)"
         (downloadFile)="downloadFile($event)"
+        (toggleVisibility)="toggleEventVisibility($event)"
+      />
+
+      <!-- HU F13: Modal de plazos y audiencias -->
+      <app-process-deadlines-modal
+        [isOpen]="deadlinesModalOpen()"
+        [processTitle]="editingProcess()?.title ?? null"
+        [isLoading]="isLoadingDeadlines()"
+        [isSubmitting]="isSubmittingDeadline()"
+        [errorMessage]="deadlineFormError()"
+        [deadlines]="processDeadlines()"
+        [deadlineTypes]="deadlineTypes()"
+        [advisors]="editingProcess()?.advisors ?? []"
+        [form]="deadlineForm"
+        (close)="closeDeadlinesModal()"
+        (submit)="submitDeadline()"
+        (toggleAssignee)="toggleDeadlineAssignee($event)"
+        (markDone)="markDeadlineDone($event)"
+        (deleteDeadline)="deleteDeadlineItem($event)"
+      />
+
+      <!-- F14: Modal de tareas -->
+      <app-process-tasks-modal
+        [isOpen]="tasksModalOpen()"
+        [processTitle]="editingProcess()?.title ?? null"
+        [isLoading]="isLoadingTasks()"
+        [isSubmitting]="isSubmittingTask()"
+        [isInstantiating]="isInstantiatingTemplate()"
+        [errorMessage]="taskFormError()"
+        [tasks]="processTasks()"
+        [advisors]="editingProcess()?.advisors ?? []"
+        [templates]="taskTemplates()"
+        [statuses]="taskStatuses()"
+        [form]="taskForm"
+        (close)="closeTasksModal()"
+        (submit)="submitTask()"
+        (taskUpdated)="onProcessTaskUpdated($event)"
+        (deleteTask)="deleteTaskItem($event)"
+        (instantiateTemplate)="instantiateTaskTemplate($event)"
       />
 
       <!-- File Preview Modal -->
@@ -197,6 +285,8 @@ import { getStatusLabel, getValidNextStatuses, isProcessEditable } from './utils
         (edit)="editProcess($event)"
         (changeStatus)="openStatusModal($event)"
         (viewHistory)="openHistoryModal($event)"
+        (viewDeadlines)="openDeadlinesModal($event)"
+        (viewTasks)="openTasksModal($event)"
         (annotate)="openAnnotationModal($event)"
         (delete)="deleteProcess($event)"
       />
@@ -225,8 +315,14 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   private readonly clientsService = inject(ClientsService);
   private readonly catalogsService = inject(CatalogsService);
   private readonly filesService = inject(FilesService);
+  private readonly deadlinesService = inject(DeadlinesService);
+  private readonly tasksService = inject(TasksService);
+  private readonly taskStatusesService = inject(TaskStatusesService);
   private readonly sanitizer = inject(DomSanitizer);
   private readonly confirmDialog = inject(ConfirmDialogService);
+  private readonly toast = inject(ToastService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
 
   private fileDeletedSubscription?: Subscription;
 
@@ -239,6 +335,20 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   readonly clients = signal<ClientResponse[]>([]);
   readonly stages = signal<CatalogItem[]>([]);
   readonly riskLevels = signal<CatalogItem[]>([]);
+  readonly deadlineTypes = signal<CatalogItem[]>([]); // F13
+  readonly deadlinesModalOpen = signal(false); // F13
+  readonly processDeadlines = signal<DeadlineResponse[]>([]); // F13
+  readonly isLoadingDeadlines = signal(false); // F13
+  readonly isSubmittingDeadline = signal(false); // F13
+  readonly deadlineFormError = signal<string | null>(null); // F13
+  readonly tasksModalOpen = signal(false); // F14
+  readonly processTasks = signal<TaskResponse[]>([]); // F14
+  readonly taskTemplates = signal<TaskTemplateResponse[]>([]); // F14
+  readonly taskStatuses = signal<TaskStatusResponse[]>([]); // F14
+  readonly isLoadingTasks = signal(false); // F14
+  readonly isSubmittingTask = signal(false); // F14
+  readonly isInstantiatingTemplate = signal(false); // F14
+  readonly taskFormError = signal<string | null>(null); // F14
   readonly isLoading = signal(false);
   readonly formError = signal<string | null>(null);
   readonly panelOpen = signal(false);
@@ -249,7 +359,12 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   readonly editingProcess = signal<LegalProcessResponse | null>(null);
   readonly processHistory = signal<ProcessEvent[]>([]); // HU-17
   readonly isLoadingHistory = signal(false); // HU-17
-  readonly previewingFile = signal<{ id: string; originalFilename: string; isImage: boolean; isPdf: boolean } | null>(null);
+  readonly previewingFile = signal<{
+    id: string;
+    originalFilename: string;
+    isImage: boolean;
+    isPdf: boolean;
+  } | null>(null);
   readonly previewUrl = signal<SafeResourceUrl | null>(null);
   readonly currentPage = signal(1);
   readonly totalItems = signal(0);
@@ -290,7 +405,9 @@ export class ProcessesComponent implements OnInit, OnDestroy {
 
   readonly pageSize = 10;
 
-  readonly totalPages = computed(() => Math.ceil(this.totalItems() / this.pageSize));
+  readonly totalPages = computed(() =>
+    Math.ceil(this.totalItems() / this.pageSize),
+  );
 
   // Forms
   readonly filterForm = this.fb.nonNullable.group({
@@ -310,7 +427,6 @@ export class ProcessesComponent implements OnInit, OnDestroy {
     court: [''],
     caseNumber: [''],
     startDate: [''],
-    nextHearingDate: [''],
     endDate: [''],
   });
 
@@ -324,16 +440,42 @@ export class ProcessesComponent implements OnInit, OnDestroy {
     description: ['', [Validators.required, Validators.maxLength(2000)]],
   });
 
+  // F13: Formulario de creación de plazos
+  readonly deadlineForm = this.fb.nonNullable.group({
+    title: ['', [Validators.required, Validators.maxLength(200)]],
+    typeId: ['', [Validators.required]],
+    dueAt: ['', [Validators.required]],
+    allDay: [false],
+    notes: [''],
+    assigneeUserIds: [[] as string[]],
+  });
+
+  // F14: Formulario de creación de tareas
+  readonly taskForm = this.fb.nonNullable.group({
+    title: ['', [Validators.required, Validators.maxLength(200)]],
+    assigneeUserId: [''],
+    dueAt: [''],
+  });
+
   constructor() {
     this.loadProcesses();
     this.loadAdvisors();
     this.loadClients();
     this.loadCatalogs();
+    this.loadTaskTemplates();
+    this.loadTaskStatuses();
   }
 
   loadCatalogs(): void {
-    this.catalogsService.getActiveCatalog('process_stage').subscribe((items) => this.stages.set(items));
-    this.catalogsService.getActiveCatalog('risk_level').subscribe((items) => this.riskLevels.set(items));
+    this.catalogsService
+      .getActiveCatalog('process_stage')
+      .subscribe((items) => this.stages.set(items));
+    this.catalogsService
+      .getActiveCatalog('risk_level')
+      .subscribe((items) => this.riskLevels.set(items));
+    this.catalogsService
+      .getActiveCatalog('deadline_type')
+      .subscribe((items) => this.deadlineTypes.set(items));
   }
 
   loadProcesses(): void {
@@ -421,7 +563,6 @@ export class ProcessesComponent implements OnInit, OnDestroy {
         court: '',
         caseNumber: '',
         startDate: '',
-        nextHearingDate: '',
         endDate: '',
       });
       // Habilitar todos los campos para nuevo proceso
@@ -458,7 +599,6 @@ export class ProcessesComponent implements OnInit, OnDestroy {
       court: formValue.court || undefined,
       caseNumber: formValue.caseNumber || undefined,
       startDate: formValue.startDate || undefined,
-      nextHearingDate: formValue.nextHearingDate || undefined,
       endDate: formValue.endDate || undefined,
       clientId: formValue.clientId,
       // Se envía siempre el array real: omitirlo cuando queda vacío hace que el backend nunca toque la relación.
@@ -467,13 +607,19 @@ export class ProcessesComponent implements OnInit, OnDestroy {
 
     // El estado solo se incluye al crear (siempre DRAFT)
     // Al editar, el estado se cambia mediante el modal dedicado
-    const request: CreateLegalProcessRequest | UpdateLegalProcessRequest = this.editingProcess()
-      ? baseRequest
-      : { ...baseRequest, status: ProcessStatus.DRAFT };
+    const request: CreateLegalProcessRequest | UpdateLegalProcessRequest =
+      this.editingProcess()
+        ? baseRequest
+        : { ...baseRequest, status: ProcessStatus.DRAFT };
 
     const operation = this.editingProcess()
-      ? this.legalProcessesService.updateLegalProcess(this.editingProcess()!.id, request)
-      : this.legalProcessesService.createLegalProcess(request as CreateLegalProcessRequest);
+      ? this.legalProcessesService.updateLegalProcess(
+          this.editingProcess()!.id,
+          request,
+        )
+      : this.legalProcessesService.createLegalProcess(
+          request as CreateLegalProcessRequest,
+        );
 
     operation.subscribe({
       next: () => {
@@ -483,7 +629,9 @@ export class ProcessesComponent implements OnInit, OnDestroy {
       },
       error: (error) => {
         console.error('Error saving process:', error);
-        this.formError.set(error.error?.message || 'Error al guardar el proceso');
+        this.formError.set(
+          error.error?.message || 'Error al guardar el proceso',
+        );
         this.isLoading.set(false);
       },
     });
@@ -501,9 +649,12 @@ export class ProcessesComponent implements OnInit, OnDestroy {
       riskLevelId: process.riskLevel?.id || '',
       court: process.court || '',
       caseNumber: process.caseNumber || '',
-      startDate: process.startDate ? new Date(process.startDate).toISOString().slice(0, 10) : '',
-      nextHearingDate: process.nextHearingDate ? new Date(process.nextHearingDate).toISOString().slice(0, 10) : '',
-      endDate: process.endDate ? new Date(process.endDate).toISOString().slice(0, 10) : '',
+      startDate: process.startDate
+        ? new Date(process.startDate).toISOString().slice(0, 10)
+        : '',
+      endDate: process.endDate
+        ? new Date(process.endDate).toISOString().slice(0, 10)
+        : '',
     });
     this.configureEditableFields(process.status);
     this.panelOpen.set(true);
@@ -552,6 +703,36 @@ export class ProcessesComponent implements OnInit, OnDestroy {
         this.isLoadingHistory.set(false);
       },
     });
+  }
+
+  // F16: toggle "compartir con cliente" desde el modal de historial
+  toggleEventVisibility(event: {
+    eventId: string;
+    visibleToClient: boolean;
+  }): void {
+    const processId = this.editingProcess()?.id;
+    if (!processId) {
+      return;
+    }
+    this.processEventsService
+      .setEventVisibility(processId, event.eventId, event.visibleToClient)
+      .subscribe({
+        next: () => {
+          this.processHistory.update((events) =>
+            events.map((e) =>
+              e.id === event.eventId
+                ? { ...e, visibleToClient: event.visibleToClient }
+                : e,
+            ),
+          );
+        },
+        error: (error) => {
+          console.error(
+            'Error al actualizar la visibilidad del evento:',
+            error,
+          );
+        },
+      });
   }
 
   // HU-16: Abrir modal de anotación
@@ -616,7 +797,13 @@ export class ProcessesComponent implements OnInit, OnDestroy {
           const annotationEventId = annotationEvent.id;
           // Subir todos los archivos en paralelo, vinculados a la anotación
           const uploads = files.map((file) =>
-            this.filesService.uploadFile(file, 'legal_process', processId, undefined, annotationEventId),
+            this.filesService.uploadFile(
+              file,
+              'legal_process',
+              processId,
+              undefined,
+              annotationEventId,
+            ),
           );
           return forkJoin(uploads);
         }),
@@ -632,10 +819,309 @@ export class ProcessesComponent implements OnInit, OnDestroy {
         },
         error: (error) => {
           console.error('Error creating annotation:', error);
-          this.formError.set(error.error?.message || 'Error al crear anotación o subir archivos');
+          this.formError.set(
+            error.error?.message || 'Error al crear anotación o subir archivos',
+          );
           this.isLoading.set(false);
         },
       });
+  }
+
+  // F13: Abrir modal de plazos y audiencias
+  openDeadlinesModal(process: LegalProcessResponse): void {
+    this.editingProcess.set(process);
+    this.deadlinesModalOpen.set(true);
+    this.deadlineFormError.set(null);
+    this.deadlineForm.reset({
+      title: '',
+      typeId: '',
+      dueAt: '',
+      allDay: false,
+      notes: '',
+      assigneeUserIds: [],
+    });
+    this.loadProcessDeadlines(process.id);
+  }
+
+  // F13: Cerrar modal de plazos y audiencias
+  closeDeadlinesModal(): void {
+    this.deadlinesModalOpen.set(false);
+    this.editingProcess.set(null);
+    this.processDeadlines.set([]);
+    this.deadlineFormError.set(null);
+  }
+
+  // F13: Cargar plazos del proceso
+  loadProcessDeadlines(processId: string): void {
+    this.isLoadingDeadlines.set(true);
+    this.deadlinesService.getForProcess(processId).subscribe({
+      next: (deadlines) => {
+        this.processDeadlines.set(deadlines);
+        this.isLoadingDeadlines.set(false);
+      },
+      error: (error) => {
+        console.error('Error loading process deadlines:', error);
+        this.toast.error('Error al cargar los plazos del proceso');
+        this.isLoadingDeadlines.set(false);
+      },
+    });
+  }
+
+  // F13: Alternar asignación de un asesor al nuevo plazo
+  toggleDeadlineAssignee(userId: string): void {
+    const currentIds = this.deadlineForm.get('assigneeUserIds')?.value || [];
+    const index = currentIds.indexOf(userId);
+
+    if (index > -1) {
+      this.deadlineForm.patchValue({
+        assigneeUserIds: currentIds.filter((id: string) => id !== userId),
+      });
+    } else {
+      this.deadlineForm.patchValue({
+        assigneeUserIds: [...currentIds, userId],
+      });
+    }
+  }
+
+  // F13: Crear plazo para el proceso en edición
+  submitDeadline(): void {
+    if (this.isSubmittingDeadline() || !this.editingProcess()) {
+      return;
+    }
+
+    if (this.deadlineForm.invalid) {
+      this.deadlineForm.markAllAsTouched();
+      this.deadlineFormError.set('Completa los campos obligatorios.');
+      return;
+    }
+
+    this.isSubmittingDeadline.set(true);
+    this.deadlineFormError.set(null);
+    const processId = this.editingProcess()!.id;
+    const formValue = this.deadlineForm.getRawValue();
+
+    const request: CreateDeadlineRequest = {
+      title: formValue.title,
+      typeId: formValue.typeId,
+      dueAt: new Date(formValue.dueAt).toISOString(),
+      allDay: formValue.allDay,
+      notes: formValue.notes || undefined,
+      assigneeUserIds: formValue.assigneeUserIds,
+    };
+
+    this.deadlinesService.create(processId, request).subscribe({
+      next: () => {
+        this.isSubmittingDeadline.set(false);
+        this.toast.success('Plazo creado correctamente.');
+        this.deadlineForm.reset({
+          title: '',
+          typeId: '',
+          dueAt: '',
+          allDay: false,
+          notes: '',
+          assigneeUserIds: [],
+        });
+        this.loadProcessDeadlines(processId);
+        this.loadProcesses();
+      },
+      error: (error) => {
+        console.error('Error creating deadline:', error);
+        this.deadlineFormError.set(error.message || 'Error al crear el plazo');
+        this.toast.error(error.message || 'Error al crear el plazo');
+        this.isSubmittingDeadline.set(false);
+      },
+    });
+  }
+
+  // F13: Marcar un plazo como completado
+  markDeadlineDone(deadline: DeadlineResponse): void {
+    this.deadlinesService
+      .update(deadline.id, { status: DeadlineStatus.DONE })
+      .subscribe({
+        next: () => {
+          this.toast.success('Plazo marcado como completado.');
+          this.loadProcessDeadlines(deadline.processId);
+          this.loadProcesses();
+        },
+        error: (error) => {
+          console.error('Error updating deadline:', error);
+          this.toast.error(error.message || 'Error al actualizar el plazo');
+        },
+      });
+  }
+
+  // F13: Eliminar un plazo
+  async deleteDeadlineItem(deadline: DeadlineResponse): Promise<void> {
+    const confirmed = await this.confirmDialog.confirm({
+      title: 'Eliminar plazo',
+      message: `¿Estás seguro de eliminar el plazo "${deadline.title}"?`,
+      danger: true,
+    });
+    if (!confirmed) {
+      return;
+    }
+
+    this.deadlinesService.delete(deadline.id).subscribe({
+      next: () => {
+        this.toast.success('Plazo eliminado correctamente.');
+        this.loadProcessDeadlines(deadline.processId);
+        this.loadProcesses();
+      },
+      error: (error) => {
+        console.error('Error deleting deadline:', error);
+        this.toast.error(error.message || 'Error al eliminar el plazo');
+      },
+    });
+  }
+
+  // F14: Plantillas disponibles para instanciar (independiente del proceso)
+  loadTaskStatuses(): void {
+    this.taskStatusesService.getAll().subscribe({
+      next: (statuses) => this.taskStatuses.set(statuses),
+      error: (error) => console.error('Error loading task statuses:', error),
+    });
+  }
+
+  loadTaskTemplates(): void {
+    this.tasksService.getTemplates().subscribe({
+      next: (templates) => this.taskTemplates.set(templates),
+      error: (error) => console.error('Error loading task templates:', error),
+    });
+  }
+
+  // F14: Abrir modal de tareas
+  openTasksModal(process: LegalProcessResponse): void {
+    this.editingProcess.set(process);
+    this.tasksModalOpen.set(true);
+    this.taskFormError.set(null);
+    this.taskForm.reset({ title: '', assigneeUserId: '', dueAt: '' });
+    this.loadProcessTasks(process.id);
+  }
+
+  // F14: Cerrar modal de tareas
+  closeTasksModal(): void {
+    this.tasksModalOpen.set(false);
+    this.editingProcess.set(null);
+    this.processTasks.set([]);
+    this.taskFormError.set(null);
+  }
+
+  // F14: Cargar tareas del proceso
+  loadProcessTasks(processId: string): void {
+    this.isLoadingTasks.set(true);
+    this.tasksService.getForProcess(processId).subscribe({
+      next: (tasks) => {
+        this.processTasks.set(tasks);
+        this.isLoadingTasks.set(false);
+      },
+      error: (error) => {
+        console.error('Error loading process tasks:', error);
+        this.toast.error('Error al cargar las tareas del proceso');
+        this.isLoadingTasks.set(false);
+      },
+    });
+  }
+
+  // F14: Crear tarea para el proceso en edición
+  submitTask(): void {
+    if (this.isSubmittingTask() || !this.editingProcess()) {
+      return;
+    }
+
+    if (this.taskForm.invalid) {
+      this.taskForm.markAllAsTouched();
+      this.taskFormError.set('Completa los campos obligatorios.');
+      return;
+    }
+
+    this.isSubmittingTask.set(true);
+    this.taskFormError.set(null);
+    const processId = this.editingProcess()!.id;
+    const formValue = this.taskForm.getRawValue();
+
+    const request: CreateTaskRequest = {
+      title: formValue.title,
+      processId,
+      assigneeUserId: formValue.assigneeUserId || undefined,
+      dueAt: formValue.dueAt
+        ? new Date(formValue.dueAt).toISOString()
+        : undefined,
+    };
+
+    this.tasksService.create(request).subscribe({
+      next: () => {
+        this.isSubmittingTask.set(false);
+        this.toast.success('Tarea creada correctamente.');
+        this.taskForm.reset({ title: '', assigneeUserId: '', dueAt: '' });
+        this.loadProcessTasks(processId);
+      },
+      error: (error) => {
+        console.error('Error creating task:', error);
+        this.taskFormError.set(error.message || 'Error al crear la tarea');
+        this.toast.error(error.message || 'Error al crear la tarea');
+        this.isSubmittingTask.set(false);
+      },
+    });
+  }
+
+  // F14: TaskStatusControlComponent (dentro del modal) ya hizo el PATCH y
+  // mostró el toast — aquí solo se refleja el resultado en la lista local.
+  onProcessTaskUpdated(updated: TaskResponse): void {
+    this.processTasks.update((tasks) =>
+      tasks.map((t) => (t.id === updated.id ? updated : t)),
+    );
+  }
+
+  // F14: Eliminar una tarea
+  async deleteTaskItem(task: TaskResponse): Promise<void> {
+    if (task.status.isTerminal) {
+      return;
+    }
+    const confirmed = await this.confirmDialog.confirm({
+      title: 'Eliminar tarea',
+      message: `¿Estás seguro de eliminar la tarea "${task.title}"?`,
+      danger: true,
+    });
+    if (!confirmed) {
+      return;
+    }
+
+    this.tasksService.delete(task.id).subscribe({
+      next: () => {
+        this.toast.success('Tarea eliminada correctamente.');
+        if (task.processId) {
+          this.loadProcessTasks(task.processId);
+        }
+      },
+      error: (error) => {
+        console.error('Error deleting task:', error);
+        this.toast.error(error.message || 'Error al eliminar la tarea');
+      },
+    });
+  }
+
+  // F14: Instanciar una plantilla de tareas en el proceso en edición
+  instantiateTaskTemplate(templateId: string): void {
+    const process = this.editingProcess();
+    if (!process || !templateId || this.isInstantiatingTemplate()) {
+      return;
+    }
+
+    this.isInstantiatingTemplate.set(true);
+    this.tasksService.instantiateTemplate(process.id, templateId).subscribe({
+      next: (tasks) => {
+        this.isInstantiatingTemplate.set(false);
+        this.toast.success(
+          `Se crearon ${tasks.length} tarea(s) desde la plantilla.`,
+        );
+        this.loadProcessTasks(process.id);
+      },
+      error: (error) => {
+        console.error('Error instantiating task template:', error);
+        this.toast.error(error.message || 'Error al instanciar la plantilla');
+        this.isInstantiatingTemplate.set(false);
+      },
+    });
   }
 
   async updateStatus(): Promise<void> {
@@ -663,18 +1149,22 @@ export class ProcessesComponent implements OnInit, OnDestroy {
     this.isLoading.set(true);
     this.formError.set(null);
 
-    this.legalProcessesService.updateProcessStatus(this.editingProcess()!.id, request).subscribe({
-      next: () => {
-        this.isLoading.set(false);
-        this.closeStatusModal();
-        this.loadProcesses();
-      },
-      error: (error) => {
-        console.error('Error updating status:', error);
-        this.formError.set(error.error?.message || 'Error al actualizar el estado');
-        this.isLoading.set(false);
-      },
-    });
+    this.legalProcessesService
+      .updateProcessStatus(this.editingProcess()!.id, request)
+      .subscribe({
+        next: () => {
+          this.isLoading.set(false);
+          this.closeStatusModal();
+          this.loadProcesses();
+        },
+        error: (error) => {
+          console.error('Error updating status:', error);
+          this.formError.set(
+            error.error?.message || 'Error al actualizar el estado',
+          );
+          this.isLoading.set(false);
+        },
+      });
   }
 
   async deleteProcess(process: LegalProcessResponse): Promise<void> {
@@ -798,7 +1288,9 @@ export class ProcessesComponent implements OnInit, OnDestroy {
           isImage: contentType.startsWith('image/'),
           isPdf: contentType === 'application/pdf',
         });
-        this.previewUrl.set(this.sanitizer.bypassSecurityTrustResourceUrl(response.url));
+        this.previewUrl.set(
+          this.sanitizer.bypassSecurityTrustResourceUrl(response.url),
+        );
       },
       error: (error) => {
         console.error('Error al obtener URL del archivo:', error);
@@ -835,11 +1327,33 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   // Lifecycle hooks
   ngOnInit(): void {
     // Suscribirse a eventos de eliminación de archivos para sincronizar vistas
-    this.fileDeletedSubscription = this.filesService.fileDeleted$.subscribe(() => {
-      // Si el modal de historial está abierto, recargar el historial del proceso actual
-      if (this.historyModalOpen() && this.editingProcess()) {
-        this.loadProcessHistory(this.editingProcess()!.id);
-      }
+    this.fileDeletedSubscription = this.filesService.fileDeleted$.subscribe(
+      () => {
+        // Si el modal de historial está abierto, recargar el historial del proceso actual
+        if (this.historyModalOpen() && this.editingProcess()) {
+          this.loadProcessHistory(this.editingProcess()!.id);
+        }
+      },
+    );
+
+    this.openFromQueryParam();
+  }
+
+  /** F18 — al llegar desde un resultado de búsqueda global (?openId=), abre
+   * el panel de edición de ese proceso aunque no esté en la página cargada. */
+  private openFromQueryParam(): void {
+    const openId = this.route.snapshot.queryParamMap.get('openId');
+    if (!openId) {
+      return;
+    }
+    this.legalProcessesService.getLegalProcess(openId).subscribe({
+      next: (process) => this.editProcess(process),
+      error: () => {},
+    });
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: {},
+      replaceUrl: true,
     });
   }
 

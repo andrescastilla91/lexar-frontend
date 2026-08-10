@@ -34,4 +34,16 @@ export class ProcessEventsService {
       .get<ProcessHistoryResponse>(`${this.apiUrl}/${processId}/history`)
       .pipe(map((response) => response.events));
   }
+
+  /**
+   * F16: toggle "compartir con cliente" — el backend rechaza esto para
+   * eventos ANNOTATION (ver ProcessEventsService.setVisibility).
+   */
+  setEventVisibility(processId: string, eventId: string, visibleToClient: boolean): Observable<ProcessEvent> {
+    return this.http
+      .patch<{ event: ProcessEvent }>(`${this.apiUrl}/${processId}/events/${eventId}/visibility`, {
+        visibleToClient,
+      })
+      .pipe(map((response) => response.event));
+  }
 }

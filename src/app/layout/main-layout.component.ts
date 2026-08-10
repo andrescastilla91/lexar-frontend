@@ -1,6 +1,11 @@
-
 import { Component, Signal, computed, signal, inject } from '@angular/core';
-import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import {
+  NavigationEnd,
+  Router,
+  RouterLink,
+  RouterLinkActive,
+  RouterOutlet,
+} from '@angular/router';
 import { AuthService } from '../core/services/auth.service';
 import { PermissionsService } from '../core/services/permissions.service';
 import { AuthUser } from '../core/models/auth.model';
@@ -10,6 +15,8 @@ import { ConfirmDialogComponent } from '../core/components/confirm-dialog.compon
 import { ToastComponent } from '../core/components/toast.component';
 import { UserMenuComponent } from '../core/components/user-menu.component';
 import { NotificationBellComponent } from '../core/components/notification-bell.component';
+import { GlobalSearchTriggerComponent } from '../core/components/global-search-trigger.component';
+import { GlobalSearchOverlayComponent } from '../core/components/global-search-overlay.component';
 import { ThemeService } from '../core/services/theme.service';
 import { ProfileService } from '../core/services/profile.service';
 import { CompanyService } from '../core/services/company.service';
@@ -28,7 +35,17 @@ interface MenuItem {
 @Component({
   selector: 'app-main-layout',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, ConfirmDialogComponent, ToastComponent, UserMenuComponent, NotificationBellComponent],
+  imports: [
+    RouterOutlet,
+    RouterLink,
+    RouterLinkActive,
+    ConfirmDialogComponent,
+    ToastComponent,
+    UserMenuComponent,
+    NotificationBellComponent,
+    GlobalSearchTriggerComponent,
+    GlobalSearchOverlayComponent,
+  ],
   template: `
     <div class="min-h-screen bg-surface-muted text-text">
       <div class="flex h-screen overflow-hidden">
@@ -40,12 +57,14 @@ interface MenuItem {
         }
 
         <aside
-          class="fixed inset-y-0 left-0 z-40 w-72 transform bg-navy-900 text-white shadow-raised transition-transform duration-300 lg:translate-x-0 lg:static lg:flex lg:flex-col"
+          class="fixed inset-y-0 left-0 z-40 w-72 shrink-0 transform bg-navy-900 text-white shadow-raised transition-transform duration-300 lg:translate-x-0 lg:static lg:flex lg:flex-col"
           [class.-translate-x-full]="!sidebarOpen()"
-          >
+        >
           <div class="flex h-16 items-center justify-between px-6">
             <div>
-              <p class="text-sm uppercase tracking-widest text-white/60">LexAr Suite</p>
+              <p class="text-sm uppercase tracking-widest text-white/60">
+                LexAr Suite
+              </p>
               <p class="text-lg font-semibold">Gestión Legal</p>
             </div>
             <button
@@ -53,10 +72,20 @@ interface MenuItem {
               class="rounded-md p-2 text-white/70 transition hover:bg-white/10 lg:hidden"
               (click)="toggleSidebar()"
               aria-label="Cerrar menú"
-              >
+            >
               <span class="sr-only">Cerrar menú</span>
-              <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+              <svg
+                class="h-6 w-6"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M6 18 18 6M6 6l12 12"
+                />
               </svg>
             </button>
           </div>
@@ -68,23 +97,41 @@ interface MenuItem {
                 routerLinkActive="bg-white/10 text-white"
                 class="group flex items-center gap-3 rounded-md px-3 py-3 text-sm font-medium text-white/70 transition hover:bg-white/10 hover:text-white"
                 (click)="closeSidebar()"
+              >
+                <span
+                  class="flex h-9 w-9 items-center justify-center rounded-md bg-white/5 text-white/80 transition group-hover:bg-white/15"
                 >
-                <span class="flex h-9 w-9 items-center justify-center rounded-md bg-white/5 text-white/80 transition group-hover:bg-white/15">
-                  <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                    <path [attr.d]="item.icon" stroke-linecap="round" stroke-linejoin="round"></path>
+                  <svg
+                    class="h-5 w-5"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      [attr.d]="item.icon"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    ></path>
                   </svg>
                 </span>
                 <span class="flex-1">
-                  <span class="block text-base font-semibold">{{ item.label }}</span>
-                  <span class="text-xs text-white/60">{{ item.description }}</span>
+                  <span class="block text-base font-semibold">{{
+                    item.label
+                  }}</span>
+                  <span class="text-xs text-white/60">{{
+                    item.description
+                  }}</span>
                 </span>
               </a>
             }
           </nav>
         </aside>
 
-        <div class="flex flex-1 flex-col">
-          <header class="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-default bg-surface/90 px-4 backdrop-blur lg:px-8">
+        <div class="flex min-w-0 flex-1 flex-col">
+          <header
+            class="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-default bg-surface/90 px-4 backdrop-blur lg:px-8"
+          >
             <div class="flex w-full items-center justify-between gap-4">
               <div class="flex items-center gap-3">
                 <button
@@ -92,31 +139,72 @@ interface MenuItem {
                   class="rounded-md border border-default p-2 text-muted transition hover:bg-surface-muted lg:hidden"
                   (click)="toggleSidebar()"
                   aria-label="Abrir menú"
+                >
+                  <svg
+                    class="h-6 w-6"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    viewBox="0 0 24 24"
                   >
-                  <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M4 12h16M4 17h16" />
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M4 7h16M4 12h16M4 17h16"
+                    />
                   </svg>
                 </button>
                 <div>
                   <p class="text-sm font-medium text-subtle">Panel central</p>
-                  <p class="text-lg font-semibold text-text">{{ activeRouteLabel() }}</p>
+                  <p class="text-lg font-semibold text-text">
+                    {{ activeRouteLabel() }}
+                  </p>
                 </div>
               </div>
               <div class="flex items-center gap-4">
+                <app-global-search-trigger />
                 <button
                   type="button"
                   (click)="toggleTheme()"
                   class="rounded-md border border-default p-2 text-muted transition hover:bg-surface-muted"
-                  [attr.aria-label]="themeService.theme() === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'"
-                  [title]="themeService.theme() === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'"
+                  [attr.aria-label]="
+                    themeService.theme() === 'dark'
+                      ? 'Cambiar a modo claro'
+                      : 'Cambiar a modo oscuro'
+                  "
+                  [title]="
+                    themeService.theme() === 'dark'
+                      ? 'Cambiar a modo claro'
+                      : 'Cambiar a modo oscuro'
+                  "
                 >
                   @if (themeService.theme() === 'dark') {
-                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
+                    <svg
+                      class="h-5 w-5"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z"
+                      />
                     </svg>
                   } @else {
-                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
+                    <svg
+                      class="h-5 w-5"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M21.752 15.002A9.718 9.718 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z"
+                      />
                     </svg>
                   }
                 </button>
@@ -137,9 +225,16 @@ interface MenuItem {
           </header>
 
           @if (currentUser()?.impersonating) {
-            <div class="bg-danger px-4 py-2 text-center text-sm font-semibold text-white md:px-6 lg:px-8">
-              Estás operando esta cuenta como platform admin (impersonación) — expira sola en 30 minutos.
-              <button type="button" class="ml-3 underline hover:no-underline" (click)="exitImpersonation()">
+            <div
+              class="bg-danger px-4 py-2 text-center text-sm font-semibold text-white md:px-6 lg:px-8"
+            >
+              Estás operando esta cuenta como platform admin (impersonación) —
+              expira sola en 30 minutos.
+              <button
+                type="button"
+                class="ml-3 underline hover:no-underline"
+                (click)="exitImpersonation()"
+              >
                 Salir de la impersonación
               </button>
             </div>
@@ -147,15 +242,31 @@ interface MenuItem {
 
           @if (hasNoRoles()) {
             <div class="px-4 md:px-6 lg:px-8">
-              <div class="mx-auto mt-4 rounded-lg border-l-4 border-warning bg-warning-tint p-4">
+              <div
+                class="mx-auto mt-4 rounded-lg border-l-4 border-warning bg-warning-tint p-4"
+              >
                 <div class="flex items-center gap-3">
-                  <svg class="h-6 w-6 text-warning flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                  <svg
+                    class="h-6 w-6 text-warning flex-shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"
+                    />
                   </svg>
                   <div class="flex-1">
-                    <h3 class="text-sm font-semibold text-warning">Sin roles asignados</h3>
+                    <h3 class="text-sm font-semibold text-warning">
+                      Sin roles asignados
+                    </h3>
                     <p class="text-sm text-warning mt-1">
-                      Tu cuenta no tiene roles ni permisos asignados. Contacta al administrador de tu empresa para que te asigne los permisos necesarios.
+                      Tu cuenta no tiene roles ni permisos asignados. Contacta
+                      al administrador de tu empresa para que te asigne los
+                      permisos necesarios.
                     </p>
                   </div>
                 </div>
@@ -163,7 +274,9 @@ interface MenuItem {
             </div>
           }
 
-          <main class="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 lg:p-8">
+          <main
+            class="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 lg:p-8"
+          >
             <div class="min-w-0 w-full max-w-[1400px] mx-auto">
               <router-outlet />
             </div>
@@ -172,8 +285,9 @@ interface MenuItem {
       </div>
       <app-confirm-dialog />
       <app-toast />
+      <app-global-search-overlay />
     </div>
-    `,
+  `,
 })
 export class MainLayoutComponent {
   readonly sidebarOpen = signal(false);
@@ -189,7 +303,9 @@ export class MainLayoutComponent {
   private readonly company = signal<CompanyProfile | null>(null);
   readonly companyName = computed(() => this.company()?.legalName ?? '');
   readonly companyLogoUrl = computed(() => this.company()?.logoUrl ?? null);
-  readonly canManageCompany = computed(() => this.permissionsService.hasPermission('companies.edit'));
+  readonly canManageCompany = computed(() =>
+    this.permissionsService.hasPermission('companies.edit'),
+  );
 
   // F7: el chatbot en el menú se gatea por entitlement de plan, no por
   // environment flag. Arranca en `false` (oculto) hasta que llegue la
@@ -238,6 +354,20 @@ export class MainLayoutComponent {
       icon: 'm4.5 19.5 7.5-7.5 7.5 7.5M12 12V3.75',
       route: '/procesos',
       permissions: ['processes.list'],
+    },
+    {
+      label: 'Calendario',
+      description: 'Plazos y audiencias del despacho',
+      icon: 'M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5m-9-6h.008v.008H12v-.008Z',
+      route: '/calendario',
+      permissions: ['deadlines.view'],
+    },
+    {
+      label: 'Tareas',
+      description: 'Trabajo asignado y plantillas por proceso',
+      icon: 'M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z',
+      route: '/tareas',
+      permissions: ['tasks.view'],
     },
     {
       label: 'Documentos',
@@ -305,14 +435,16 @@ export class MainLayoutComponent {
     return fullName || user.email;
   });
 
-  readonly userAvatarUrl = computed(() => this.currentUser()?.avatarUrl ?? null);
+  readonly userAvatarUrl = computed(
+    () => this.currentUser()?.avatarUrl ?? null,
+  );
 
   readonly userRoleLabel = computed(() => {
     const user = this.currentUser();
     if (!user?.roles?.length) {
       return 'Usuario';
     }
-    
+
     const role = user.roles[0]; // Tomamos el primer rol
     switch (role.toLowerCase()) {
       case 'admin':
@@ -331,7 +463,10 @@ export class MainLayoutComponent {
 
   readonly activeRouteLabel = computed(() => {
     const route = this.currentRoute();
-    return this.filteredMenuItems().find((item) => route.startsWith(item.route))?.label ?? 'Panel central';
+    return (
+      this.filteredMenuItems().find((item) => route.startsWith(item.route))
+        ?.label ?? 'Panel central'
+    );
   });
 
   // Detectar si el usuario no tiene roles asignados
@@ -350,7 +485,8 @@ export class MainLayoutComponent {
     });
 
     this.subscriptionService.getEntitlements().subscribe({
-      next: (entitlements) => this.chatbotEnabled.set(entitlements.features.chatbot),
+      next: (entitlements) =>
+        this.chatbotEnabled.set(entitlements.features.chatbot),
       error: () => {},
     });
 
@@ -358,8 +494,10 @@ export class MainLayoutComponent {
 
     this.router.events
       .pipe(
-        filter((event): event is NavigationEnd => event instanceof NavigationEnd),
-        takeUntilDestroyed()
+        filter(
+          (event): event is NavigationEnd => event instanceof NavigationEnd,
+        ),
+        takeUntilDestroyed(),
       )
       .subscribe((event) => this.currentRoute.set(event.urlAfterRedirects));
   }
@@ -374,11 +512,13 @@ export class MainLayoutComponent {
 
   toggleTheme(): void {
     this.themeService.toggle();
-    this.profileService.updateMe({ themePreference: this.themeService.theme() }).subscribe({
-      error: () => {
-        // El cambio ya se aplicó localmente; si falla la sincronización, se reintentará en el próximo toggle o desde el perfil.
-      },
-    });
+    this.profileService
+      .updateMe({ themePreference: this.themeService.theme() })
+      .subscribe({
+        error: () => {
+          // El cambio ya se aplicó localmente; si falla la sincronización, se reintentará en el próximo toggle o desde el perfil.
+        },
+      });
   }
 
   handleLogout(): void {

@@ -1,6 +1,12 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
-import { ProcessEvent } from '../../../core/models/process-event.model';
+import { ProcessEvent, ProcessEventType } from '../../../core/models/process-event.model';
 import { formatBytes, formatDate, getEventColor, getEventIcon, getEventLabel } from '../utils/process-format.utils';
+import { HasPermissionDirective } from '../../../core/directives/has-permission.directive';
+
+export interface HistoryVisibilityToggle {
+  eventId: string;
+  visibleToClient: boolean;
+}
 
 export interface HistoryFileRef {
   fileId: string;
@@ -10,6 +16,7 @@ export interface HistoryFileRef {
 @Component({
   selector: 'app-process-history-modal',
   standalone: true,
+  imports: [HasPermissionDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (isOpen()) {
@@ -69,6 +76,27 @@ export interface HistoryFileRef {
                               {{ getEventLabel(event.type) }}
                             </span>
                             <span class="text-xs text-subtle">{{ formatDate(event.createdAt) }}</span>
+                            @if (event.type !== eventTypes.ANNOTATION) {
+                              <button
+                                *hasPermission="['legal_processes.edit']"
+                                type="button"
+                                (click)="toggleVisibility.emit({ eventId: event.id, visibleToClient: !event.visibleToClient })"
+                                class="rounded-full p-1 transition"
+                                [class.text-success]="event.visibleToClient"
+                                [class.hover:bg-success-tint]="event.visibleToClient"
+                                [class.text-subtle]="!event.visibleToClient"
+                                [class.hover:bg-surface-muted]="!event.visibleToClient"
+                                [title]="event.visibleToClient ? 'Visible para el cliente en el portal' : 'No visible para el cliente'"
+                              >
+                                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                  <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                                </svg>
+                              </button>
+                            }
+                            @if (event.visibleToClient) {
+                              <span class="text-xs font-medium text-success">Visible para el cliente</span>
+                            }
                           </div>
                           <p class="mt-1 text-sm text-text">{{ event.description }}</p>
 
@@ -156,7 +184,9 @@ export class ProcessHistoryModalComponent {
   close = output<void>();
   previewFile = output<HistoryFileRef>();
   downloadFile = output<string>();
+  toggleVisibility = output<HistoryVisibilityToggle>();
 
+  protected readonly eventTypes = ProcessEventType;
   protected readonly formatDate = formatDate;
   protected readonly formatBytes = formatBytes;
   protected readonly getEventIcon = getEventIcon;

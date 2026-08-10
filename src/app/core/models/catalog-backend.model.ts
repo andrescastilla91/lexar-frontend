@@ -2,7 +2,7 @@
  * Backend Catalog DTOs and Interfaces (F25 — catálogos configurables por tenant)
  */
 
-export type CatalogType = 'document_type' | 'risk_level' | 'process_stage' | 'advisor_specialty';
+export type CatalogType = 'document_type' | 'risk_level' | 'process_stage' | 'advisor_specialty' | 'deadline_type';
 
 export interface CatalogItem {
   id: string;

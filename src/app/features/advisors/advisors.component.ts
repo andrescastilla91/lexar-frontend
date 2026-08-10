@@ -1,11 +1,15 @@
 import { Component, computed, inject, signal, effect } from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { startWith, catchError, of } from 'rxjs';
 import { AdvisorsService } from '../../core/services/advisors.service';
 import { UsersService } from '../../core/services/users.service';
 import { CatalogsService } from '../../core/services/catalogs.service';
-import { AdvisorResponse, AdvisorStatus } from '../../core/models/advisor-backend.model';
+import {
+  AdvisorResponse,
+  AdvisorStatus,
+} from '../../core/models/advisor-backend.model';
 import { UserBackend } from '../../core/models/user-backend.model';
 import { CatalogItem } from '../../core/models/catalog-backend.model';
 import { HasPermissionDirective } from '../../core/directives/has-permission.directive';
@@ -20,13 +24,23 @@ type FilterStatus = AdvisorStatus | 'ALL';
 @Component({
   selector: 'app-advisors',
   standalone: true,
-  imports: [ReactiveFormsModule, HasPermissionDirective, PaginationComponent, AdvisorFormComponent, AdvisorsTableComponent],
+  imports: [
+    ReactiveFormsModule,
+    HasPermissionDirective,
+    PaginationComponent,
+    AdvisorFormComponent,
+    AdvisorsTableComponent,
+  ],
   template: `
     <div class="space-y-6">
-      <header class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <header
+        class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
+      >
         <div>
           <h2 class="text-2xl font-semibold text-text">Asesores legales</h2>
-          <p class="text-sm text-subtle">Gestiona perfiles, disponibilidad y métricas de desempeño.</p>
+          <p class="text-sm text-subtle">
+            Gestiona perfiles, disponibilidad y métricas de desempeño.
+          </p>
         </div>
         <button
           *hasPermission="'advisors.create'"
@@ -34,8 +48,18 @@ type FilterStatus = AdvisorStatus | 'ALL';
           class="flex items-center gap-2 rounded-md bg-navy-900 px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:bg-navy-950"
           (click)="togglePanel()"
         >
-          <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          <svg
+            class="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M12 4.5v15m7.5-7.5h-15"
+            />
           </svg>
           Nuevo asesor
         </button>
@@ -69,19 +93,31 @@ type FilterStatus = AdvisorStatus | 'ALL';
           </div>
 
           <div class="grid gap-4 sm:grid-cols-4">
-            <div class="rounded-md border border-default bg-surface-muted px-4 py-3">
+            <div
+              class="rounded-md border border-default bg-surface-muted px-4 py-3"
+            >
               <p class="text-xs text-subtle">Total asesores</p>
               <p class="text-2xl font-semibold text-text">{{ total() }}</p>
             </div>
-            <div class="rounded-md border border-default bg-surface-muted px-4 py-3">
+            <div
+              class="rounded-md border border-default bg-surface-muted px-4 py-3"
+            >
               <p class="text-xs text-subtle">Disponibles</p>
-              <p class="text-2xl font-semibold text-success">{{ availableAdvisors() }}</p>
+              <p class="text-2xl font-semibold text-success">
+                {{ availableAdvisors() }}
+              </p>
             </div>
-            <div class="rounded-md border border-default bg-surface-muted px-4 py-3">
+            <div
+              class="rounded-md border border-default bg-surface-muted px-4 py-3"
+            >
               <p class="text-xs text-subtle">En audiencia</p>
-              <p class="text-2xl font-semibold text-warning">{{ inHearingCount() }}</p>
+              <p class="text-2xl font-semibold text-warning">
+                {{ inHearingCount() }}
+              </p>
             </div>
-            <div class="rounded-md border border-default bg-surface-muted px-4 py-3">
+            <div
+              class="rounded-md border border-default bg-surface-muted px-4 py-3"
+            >
               <p class="text-xs text-subtle">Ocupados</p>
               <p class="text-2xl font-semibold text-muted">{{ busyCount() }}</p>
             </div>
@@ -130,6 +166,8 @@ export class AdvisorsComponent {
   private readonly usersService = inject(UsersService);
   private readonly catalogsService = inject(CatalogsService);
   private readonly confirmDialog = inject(ConfirmDialogService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
 
   protected readonly AdvisorStatus = AdvisorStatus;
 
@@ -162,7 +200,7 @@ export class AdvisorsComponent {
 
   private readonly filterValue = toSignal(
     this.filterForm.valueChanges.pipe(startWith(this.filterForm.getRawValue())),
-    { initialValue: this.filterForm.getRawValue() }
+    { initialValue: this.filterForm.getRawValue() },
   );
 
   readonly filteredAdvisors = computed(() => {
@@ -189,16 +227,21 @@ export class AdvisorsComponent {
       : 'Comienza agregando tu primer asesor legal al equipo';
   });
 
-  readonly availableAdvisors = computed(() =>
-    this.advisors().filter((a) => a.status === AdvisorStatus.AVAILABLE && a.isActive).length
+  readonly availableAdvisors = computed(
+    () =>
+      this.advisors().filter(
+        (a) => a.status === AdvisorStatus.AVAILABLE && a.isActive,
+      ).length,
   );
 
-  readonly inHearingCount = computed(() =>
-    this.advisors().filter((a) => a.status === AdvisorStatus.IN_HEARING).length
+  readonly inHearingCount = computed(
+    () =>
+      this.advisors().filter((a) => a.status === AdvisorStatus.IN_HEARING)
+        .length,
   );
 
-  readonly busyCount = computed(() =>
-    this.advisors().filter((a) => a.status === AdvisorStatus.BUSY).length
+  readonly busyCount = computed(
+    () => this.advisors().filter((a) => a.status === AdvisorStatus.BUSY).length,
   );
 
   readonly availableUsers = computed(() => {
@@ -206,21 +249,47 @@ export class AdvisorsComponent {
     const advisorUserIds = new Set(
       this.advisors()
         .filter((a) => a.id !== currentAdvisor?.id)
-        .map((a) => a.userId)
+        .map((a) => a.userId),
     );
-    return this.users().filter((user) => !advisorUserIds.has(user.id) && user.isActive);
+    return this.users().filter(
+      (user) => !advisorUserIds.has(user.id) && user.isActive,
+    );
   });
 
   constructor() {
-    effect(() => {
-      this.loadAdvisors();
-      this.loadUsers();
-    }, { allowSignalWrites: true });
+    effect(
+      () => {
+        this.loadAdvisors();
+        this.loadUsers();
+      },
+      { allowSignalWrites: true },
+    );
     this.loadSpecialties();
+    this.openFromQueryParam();
+  }
+
+  /** F18 — al llegar desde un resultado de búsqueda global (?openId=), abre
+   * el panel de edición de ese asesor aunque no esté en la página cargada. */
+  private openFromQueryParam(): void {
+    const openId = this.route.snapshot.queryParamMap.get('openId');
+    if (!openId) {
+      return;
+    }
+    this.advisorsService.getAdvisor(openId).subscribe({
+      next: (advisor) => this.editAdvisor(advisor),
+      error: () => {},
+    });
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: {},
+      replaceUrl: true,
+    });
   }
 
   private loadSpecialties(): void {
-    this.catalogsService.getActiveCatalog('advisor_specialty').subscribe((items) => this.specialties.set(items));
+    this.catalogsService
+      .getActiveCatalog('advisor_specialty')
+      .subscribe((items) => this.specialties.set(items));
   }
 
   private loadAdvisors(): void {
@@ -230,9 +299,17 @@ export class AdvisorsComponent {
       .getAdvisors(this.currentPage(), this.pageSize)
       .pipe(
         catchError((error) => {
-          this.errorMessage.set(error.error?.message || 'Error al cargar asesores');
-          return of({ advisors: [], total: 0, page: 1, limit: this.pageSize, message: '' });
-        })
+          this.errorMessage.set(
+            error.error?.message || 'Error al cargar asesores',
+          );
+          return of({
+            advisors: [],
+            total: 0,
+            page: 1,
+            limit: this.pageSize,
+            message: '',
+          });
+        }),
       )
       .subscribe((response) => {
         this.advisors.set(response.advisors);
@@ -244,9 +321,7 @@ export class AdvisorsComponent {
   private loadUsers(): void {
     this.usersService
       .getUsers(1, 100)
-      .pipe(
-        catchError(() => of({ users: [], total: 0, page: 1, limit: 100 }))
-      )
+      .pipe(catchError(() => of({ users: [], total: 0, page: 1, limit: 100 })))
       .subscribe((response) => {
         this.users.set(response.users || []);
       });
@@ -317,19 +392,25 @@ export class AdvisorsComponent {
         rating: formValue.rating || undefined,
       };
 
-      this.advisorsService.updateAdvisor(currentAdvisor.id, updatePayload).subscribe({
-        next: (updatedAdvisor) => {
-          this.advisors.update((advisors) =>
-            advisors.map((a) => (a.id === currentAdvisor.id ? updatedAdvisor : a))
-          );
-          this.isSubmitting.set(false);
-          this.togglePanel();
-        },
-        error: (error) => {
-          this.errorMessage.set(error.error?.message || 'Error al actualizar asesor');
-          this.isSubmitting.set(false);
-        },
-      });
+      this.advisorsService
+        .updateAdvisor(currentAdvisor.id, updatePayload)
+        .subscribe({
+          next: (updatedAdvisor) => {
+            this.advisors.update((advisors) =>
+              advisors.map((a) =>
+                a.id === currentAdvisor.id ? updatedAdvisor : a,
+              ),
+            );
+            this.isSubmitting.set(false);
+            this.togglePanel();
+          },
+          error: (error) => {
+            this.errorMessage.set(
+              error.error?.message || 'Error al actualizar asesor',
+            );
+            this.isSubmitting.set(false);
+          },
+        });
     } else {
       const createPayload = {
         userId: formValue.userId,
@@ -347,7 +428,9 @@ export class AdvisorsComponent {
           this.loadAdvisors();
         },
         error: (error) => {
-          this.errorMessage.set(error.error?.message || 'Error al crear asesor');
+          this.errorMessage.set(
+            error.error?.message || 'Error al crear asesor',
+          );
           this.isSubmitting.set(false);
         },
       });
@@ -384,7 +467,7 @@ export class AdvisorsComponent {
     this.advisorsService.toggleActive(advisor.id).subscribe({
       next: (updatedAdvisor) => {
         this.advisors.update((advisors) =>
-          advisors.map((a) => (a.id === advisor.id ? updatedAdvisor : a))
+          advisors.map((a) => (a.id === advisor.id ? updatedAdvisor : a)),
         );
       },
       error: (error) => {
