@@ -1,0 +1,59 @@
+# Template procesado con envsubst en el entrypoint.
+# Vars: ${PORT} ${BACKEND_HOST} ${NAMESERVER}
+# Resolución lazy del backend (variable + resolver) para que nginx arranque
+# aunque el backend aún no resuelva (Docker y Railway private networking).
+
+server {
+    listen       ${PORT};
+    listen  [::]:${PORT};
+    server_name  _;
+
+    root   /usr/share/nginx/html;
+    index  index.html;
+
+    # --- Seguridad ---
+    server_tokens off;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+    # Ajustar CSP si se agregan CDNs/analytics:
+    add_header Content-Security-Policy "default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self'; connect-src 'self' https:; frame-ancestors 'none'" always;
+
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript image/svg+xml;
+    gzip_min_length 1024;
+
+    client_max_body_size 25m;   # subida de documentos legales
+
+    # --- API: proxy al backend interno (nunca expuesto públicamente) ---
+    # ^~ evita que el bloque regex de cache de assets (más abajo) le robe
+    # rutas como /api/docs/swagger-ui.css — sin esto, nginx prioriza
+    # cualquier location regex sobre un prefix location, sin importar
+    # cuál es más específico.
+    location ^~ /api/ {
+        resolver ${NAMESERVER} valid=30s;
+        set $upstream http://${BACKEND_HOST};
+        proxy_pass $upstream$request_uri;
+
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 60s;
+    }
+
+    # --- Assets con hash: cache inmutable ---
+    location ~* \.(?:js|css|woff2?|svg|png|jpg|jpeg|webp|ico)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        try_files $uri =404;
+    }
+
+    # --- SPA ---
+    location / {
+        add_header Cache-Control "no-store";
+        try_files $uri $uri/ /index.html;
+    }
+}

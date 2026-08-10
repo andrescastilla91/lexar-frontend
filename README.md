@@ -1,59 +1,53 @@
-# LexArFrontend
+# LexAr Frontend
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 19.2.13.
+SPA/PWA de **LexAr Suite** — SaaS multi-tenant para firmas de servicios legales y jurídicos: dashboard, procesos/expedientes, clientes, asesores, documentos, usuarios y roles.
 
-## Development server
+## Stack
 
-To start a local development server, run:
+Angular 20 (standalone components + signals) · Tailwind CSS 4 · Autenticación por cookies HttpOnly (interceptor con `withCredentials`; nada de tokens en localStorage) · RBAC espejado del backend (guard + directiva `hasPermission`) · Node 24.
 
-```bash
-ng serve
+## Estructura
+
+```
+src/app/
+├── core/          # servicios API, interceptores (auth, error), guards,
+│                  # modelos, directivas y componentes compartidos (data-table, pagination)
+├── features/      # pantallas: auth, dashboard, processes, clients, users,
+│                  # advisors, documents, roles, chatbot
+└── layout/        # main-layout (sidebar + header)
 ```
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+El diseño se rige por el [Design System](../docs/02-design-system/README.md) (tokens Tailwind 4 en `tokens.css`; prohibidos colores crudos y emojis como iconos en código nuevo).
 
-## Code scaffolding
+## Environments (2 ambientes)
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+`src/environments/environment.ts` es el **único environment del repo** (local, sin datos sensibles: `apiUrl: http://localhost:3040/api`). El environment de **producción no existe en el repositorio**: lo genera el `Dockerfile` en build a partir de los ARGs `API_URL` (=`/api`, relativo al mismo origen) y `APP_VERSION`, provistos por el `docker-compose` local o por Railway.
 
-```bash
-ng generate component component-name
-```
-
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+## Desarrollo local
 
 ```bash
-ng generate --help
+npm install
+npm start            # ng serve → http://localhost:4400, backend en localhost:3040
 ```
 
-## Building
+El backend usa el puerto **3040** en host-mode: Piggy ya ocupa 3000/3010/3020/3030 (kids/pro/auth/core) — ver [`../lexar-backend/.env.example`](../lexar-backend/.env.example). El frontend usa **4400** en vez del 4200 default de Angular CLI, ya que ese también está tomado por otro proyecto Piggy (`angular.json` → `architect.serve.options.port`).
 
-To build the project run:
+Con Docker (app completa detrás de nginx, cookies first-party): ver [`../docs/03-infraestructura/README.md`](../docs/03-infraestructura/README.md) → `http://localhost:4300`.
 
-```bash
-ng build
-```
+Build: `npx ng build` (configuración production por defecto) · Tests: `npm test`.
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
+## Tests (F1)
 
-## Running unit tests
+**Unit (Jest):** `npm test` corre `authGuard`, `chatbotFeatureGuard`, `authInterceptor`, `errorInterceptor`, `AuthService` y `PermissionsService`. Reemplazó Karma/Jasmine — no hay que instalar Chrome. `npm run test:watch` para desarrollo, `npm run test:coverage` para cobertura.
 
-To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
+**E2E (Playwright):** `npm run e2e` requiere el backend corriendo en el puerto 3040 (`npm run start:dev` en `lexar-backend`, apuntando a Postgres) y este frontend (`npm start`, se levanta solo vía `webServer` de Playwright si no está corriendo). Cada test registra su propio tenant real vía `POST /auth/register` (`e2e/shared/tenant-fixture.ts`), sin tokens fabricados. Specs en `e2e/specs/`; page objects en `e2e/pages/`. `npm run e2e:ui` para el modo interactivo.
 
-```bash
-ng test
-```
+Para agregar un caso nuevo: si es lógica de guard/interceptor/servicio → spec Jest junto al archivo (`*.spec.ts`); si es un flujo de usuario a través de rutas reales → spec Playwright en `e2e/specs/`, reutilizando `tenant-fixture` y los page objects existentes.
 
-## Running end-to-end tests
+## Arquitectura de despliegue
 
-For end-to-end (e2e) testing, run:
+El contenedor sirve la SPA con **nginx** y proxya `/api/*` al backend por red privada (local y Railway) — el backend nunca se expone públicamente y las cookies son first-party. Producción en **Railway** vía integración nativa con GitHub: push a `main` → workflow `ci.yml` (build de verificación) → si queda en verde, Railway construye el `Dockerfile` y despliega ("Wait for CI"). Detalle: [`../docs/04-plan-remediacion/I3-railway-cicd.md`](../docs/04-plan-remediacion/I3-railway-cicd.md).
 
-```bash
-ng e2e
-```
+## Documentación
 
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+Auditoría técnica, design system, infraestructura y plan de remediación: [`../docs/`](../docs/README.md).

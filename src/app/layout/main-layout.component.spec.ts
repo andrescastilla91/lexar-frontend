@@ -1,0 +1,130 @@
+import { TestBed } from '@angular/core/testing';
+import { Router, provideRouter } from '@angular/router';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { of, throwError } from 'rxjs';
+import { signal } from '@angular/core';
+import { MainLayoutComponent } from './main-layout.component';
+import { AuthService } from '../core/services/auth.service';
+import { PermissionsService } from '../core/services/permissions.service';
+import { ProfileService } from '../core/services/profile.service';
+import { CompanyService } from '../core/services/company.service';
+import { SubscriptionService } from '../core/services/subscription.service';
+import { ThemeService } from '../core/services/theme.service';
+import { ToastService } from '../core/services/toast.service';
+import { NotificationsService } from '../core/services/notifications.service';
+import { AuthUser } from '../core/models/auth.model';
+import { Entitlements } from '../core/models/subscription-backend.model';
+
+describe('MainLayoutComponent — banner de impersonación (F9)', () => {
+  let authServiceMock: {
+    currentUser: ReturnType<typeof signal<AuthUser | null>>;
+    logout: jest.Mock;
+    exitImpersonation: jest.Mock;
+    resendVerification: jest.Mock;
+  };
+  let toastServiceMock: { success: jest.Mock; error: jest.Mock; toasts: jest.Mock };
+  let navigateSpy: jest.SpyInstance;
+
+  function configure(user: AuthUser | null): void {
+    authServiceMock = {
+      currentUser: signal(user),
+      logout: jest.fn().mockReturnValue(of(undefined)),
+      exitImpersonation: jest.fn().mockReturnValue(of(undefined)),
+      resendVerification: jest.fn().mockReturnValue(of({ success: true })),
+    };
+    toastServiceMock = { success: jest.fn(), error: jest.fn(), toasts: jest.fn().mockReturnValue([]) };
+
+    TestBed.configureTestingModule({
+      imports: [MainLayoutComponent],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: AuthService, useValue: authServiceMock },
+        { provide: PermissionsService, useValue: { hasAnyPermission: jest.fn().mockReturnValue(true), hasPermission: jest.fn().mockReturnValue(false) } },
+        { provide: ProfileService, useValue: { updateMe: jest.fn().mockReturnValue(of(undefined)) } },
+        { provide: CompanyService, useValue: { getCompany: jest.fn().mockReturnValue(of(null)) } },
+        {
+          provide: SubscriptionService,
+          useValue: { getEntitlements: jest.fn().mockReturnValue(of({ features: { chatbot: false } } as Entitlements)) },
+        },
+        { provide: ThemeService, useValue: { theme: jest.fn().mockReturnValue('light'), toggle: jest.fn() } },
+        { provide: ToastService, useValue: toastServiceMock },
+        {
+          provide: NotificationsService,
+          useValue: {
+            connectStream: jest.fn(),
+            disconnectStream: jest.fn(),
+            unreadCount: signal(0),
+            latestNotifications: signal([]),
+            markAllRead: jest.fn().mockReturnValue(of(undefined)),
+            markRead: jest.fn().mockReturnValue(of(undefined)),
+          },
+        },
+      ],
+    });
+
+    const router = TestBed.inject(Router);
+    navigateSpy = jest.spyOn(router, 'navigate').mockResolvedValue(true);
+  }
+
+  function createComponent() {
+    const fixture = TestBed.createComponent(MainLayoutComponent);
+    fixture.detectChanges();
+    return { fixture, component: fixture.componentInstance };
+  }
+
+  it('muestra el banner de impersonación cuando currentUser().impersonating es true', () => {
+    configure({ email: 'admin@bufete.com', roles: ['ADMIN'], permissions: [], impersonating: true });
+    const { fixture } = createComponent();
+
+    const banner = fixture.nativeElement.querySelector('.bg-danger');
+    expect(banner?.textContent).toContain('impersonación');
+  });
+
+  it('no muestra el banner para una sesión normal', () => {
+    configure({ email: 'admin@bufete.com', roles: ['ADMIN'], permissions: [] });
+    const { fixture } = createComponent();
+
+    expect(fixture.nativeElement.querySelector('.bg-danger')).toBeNull();
+  });
+
+  it('exitImpersonation() llama al servicio y navega a /admin/tenants', () => {
+    configure({ email: 'admin@bufete.com', roles: ['ADMIN'], permissions: [], impersonating: true });
+    const { component } = createComponent();
+
+    component.exitImpersonation();
+
+    expect(authServiceMock.exitImpersonation).toHaveBeenCalled();
+    expect(navigateSpy).toHaveBeenCalledWith(['/admin/tenants']);
+  });
+
+  it('exitImpersonation() navega igual si el servicio falla', () => {
+    configure({ email: 'admin@bufete.com', roles: ['ADMIN'], permissions: [], impersonating: true });
+    authServiceMock.exitImpersonation.mockReturnValue(throwError(() => new Error('fail')));
+    const { component } = createComponent();
+
+    component.exitImpersonation();
+
+    expect(navigateSpy).toHaveBeenCalledWith(['/admin/tenants']);
+  });
+
+  // Bug corregido 2026-08-05: el <aside> no tenía `shrink-0` y el contenedor
+  // de contenido no tenía `min-w-0`, así que un contenido ancho (ej. la
+  // tabla de asesores) hacía que el navegador encogiera el sidebar en vez
+  // de dejar que el contenido generara su propio scroll horizontal. jsdom
+  // no calcula flexbox real, así que este test solo puede verificar que las
+  // clases siguen presentes (guarda barata) — la verificación visual real
+  // vive en el test de Playwright a nivel de viewport.
+  it('el aside mantiene un ancho fijo (shrink-0) y el contenedor de contenido puede encogerse (min-w-0)', () => {
+    configure({ email: 'admin@bufete.com', roles: ['ADMIN'], permissions: [] });
+    const { fixture } = createComponent();
+
+    const aside = fixture.nativeElement.querySelector('aside');
+    const contentColumn = aside?.nextElementSibling;
+
+    expect(aside?.className).toContain('shrink-0');
+    expect(contentColumn?.className).toContain('min-w-0');
+  });
+});
