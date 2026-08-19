@@ -1,0 +1,30 @@
+# Gate real de HU-FE-E2E-1: antes de cada push, el propio hook levanta (o
+# recrea si hace falta) el stack de docker-compose con el override de
+# MAIL_PROVIDER=smtp -> Mailpit y corre Playwright contra el. No es un paso
+# manual que dependa de acordarse del comando correcto - el hook lo garantiza
+# siempre. Deja el backend local en modo Mailpit despues de correr; si
+# necesitas correo real (Resend) para pruebas manuales, volve a levantar sin
+# el override: docker compose up -d (desde infra/).
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT/../infra" || { echo "No se encontro infra/ junto al repo."; exit 1; }
+
+if ! docker compose -f docker-compose.yml -f docker-compose.e2e.override.yml up -d --build; then
+  echo "No se pudo levantar el stack de docker-compose. ¿Esta corriendo Docker Desktop?"
+  exit 1
+fi
+
+for i in $(seq 1 30); do
+  curl -sf http://localhost:4300/api/health > /dev/null 2>&1 && break
+  sleep 1
+done
+
+if ! curl -sf http://localhost:4300/api/health > /dev/null 2>&1; then
+  echo "El backend no quedo saludable en localhost:4300 tras levantar docker-compose."
+  exit 1
+fi
+
+cd "$REPO_ROOT" || exit 1
+
+echo "Corriendo Playwright contra docker-compose (localhost:4300)..."
+E2E_BASE_URL=http://localhost:4300 npx playwright test
