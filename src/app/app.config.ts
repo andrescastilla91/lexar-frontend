@@ -1,6 +1,7 @@
-import { ApplicationConfig, provideZoneChangeDetection, provideAppInitializer, inject } from '@angular/core';
+import { ApplicationConfig, ErrorHandler, provideZoneChangeDetection, provideAppInitializer, inject } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
+import * as Sentry from '@sentry/angular';
 import { routes } from './app.routes';
 import { authInterceptor } from './core/interceptors/auth.interceptor';
 import { errorInterceptor } from './core/interceptors/error.interceptor';
@@ -17,6 +18,9 @@ export const appConfig: ApplicationConfig = {
     provideHttpClient(
       withInterceptors([authInterceptor, portalAuthInterceptor, errorInterceptor])
     ),
+    // HU-INFRA-3: sin sentryDsn, Sentry.init() (main.ts) ya es no-op, así que
+    // este handler tampoco manda nada — sigue delegando a la consola.
+    { provide: ErrorHandler, useValue: Sentry.createErrorHandler() },
     // Cargar usuario desde /me al iniciar la aplicación (F5/refresh)
     provideAppInitializer(() => {
       const authService = inject(AuthService);

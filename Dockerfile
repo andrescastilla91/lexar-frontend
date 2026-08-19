@@ -17,6 +17,14 @@ COPY . .
 
 ARG API_URL=/api
 ARG APP_VERSION=0.0.0
+# HU-INFRA-3: vacío por defecto -> Sentry.init() no-op (docker-compose local
+# no lo pasa a propósito). Railway lo provee como build arg real.
+ARG SENTRY_DSN=""
+# Railway inyecta esto automáticamente en el build (sin configuración
+# adicional) con el nombre real del environment ("production"/"staging") —
+# NODE_ENV no sirve para distinguirlos, stg y prod lo comparten en Railway
+# (ver instrument.ts del backend). Vacío en docker-compose local -> "local".
+ARG RAILWAY_ENVIRONMENT_NAME=""
 
 # El environment de PRODUCCIÓN no existe en el repo: se genera aquí desde
 # los build ARGs (docker-compose local y Railway los proveen). El archivo
@@ -24,10 +32,11 @@ ARG APP_VERSION=0.0.0
 RUN printf '%s\n' \
   "export const environment = {" \
   "  production: true," \
-  "  environment: 'production'," \
+  "  environment: '${RAILWAY_ENVIRONMENT_NAME:-local}'," \
   "  version: '${APP_VERSION}'," \
   "  apiUrl: '${API_URL}'," \
   "  features: { chatbot: false }," \
+  "  sentryDsn: '${SENTRY_DSN}'," \
   "};" \
   > src/environments/environment.ts
 
