@@ -32,7 +32,11 @@ test.describe('Configuración > Catálogos (F25)', () => {
     await catalogsPage.goto();
 
     await expect(page.getByText('Cédula de Ciudadanía')).toBeVisible();
-    await expect(page.getByText('NIT', { exact: true })).toBeVisible();
+    // .first(): el ítem sembrado "NIT" tiene code="NIT" y label="NIT" —
+    // ambos se renderizan como spans separados en la misma fila (ver
+    // settings-catalogs.component.ts), así que el texto exacto matchea 2
+    // elementos. Alcanza con confirmar que al menos uno esté visible.
+    await expect(page.getByText('NIT', { exact: true }).first()).toBeVisible();
   });
 
   test('cambiar de tipo de catálogo muestra los niveles de riesgo por defecto', async ({ page, tenant }) => {
