@@ -27,19 +27,32 @@ export class SettingsCatalogsPage {
   }
 
   async selectCatalogType(label: string): Promise<void> {
-    // Tabs de tipo de catálogo en desktop
+    // click() auto-espera a que el botón exista y sea clickeable, a
+    // diferencia de isVisible() (que no espera nada y puede dar falso
+    // negativo justo después de goto()/catalogsTab.click(), cuando el tab
+    // bar de tipos de catálogo aún no terminó de renderizar) — eso hacía
+    // caer al <select> mobile, oculto por CSS en viewport desktop (30s de
+    // timeout esperando un elemento invisible). Ver HU-FE-E2E-1.
     const tabButton = this.page.getByRole('button', { name: label, exact: true });
-    if (await tabButton.isVisible().catch(() => false)) {
-      await tabButton.click();
+    try {
+      await tabButton.click({ timeout: 3_000 });
       return;
+    } catch {
+      // Viewport angosto real: el tab bar no existe, cae al <select> mobile.
     }
-    // Fallback mobile: <select> de tipo de catálogo
     const mobileSelect = this.page.locator('select').first();
     await mobileSelect.selectOption({ label });
   }
 
   itemRow(label: string): Locator {
-    return this.page.locator('div').filter({ hasText: label }).last();
+    // Ni .first() ni .last() sobre `div.filter({hasText})` dan la fila
+    // exacta: el contenedor de la lista completa y la card externa también
+    // "contienen" el texto de cualquier fila (así que .first() agarra TODAS
+    // las filas), y el span del label anidado también matchea por sí solo
+    // (.last() agarra solo eso, sin los botones). Los divs hijos directos de
+    // `.divide-y.divide-default` sí son uno por fila — ver
+    // settings-catalogs.component.ts.
+    return this.page.locator('.divide-y.divide-default > div').filter({ hasText: label });
   }
 
   async createItem(code: string, label: string): Promise<void> {
