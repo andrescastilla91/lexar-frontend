@@ -7,7 +7,7 @@ export interface TestTenant {
   companyName: string;
 }
 
-function uniqueSuffix(): string {
+export function uniqueSuffix(): string {
   return `${Date.now()}${Math.floor(Math.random() * 10_000)}`;
 }
 
@@ -34,10 +34,11 @@ interface MailpitMessageDetail {
 // docker-compose corre con MAIL_PROVIDER=smtp — por defecto `.env` local usa
 // `resend` (correo real, para pruebas manuales). Ver
 // infra/docker-compose.e2e.override.yml y HU-FE-E2E-1.
-async function verifyTenantEmail(
-  api: APIRequestContext,
-  email: string,
-): Promise<void> {
+//
+// Exportada porque el mismo patrón (leer un enlace `...?token=<hex>` de un
+// correo real) lo necesita cualquier flujo con correo transaccional, no solo
+// el registro — ver portal-tenant-fixture.ts (invitación al portal, HU-FE-E2E-2).
+export async function extractTokenFromMailpit(email: string): Promise<string> {
   const mailpit = await request.newContext({ baseURL: E2E_MAILPIT_ORIGIN });
 
   let messageId: string | undefined;
@@ -58,7 +59,7 @@ async function verifyTenantEmail(
   if (!messageId) {
     await mailpit.dispose();
     throw new Error(
-      `No llegó el correo de verificación a Mailpit (${E2E_MAILPIT_ORIGIN}) para ${email}. ` +
+      `No llegó el correo a Mailpit (${E2E_MAILPIT_ORIGIN}) para ${email}. ` +
         'Verifica que el backend de docker-compose corra con MAIL_PROVIDER=smtp ' +
         '(docker compose -f docker-compose.yml -f docker-compose.e2e.override.yml up -d --build).',
     );
@@ -71,12 +72,21 @@ async function verifyTenantEmail(
   const tokenMatch = /token=([a-f0-9]+)/.exec(detail.HTML || detail.Text);
   if (!tokenMatch) {
     throw new Error(
-      'El correo de verificación llegó a Mailpit pero no se pudo extraer el token del enlace.',
+      'El correo llegó a Mailpit pero no se pudo extraer el token del enlace.',
     );
   }
 
+  return tokenMatch[1];
+}
+
+async function verifyTenantEmail(
+  api: APIRequestContext,
+  email: string,
+): Promise<void> {
+  const token = await extractTokenFromMailpit(email);
+
   const verifyResponse = await api.post('/api/auth/verify-email', {
-    data: { token: tokenMatch[1] },
+    data: { token },
   });
 
   if (!verifyResponse.ok()) {
@@ -86,7 +96,7 @@ async function verifyTenantEmail(
   }
 }
 
-async function registerTenant(api: APIRequestContext): Promise<TestTenant> {
+export async function registerTenant(api: APIRequestContext): Promise<TestTenant> {
   const suffix = uniqueSuffix();
   const adminEmail = `admin.e2e.${suffix}@lexar-test.com`;
   const adminPassword = 'Passw0rd!E2E';
