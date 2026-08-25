@@ -1,0 +1,4 @@
+{
+  "$comment": "HU-SEC-3. Cada excepcion debe tener expiresDate; sin ella (o vencida) el gate de CI vuelve a fallar. Ver scripts/audit-gate.js y docs/08-hu-pre-prod/HU-SEC-3.md.",
+  "exceptions": []
+}

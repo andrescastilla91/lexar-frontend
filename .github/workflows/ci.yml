@@ -45,3 +45,9 @@ jobs:
 
       - name: Build producción
         run: npx ng build --configuration production
+
+      # HU-SEC-3: gate real de auditoría de dependencias (no existía en este
+      # repo). Falla si hay high/critical en dependencias de producción sin
+      # excepción vigente en security/audit-exceptions.json.
+      - name: Auditoría de dependencias (producción)
+        run: node scripts/audit-gate.js

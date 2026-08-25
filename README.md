@@ -48,6 +48,8 @@ Build: `npx ng build` (configuración production por defecto) · Tests: `npm tes
 
 **Regla de ratchet**: el umbral solo sube, nunca baja — al agregar tests que superen el umbral vigente, subirlo en el mismo PR (redondeado hacia abajo al valor recién medido). Objetivo: **80%** líneas/ramas en `src/app/core` + features críticas (ya superado a nivel global; falta granularidad por carpeta).
 
+**Auditoría de dependencias (HU-SEC-3):** `node scripts/audit-gate.js` (paso de CI) corre `npm audit --omit=dev --audit-level=high --json` y falla ante high/critical en dependencias de producción sin excepción vigente en `security/audit-exceptions.json` (misma mecánica que `lexar-backend`, ver su README para el detalle). Mecanismo primario: Dependabot (`.github/dependabot.yml`).
+
 **E2E (Playwright):** `npm run e2e` requiere el backend corriendo en el puerto 3040 (`npm run start:dev` en `lexar-backend`, apuntando a Postgres) y este frontend (`npm start`, se levanta solo vía `webServer` de Playwright si no está corriendo). Cada test registra su propio tenant real vía `POST /auth/register` (`e2e/shared/tenant-fixture.ts`), sin tokens fabricados. Specs en `e2e/specs/`; page objects en `e2e/pages/`. `npm run e2e:ui` para el modo interactivo.
 
 Para agregar un caso nuevo: si es lógica de guard/interceptor/servicio → spec Jest junto al archivo (`*.spec.ts`); si es un flujo de usuario a través de rutas reales → spec Playwright en `e2e/specs/`, reutilizando `tenant-fixture` y los page objects existentes.
