@@ -725,6 +725,7 @@ describe('ProcessesComponent', () => {
       expect(filesServiceMock.uploadFile).toHaveBeenCalledWith(file, 'legal_process', 'p1', undefined, 'ev1');
       expect(component.isLoading()).toBe(false);
       expect(component.annotationModalOpen()).toBe(false);
+      expect(toastMock.success).toHaveBeenCalledWith('Anotación creada correctamente.');
     });
 
     it('submitAnnotation sin archivos no sube nada', async () => {
