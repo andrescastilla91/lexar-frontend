@@ -84,7 +84,7 @@ import { ProfileNotificationsCardComponent } from './components/profile-notifica
         [isSaving]="isSavingPreferences()"
         [pushState]="pushState()"
         [isTogglingPush]="isTogglingPush()"
-        (change)="notificationPreferences.set($event)"
+        (preferencesChange)="notificationPreferences.set($event)"
         (save)="onSaveNotificationPreferences()"
         (enablePush)="onEnablePush()"
         (disablePush)="onDisablePush()"

@@ -48,3 +48,5 @@ Thumbs.db
 
 # Unit test log (F5, mismo patrón que e2e-output.log del backend)
 /unit-test-output.log
+/e2e-output.log
+*.log
