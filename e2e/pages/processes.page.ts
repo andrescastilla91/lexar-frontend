@@ -174,19 +174,30 @@ export class ProcessesPage {
     await this.annotationFileInput.setInputFiles(filePath);
     await this.saveAnnotationButton.click();
 
-    // Mismo patrón que changeStatusTo()/skipStep(): <app-process-annotation-modal>
-    // está montado sin condición en processes.component.ts ([isOpen]="annotationModalOpen()"
-    // se evalúa DENTRO de su propio template con @if) — closeAnnotationModal()
-    // pone el signal en false pero el tag host nunca se desmonta, solo su
-    // contenido se oculta. Sin esperar esto, el siguiente click (ej.
-    // "Ver historial") falla porque el modal todavía intercepta eventos de
-    // puntero mientras el submit (creación de anotación + subida de archivo)
-    // sigue en vuelo.
+    // <app-process-annotation-modal> está montado sin condición en
+    // processes.component.ts — el tag host nunca se desmonta, solo su
+    // contenido (el overlay `fixed inset-0`) vía `@if (isOpen())` dentro de
+    // su propio template. Esperar `state: 'hidden'` sobre el host es una
+    // heurística de bounding-box, no una prueba dura de que el overlay salió
+    // del DOM, y bajo carga (suite completa) se demostró insuficiente: el
+    // wait resolvía pero el siguiente click ("Ver historial") seguía
+    // chocando contra el mismo overlay. Se reemplaza por dos señales duras:
+    // 1) el toast de éxito (prueba de negocio de que create+upload
+    //    terminaron), 2) `state: 'detached'` sobre el overlay real, que
+    // exige que el nodo desaparezca del DOM de verdad.
     const annotationModal = this.page.locator('app-process-annotation-modal');
+    const annotationOverlay = annotationModal.locator('div.fixed.inset-0');
     try {
-      await annotationModal.waitFor({ state: 'hidden', timeout: 10_000 });
+      await this.page
+        .getByText('Anotación creada correctamente.')
+        .waitFor({ state: 'visible', timeout: 15_000 });
+      await annotationOverlay.waitFor({ state: 'detached', timeout: 20_000 });
     } catch {
-      const errorText = await annotationModal.locator('.text-danger, .border-danger').first().textContent();
+      const errorText = await annotationModal
+        .locator('.text-danger, .border-danger')
+        .first()
+        .textContent()
+        .catch(() => null);
       throw new Error(
         `El modal de anotación no se cerró tras "Guardar anotación"` +
           (errorText ? ` — mensaje de error: ${errorText.trim()}` : ' (sin mensaje de error visible).'),

@@ -21,4 +21,12 @@ export NAMESERVER="${NAMESERVER:-[fd12::10]}"
 
 export PORT="${PORT:-80}"
 
-echo "[lexar-frontend] PORT=$PORT BACKEND_HOST=$BACKEND_HOST NAMESERVER=$NAMESERVER"
+# BUG-13: origen(es) extra para connect-src en la CSP (security-headers.conf),
+# más allá de 'self' y "https:". Vacío en Railway (stg/prod: R2 es https, ya
+# cubierto) — solo el docker-compose local lo fija, al origen público de
+# MinIO (http://localhost:9000), que es http y de puerto distinto al del
+# propio frontend. Debe exportarse SIEMPRE (aunque sea vacío): envsubst deja
+# el placeholder ${CSP_CONNECT_SRC_EXTRA} literal si la variable no existe.
+export CSP_CONNECT_SRC_EXTRA="${CSP_CONNECT_SRC_EXTRA:-}"
+
+echo "[lexar-frontend] PORT=$PORT BACKEND_HOST=$BACKEND_HOST NAMESERVER=$NAMESERVER CSP_CONNECT_SRC_EXTRA=$CSP_CONNECT_SRC_EXTRA"

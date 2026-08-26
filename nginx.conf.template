@@ -30,7 +30,10 @@ server {
     # cualquier location regex sobre un prefix location, sin importar
     # cuál es más específico.
     location ^~ /api/ {
-        include /etc/nginx/security-headers.conf;
+        # security-headers.conf ahora vive en /etc/nginx/templates/ (para
+        # que envsubst resuelva ${CSP_CONNECT_SRC_EXTRA}) — el entrypoint
+        # oficial de nginx lo procesa y lo deja en /etc/nginx/conf.d/.
+        include /etc/nginx/conf.d/security-headers.conf;
         # BUG-13: sin esto, los headers de seguridad de helmet (backend)
         # pasaban tal cual y se sumaban a los de nginx de arriba —
         # duplicados, dos en conflicto real (X-Frame-Options,
@@ -54,7 +57,10 @@ server {
 
     # --- Assets con hash: cache inmutable ---
     location ~* \.(?:js|css|woff2?|svg|png|jpg|jpeg|webp|ico)$ {
-        include /etc/nginx/security-headers.conf;
+        # security-headers.conf ahora vive en /etc/nginx/templates/ (para
+        # que envsubst resuelva ${CSP_CONNECT_SRC_EXTRA}) — el entrypoint
+        # oficial de nginx lo procesa y lo deja en /etc/nginx/conf.d/.
+        include /etc/nginx/conf.d/security-headers.conf;
         expires 1y;
         add_header Cache-Control "public, immutable";
         try_files $uri =404;
@@ -62,7 +68,10 @@ server {
 
     # --- SPA ---
     location / {
-        include /etc/nginx/security-headers.conf;
+        # security-headers.conf ahora vive en /etc/nginx/templates/ (para
+        # que envsubst resuelva ${CSP_CONNECT_SRC_EXTRA}) — el entrypoint
+        # oficial de nginx lo procesa y lo deja en /etc/nginx/conf.d/.
+        include /etc/nginx/conf.d/security-headers.conf;
         add_header Cache-Control "no-store";
         try_files $uri $uri/ /index.html;
     }
