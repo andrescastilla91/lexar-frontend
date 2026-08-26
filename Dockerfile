@@ -49,6 +49,9 @@ RUN apk add --no-cache gettext
 
 COPY --from=builder /app/dist/lex-ar-frontend/browser /usr/share/nginx/html
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
+# BUG-13: sin variables, se copia directo (no va en /templates/, ese
+# directorio es solo para archivos que el entrypoint procesa con envsubst).
+COPY security-headers.conf /etc/nginx/security-headers.conf
 COPY docker-entrypoint.sh /docker-entrypoint.d/15-lexar-env.envsh
 RUN chmod +x /docker-entrypoint.d/15-lexar-env.envsh && rm -f /etc/nginx/conf.d/default.conf
 
