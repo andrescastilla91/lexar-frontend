@@ -812,6 +812,7 @@ export class ProcessesComponent implements OnInit, OnDestroy {
         next: () => {
           this.isLoading.set(false);
           this.closeAnnotationModal();
+          this.toast.success('Anotación creada correctamente.');
           // Recargar historial si está abierto
           if (this.historyModalOpen()) {
             this.loadProcessHistory(processId);
