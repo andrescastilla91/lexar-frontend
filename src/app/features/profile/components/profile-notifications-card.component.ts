@@ -113,7 +113,16 @@ export class ProfileNotificationsCardComponent {
   readonly isSaving = input(false);
   readonly pushState = input<PushState>('unsupported');
   readonly isTogglingPush = input(false);
-  readonly change = output<NotificationPreferenceItem[]>();
+  // Nombre distinto a "change" a propósito: el checkbox nativo dentro de esta
+  // misma plantilla dispara su propio evento DOM `change`, que hace bubbling
+  // hasta el host de este componente. Si el output se llamaba igual
+  // (`change`), ese evento nativo pisaba el binding del padre
+  // `(change)="notificationPreferences.set($event)"` — $event terminaba
+  // siendo el Event nativo del checkbox en vez del array de preferencias,
+  // rompiendo "Guardar preferencias" con un `TypeError: preferences.map is
+  // not a function` silencioso (encontrado vía HU-FE-E2E-2, ver Bug 15 en
+  // BACKLOG-BUGS.md).
+  readonly preferencesChange = output<NotificationPreferenceItem[]>();
   readonly save = output<void>();
   readonly enablePush = output<void>();
   readonly disablePush = output<void>();
@@ -127,6 +136,6 @@ export class ProfileNotificationsCardComponent {
     const updated = this.preferences().map((p) =>
       p.type === pref.type ? { ...p, [field]: checked } : p,
     );
-    this.change.emit(updated);
+    this.preferencesChange.emit(updated);
   }
 }

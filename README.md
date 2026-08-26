@@ -38,7 +38,17 @@ Build: `npx ng build` (configuración production por defecto) · Tests: `npm tes
 
 ## Tests (F1)
 
-**Unit (Jest):** `npm test` corre `authGuard`, `chatbotFeatureGuard`, `authInterceptor`, `errorInterceptor`, `AuthService` y `PermissionsService`. Reemplazó Karma/Jasmine — no hay que instalar Chrome. `npm run test:watch` para desarrollo, `npm run test:coverage` para cobertura.
+**Unit (Jest):** `npm test` corre la suite completa (109 specs). Reemplazó Karma/Jasmine — no hay que instalar Chrome. `npm run test:watch` para desarrollo, `npm test -- --coverage` para cobertura.
+
+**Cobertura (HU-QA-GATE-1):** `coverageThreshold` en `jest.config.js` — el CI (`npm test -- --ci --coverage` en `.github/workflows/ci.yml`) falla si la cobertura cae por debajo del umbral. Umbral vigente (medido 2026-08-24, `All files`, redondeado hacia abajo — no aspiracional):
+
+| Statements | Branches | Functions | Lines |
+|---|---|---|---|
+| 83% | 68% | 74% | 84% |
+
+**Regla de ratchet**: el umbral solo sube, nunca baja — al agregar tests que superen el umbral vigente, subirlo en el mismo PR (redondeado hacia abajo al valor recién medido). Objetivo: **80%** líneas/ramas en `src/app/core` + features críticas (ya superado a nivel global; falta granularidad por carpeta).
+
+**Auditoría de dependencias (HU-SEC-3):** `node scripts/audit-gate.js` (paso de CI) corre `npm audit --omit=dev --audit-level=high --json` y falla ante high/critical en dependencias de producción sin excepción vigente en `security/audit-exceptions.json` (misma mecánica que `lexar-backend`, ver su README para el detalle). Mecanismo primario: Dependabot (`.github/dependabot.yml`).
 
 **E2E (Playwright):** `npm run e2e` requiere el backend corriendo en el puerto 3040 (`npm run start:dev` en `lexar-backend`, apuntando a Postgres) y este frontend (`npm start`, se levanta solo vía `webServer` de Playwright si no está corriendo). Cada test registra su propio tenant real vía `POST /auth/register` (`e2e/shared/tenant-fixture.ts`), sin tokens fabricados. Specs en `e2e/specs/`; page objects en `e2e/pages/`. `npm run e2e:ui` para el modo interactivo.
 
