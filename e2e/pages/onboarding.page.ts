@@ -31,18 +31,20 @@ export class OnboardingPage {
   async skipStep(): Promise<void> {
     await this.skipInlineButton().click();
     await this.confirmDialogButton('Saltar por ahora').click();
-    // Sin esto, un segundo `skipStep()` (paso 2) puede arrancar mientras el
-    // diálogo del paso 1 todavía no terminó de ocultarse — el nuevo botón
-    // inline del paso 2 y el diálogo saliente del paso 1 coinciden
-    // brevemente y `getByRole('button', {name: 'Saltar por ahora'})` viola
-    // modo estricto al resolver a los dos. `<app-confirm-dialog>` es un
-    // componente montado una sola vez a nivel raíz (igual que `<app-toast>`)
-    // que alterna su contenido con `@if (dialog(); as current)` — el tag
-    // nunca se desmonta del DOM, solo su contenido queda oculto, así que hay
-    // que esperar 'hidden' (no 'detached', que nunca ocurre — confirmado en
-    // la corrida real: "locator resolved to hidden <app-confirm-dialog>"
-    // repetido hasta agotar el timeout).
-    await this.page.locator('app-confirm-dialog').waitFor({ state: 'hidden' });
+    // BUG-17: sin esto, un segundo `skipStep()` (paso 2) puede arrancar
+    // mientras el diálogo del paso 1 todavía no terminó de ocultarse — el
+    // nuevo botón inline del paso 2 y el diálogo saliente del paso 1
+    // coinciden brevemente y `getByRole('button', {name: 'Saltar por
+    // ahora'})` viola modo estricto al resolver a los dos. `<app-confirm-
+    // dialog>` es un componente montado una sola vez a nivel raíz (igual que
+    // `<app-toast>`) que alterna TODO su contenido con `@if (dialog(); as
+    // current)` — el tag host nunca se desmonta, solo su contenido (el
+    // overlay `fixed inset-0`). Esperar 'hidden' sobre el host es una
+    // heurística de bounding-box, no una prueba dura de que el overlay salió
+    // del DOM — mismo patrón (y mismo fix) que `app-process-annotation-modal`
+    // en processes.page.ts: se reemplaza por `state: 'detached'` sobre el
+    // overlay real, que exige que el nodo desaparezca del DOM de verdad.
+    await this.page.locator('app-confirm-dialog div.fixed.inset-0').waitFor({ state: 'detached' });
   }
 
   async finishWithConfirmation(): Promise<void> {

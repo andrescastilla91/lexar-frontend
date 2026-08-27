@@ -209,6 +209,23 @@ export class ProcessesPage {
     return this.page.getByRole('button', { name: 'Descargar archivo' });
   }
 
+  // BUG-13 (hallazgo post-cierre): previsualizar carga la URL prefirmada
+  // (R2/MinIO) en un <iframe [src]> — a diferencia de "Descargar archivo"
+  // (abre en pestaña nueva), esto SÍ requiere `frame-src` en la CSP. El botón
+  // vive en app-process-history-modal (title="Ver archivo", ver
+  // process-history-modal.component.ts).
+  previewFileButton(): Locator {
+    return this.page.getByRole('button', { name: 'Ver archivo' });
+  }
+
+  previewModalIframe(): Locator {
+    return this.page.locator('app-file-preview-modal iframe');
+  }
+
+  closePreviewButton(): Locator {
+    return this.page.locator('app-file-preview-modal').getByRole('button', { name: 'Cerrar' });
+  }
+
   async openHistory(): Promise<void> {
     await this.viewHistoryButton().click();
   }
