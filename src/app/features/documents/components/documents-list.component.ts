@@ -25,12 +25,23 @@ export interface DocumentRow extends FileModel {
         </div>
 
         <div class="flex gap-2">
+          @if (hasFullAccess()) {
+            <select
+              [value]="onlyMine() ? 'mine' : 'all'"
+              (change)="onlyMineChange.emit($any($event.target).value === 'mine')"
+              class="rounded-md border border-default px-3 py-1.5 text-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            >
+              <option value="all">Todos</option>
+              <option value="mine">Solo los míos</option>
+            </select>
+          }
+
           <select
             [value]="filterEntityType()"
             (change)="filterChange.emit($any($event.target).value)"
             class="rounded-md border border-default px-3 py-1.5 text-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
           >
-            <option value="">Todos</option>
+            <option value="">Todos los tipos</option>
             <option value="legal_process">Procesos</option>
             <option value="client">Clientes</option>
           </select>
@@ -46,6 +57,12 @@ export interface DocumentRow extends FileModel {
           </button>
         </div>
       </div>
+
+      @if (!hasFullAccess()) {
+        <p class="rounded-md border border-default bg-surface-muted px-4 py-2.5 text-sm text-subtle">
+          Ves los documentos de los procesos y clientes a tu cargo.
+        </p>
+      }
 
       @if (isLoading()) {
         <div class="flex items-center justify-center rounded-lg border border-default bg-surface p-12">
@@ -136,8 +153,13 @@ export class DocumentsListComponent {
   files = input.required<DocumentRow[]>();
   isLoading = input(false);
   filterEntityType = input('');
+  /** F30: si el usuario tiene files.view.all — gobierna el filtro Todos/Solo
+   * los míos y el texto explicativo para quien no lo tiene. */
+  hasFullAccess = input(false);
+  onlyMine = input(false);
 
   filterChange = output<string>();
+  onlyMineChange = output<boolean>();
   refresh = output<void>();
   previewFile = output<DocumentRow>();
   downloadFile = output<DocumentRow>();

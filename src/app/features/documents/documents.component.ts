@@ -6,6 +6,7 @@ import { LegalProcessesService } from '../../core/services/legal-processes.servi
 import { ClientsService } from '../../core/services/clients.service';
 import { FileModel } from '../../core/models/file.model';
 import { HasPermissionDirective } from '../../core/directives/has-permission.directive';
+import { PermissionsService } from '../../core/services/permissions.service';
 import { ConfirmDialogService } from '../../core/services/confirm-dialog.service';
 import { FilePreviewModalComponent } from '../../core/components/file-preview-modal.component';
 import { DocumentUploadPanelComponent } from './components/document-upload-panel.component';
@@ -66,7 +67,10 @@ import { DocumentsListComponent, DocumentRow } from './components/documents-list
         [files]="documentRows()"
         [isLoading]="loading()"
         [filterEntityType]="filterEntityType()"
+        [hasFullAccess]="hasFullDocumentAccess()"
+        [onlyMine]="onlyMine()"
         (filterChange)="onFilterChange($event)"
+        (onlyMineChange)="onOnlyMineChange($event)"
         (refresh)="loadFiles()"
         (previewFile)="previewFile($event)"
         (downloadFile)="downloadFile($event)"
@@ -89,6 +93,7 @@ export class DocumentsComponent implements OnInit {
   private readonly processesService = inject(LegalProcessesService);
   private readonly clientsService = inject(ClientsService);
   private readonly confirmDialog = inject(ConfirmDialogService);
+  private readonly permissionsService = inject(PermissionsService);
 
   readonly files = signal<FileModel[]>([]);
   readonly processes = signal<{ id: string; title: string }[]>([]);
@@ -101,6 +106,13 @@ export class DocumentsComponent implements OnInit {
   readonly previewingFile = signal<FileModel | null>(null);
   readonly uploadPanelOpen = signal(false);
   readonly filterEntityType = signal('');
+  /** F30: filtro "Solo los míos" — solo tiene efecto real para quien tiene
+   * files.view.all (ver hasFullDocumentAccess). */
+  readonly onlyMine = signal(false);
+
+  readonly hasFullDocumentAccess = computed(() =>
+    this.permissionsService.hasPermission('files.view.all'),
+  );
 
   readonly uploadForm = this.fb.nonNullable.group({
     entityType: ['legal_process', Validators.required],
@@ -149,7 +161,10 @@ export class DocumentsComponent implements OnInit {
 
   loadFiles(): void {
     this.loading.set(true);
-    const params = this.filterEntityType() ? { entityType: this.filterEntityType() } : {};
+    const params = {
+      ...(this.filterEntityType() ? { entityType: this.filterEntityType() } : {}),
+      ...(this.onlyMine() ? { onlyMine: true } : {}),
+    };
 
     this.filesService.listFiles(params).subscribe({
       next: (response) => {
@@ -165,6 +180,11 @@ export class DocumentsComponent implements OnInit {
 
   onFilterChange(entityType: string): void {
     this.filterEntityType.set(entityType);
+    this.loadFiles();
+  }
+
+  onOnlyMineChange(onlyMine: boolean): void {
+    this.onlyMine.set(onlyMine);
     this.loadFiles();
   }
 

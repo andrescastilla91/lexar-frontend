@@ -60,6 +60,9 @@ export class FilesService {
     if (params.limit) {
       httpParams = httpParams.set('limit', params.limit.toString());
     }
+    if (params.onlyMine) {
+      httpParams = httpParams.set('onlyMine', 'true');
+    }
 
     return this.http.get<ListFilesResponse>(this.apiUrl, { params: httpParams });
   }

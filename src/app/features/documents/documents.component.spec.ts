@@ -175,6 +175,63 @@ describe('DocumentsComponent', () => {
     expect(filesServiceMock.listFiles).toHaveBeenLastCalledWith({ entityType: 'client' });
   });
 
+  it('onOnlyMineChange actualiza el filtro y recarga con onlyMine:true', () => {
+    configure();
+    const { component } = createComponent();
+
+    component.onOnlyMineChange(true);
+
+    expect(component.onlyMine()).toBe(true);
+    expect(filesServiceMock.listFiles).toHaveBeenLastCalledWith({ onlyMine: true });
+  });
+
+  it('onOnlyMineChange(false) recarga sin el parámetro onlyMine', () => {
+    configure();
+    const { component } = createComponent();
+
+    component.onOnlyMineChange(true);
+    component.onOnlyMineChange(false);
+
+    expect(component.onlyMine()).toBe(false);
+    expect(filesServiceMock.listFiles).toHaveBeenLastCalledWith({});
+  });
+
+  it('hasFullDocumentAccess refleja el permiso files.view.all del usuario', () => {
+    filesServiceMock = {
+      listFiles: jest.fn().mockReturnValue(of({ data: [], total: 0, page: 1, limit: 10 })),
+      uploadFile: jest.fn(),
+      previewFile: jest.fn(),
+      downloadFile: jest.fn(),
+      deleteFile: jest.fn(),
+      formatFileSize: jest.fn().mockReturnValue('1 KB'),
+      getFileIcon: jest.fn().mockReturnValue('M0 0'),
+    };
+    processesServiceMock = { getLegalProcesses: jest.fn().mockReturnValue(of({ message: '', legalProcesses: [], total: 0, page: 1, limit: 100 })) };
+    clientsServiceMock = { getClients: jest.fn().mockReturnValue(of({ message: '', clients: [], total: 0, page: 1, limit: 100 })) };
+    confirmDialogMock = { confirm: jest.fn() };
+
+    TestBed.configureTestingModule({
+      imports: [DocumentsComponent],
+      providers: [
+        { provide: FilesService, useValue: filesServiceMock },
+        { provide: LegalProcessesService, useValue: processesServiceMock },
+        { provide: ClientsService, useValue: clientsServiceMock },
+        { provide: ConfirmDialogService, useValue: confirmDialogMock },
+        {
+          provide: PermissionsService,
+          useValue: {
+            hasAnyPermission: jest.fn((perms: string[]) => perms.includes('files.view')),
+            hasPermission: jest.fn((perm: string) => perm === 'files.view'),
+            userPermissions: signal(['files.view']),
+          },
+        },
+      ],
+    });
+
+    const { component } = createComponent();
+    expect(component.hasFullDocumentAccess()).toBe(false);
+  });
+
   it('toggleUploadPanel abre y cierra el panel, limpiando el archivo y el error al cerrar', () => {
     configure();
     const { component } = createComponent();
