@@ -61,6 +61,19 @@ async function makeAdminAnAdvisor(page: Page): Promise<string> {
  */
 test.describe('CRUD de proceso con documentos', () => {
   test('crea, edita, sube y descarga un documento adjunto a un proceso', async ({ page, tenant }) => {
+    // BUG-13 (hallazgo post-cierre, 2026-08-26): el <iframe> de previsualización
+    // (file-preview-modal.component.ts) quedó bloqueado por CSP (frame-src
+    // ausente cae a default-src 'self') — la descarga en pestaña nueva no lo
+    // detectaba porque esa no es una carga enmarcada. Se escucha la consola
+    // durante todo el flujo para que cualquier violación de CSP futura falle
+    // el test explícitamente, no solo se pierda como warning silencioso.
+    const cspViolations: string[] = [];
+    page.on('console', (msg) => {
+      if (msg.type() === 'error' && msg.text().includes('Content Security Policy')) {
+        cspViolations.push(msg.text());
+      }
+    });
+
     await loginAsAdmin(page, tenant);
 
     const suffix = `${Date.now()}${Math.floor(Math.random() * 10_000)}`;
@@ -133,6 +146,13 @@ test.describe('CRUD de proceso con documentos', () => {
         processesPage.downloadAttachmentButton().click(),
       ]);
       expect(download.suggestedFilename()).not.toBe('');
+
+      // BUG-13: a diferencia de la descarga, esto sí enmarca la URL
+      // prefirmada en un <iframe> — es el camino que CSP bloqueaba.
+      await processesPage.previewFileButton().click();
+      await expect(processesPage.previewModalIframe()).toBeVisible();
+      await processesPage.closePreviewButton().click();
+      expect(cspViolations, `violaciones de CSP durante el flujo: ${cspViolations.join(' | ')}`).toHaveLength(0);
     } finally {
       fs.unlinkSync(tmpFilePath);
     }
