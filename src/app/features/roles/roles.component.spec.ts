@@ -196,6 +196,31 @@ describe('RolesComponent', () => {
     expect(component.isSubmitting()).toBe(false);
   });
 
+  // BUG-19: el bug real vivía en error.interceptor.ts (pisaba el mensaje con
+  // el genérico "No tienes permisos..." para todo 403, ver
+  // error.interceptor.spec.ts) — createRole ya leía error.message
+  // correctamente, solo recibía el valor equivocado. Este caso deja
+  // constancia de que, con un error que trae `code` (la forma real que ya
+  // manda el interceptor corregido para un gate de plan o de permisos),
+  // el componente sigue mostrando el mensaje real sin genericizarlo por su
+  // cuenta.
+  it('submitRole en un 403 con mensaje real (code SUBSCRIPTION_SUSPENDED) expone ese mensaje, no un genérico', () => {
+    configure();
+    rolesServiceMock.createRole.mockReturnValue(
+      throwError(() => ({
+        message: 'Tu suscripción está suspendida. Actualiza tu plan para seguir editando.',
+        statusCode: 403,
+        error: { code: 'SUBSCRIPTION_SUSPENDED' },
+      })),
+    );
+    const { component } = createComponent();
+
+    component.roleForm.setValue({ name: 'Coordinador Legal', description: '' });
+    component.submitRole();
+
+    expect(component.errorMessage()).toBe('Tu suscripción está suspendida. Actualiza tu plan para seguir editando.');
+  });
+
   it('submitRole actualiza un rol existente', () => {
     configure();
     const editing = buildRole({ id: 'r9' });
