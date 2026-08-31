@@ -11,15 +11,31 @@ describe('SubscriptionService', () => {
   const apiUrl = `${environment.apiUrl}/subscription`;
 
   const entitlements: Entitlements = {
-    planCode: 'PROFESIONAL',
-    planName: 'Profesional',
+    planCode: 'ESTUDIO',
+    planName: 'Estudio',
     status: 'active',
     isReadOnly: false,
     trialEndsAt: null,
     currentPeriodEnd: new Date().toISOString(),
     cancelAtPeriodEnd: false,
-    features: { chatbot: true, clientPortal: true, advancedReports: false },
-    limits: { maxUsers: 10, maxActiveProcesses: 100, maxStorageMb: 10240 },
+    features: {
+      chatbot: true,
+      clientPortal: true,
+      advancedReports: false,
+      taskApprovals: true,
+      customCatalogs: true,
+      mandatory2faPolicy: true,
+      exportableReports: false,
+      exportableAudit: false,
+      earlyAccess: false,
+    },
+    limits: {
+      maxUsers: 10,
+      maxActiveProcesses: 100,
+      maxStorageMb: 10240,
+      aiCreditsMonth: 100,
+      portalClientsMax: null,
+    },
     usage: { users: 3, activeProcesses: 5, storageMb: 120 },
   };
 
@@ -96,7 +112,7 @@ describe('SubscriptionService', () => {
 
   it('simulateSubscription encadena checkout y simulate con la referencia obtenida', () => {
     let result: { message: string } | undefined;
-    service.simulateSubscription('PROFESIONAL').subscribe((r) => (result = r));
+    service.simulateSubscription('ESTUDIO').subscribe((r) => (result = r));
 
     const checkoutReq = httpMock.expectOne(`${apiUrl}/checkout`);
     checkoutReq.flush({ checkout: { url: 'https://checkout.wompi.co/p/?x=1', reference: 'ref-sim-1' } });

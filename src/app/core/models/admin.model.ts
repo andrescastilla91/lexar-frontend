@@ -1,3 +1,5 @@
+import { PlanFeatures } from './subscription-backend.model';
+
 export interface PlatformAdminUser {
   email: string;
 }
@@ -63,11 +65,9 @@ export interface UpdateTenantSubscriptionRequest {
   days?: number;
 }
 
-export interface PlanFeaturesAdmin {
-  chatbot: boolean;
-  clientPortal: boolean;
-  advancedReports: boolean;
-}
+// F7-R1: PlanFeaturesAdmin se consolidó con PlanFeatures (subscription-backend.model.ts)
+// para que el backoffice de planes (F9) y el catálogo público no puedan divergir en shape.
+export type PlanFeaturesAdmin = PlanFeatures;
 
 export interface AdminPlan {
   id: string;
@@ -79,6 +79,8 @@ export interface AdminPlan {
   maxUsers: number | null;
   maxActiveProcesses: number | null;
   maxStorageMb: number | null;
+  aiCreditsMonth: number;
+  portalClientsMax: number | null;
   features: PlanFeaturesAdmin;
   isActive: boolean;
   sortOrder: number;

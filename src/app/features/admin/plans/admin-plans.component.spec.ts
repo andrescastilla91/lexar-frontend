@@ -25,7 +25,19 @@ describe('AdminPlansComponent', () => {
     maxUsers: 1,
     maxActiveProcesses: 10,
     maxStorageMb: 1024,
-    features: { chatbot: false, clientPortal: false, advancedReports: false },
+    aiCreditsMonth: 20,
+    portalClientsMax: 5,
+    features: {
+      chatbot: false,
+      clientPortal: false,
+      advancedReports: false,
+      taskApprovals: false,
+      customCatalogs: false,
+      mandatory2faPolicy: false,
+      exportableReports: false,
+      exportableAudit: false,
+      earlyAccess: false,
+    },
     isActive: true,
     sortOrder: 0,
   };
@@ -107,9 +119,17 @@ describe('AdminPlansComponent', () => {
       maxUsers: 5,
       maxActiveProcesses: 50,
       maxStorageMb: 2048,
+      aiCreditsMonth: 30,
+      portalClientsMax: 8,
       chatbot: true,
       clientPortal: false,
       advancedReports: false,
+      taskApprovals: true,
+      customCatalogs: false,
+      mandatory2faPolicy: false,
+      exportableReports: false,
+      exportableAudit: false,
+      earlyAccess: false,
     });
 
     component.onCreate();
@@ -123,8 +143,20 @@ describe('AdminPlansComponent', () => {
       maxUsers: 5,
       maxActiveProcesses: 50,
       maxStorageMb: 2048,
+      aiCreditsMonth: 30,
+      portalClientsMax: 8,
       sortOrder: 1,
-      features: { chatbot: true, clientPortal: false, advancedReports: false },
+      features: {
+        chatbot: true,
+        clientPortal: false,
+        advancedReports: false,
+        taskApprovals: true,
+        customCatalogs: false,
+        mandatory2faPolicy: false,
+        exportableReports: false,
+        exportableAudit: false,
+        earlyAccess: false,
+      },
     });
     expect(toastServiceMock.success).toHaveBeenCalledWith('Plan creado correctamente.');
     expect(component.showCreateForm()).toBe(false);
@@ -143,9 +175,17 @@ describe('AdminPlansComponent', () => {
       maxUsers: null,
       maxActiveProcesses: null,
       maxStorageMb: null,
+      aiCreditsMonth: 0,
+      portalClientsMax: null,
       chatbot: false,
       clientPortal: false,
       advancedReports: false,
+      taskApprovals: false,
+      customCatalogs: false,
+      mandatory2faPolicy: false,
+      exportableReports: false,
+      exportableAudit: false,
+      earlyAccess: false,
     });
 
     component.onCreate();

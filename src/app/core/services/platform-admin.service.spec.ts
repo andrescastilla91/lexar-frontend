@@ -155,8 +155,20 @@ describe('PlatformAdminService', () => {
         maxUsers: null,
         maxActiveProcesses: null,
         maxStorageMb: null,
+        aiCreditsMonth: 500,
+        portalClientsMax: null,
         sortOrder: 4,
-        features: { chatbot: true, clientPortal: true, advancedReports: true },
+        features: {
+          chatbot: true,
+          clientPortal: true,
+          advancedReports: true,
+          taskApprovals: true,
+          customCatalogs: true,
+          mandatory2faPolicy: true,
+          exportableReports: true,
+          exportableAudit: true,
+          earlyAccess: true,
+        },
       })
       .subscribe((p) => (plan = p));
 

@@ -54,11 +54,25 @@ import { AdminPlan } from '../../../core/models/admin.model';
               <label class="block text-xs uppercase text-subtle">Máx. storage (MB)</label>
               <input type="number" formControlName="maxStorageMb" class="mt-1 w-full rounded-md border border-default px-3 py-2 text-sm" />
             </div>
+            <div>
+              <label class="block text-xs uppercase text-subtle">Cupo IA / mes</label>
+              <input type="number" formControlName="aiCreditsMonth" class="mt-1 w-full rounded-md border border-default px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label class="block text-xs uppercase text-subtle">Máx. clientes en portal (vacío = ilimitado)</label>
+              <input type="number" formControlName="portalClientsMax" class="mt-1 w-full rounded-md border border-default px-3 py-2 text-sm" />
+            </div>
           </div>
           <div class="mt-4 flex flex-wrap gap-4 text-sm text-text">
             <label class="flex items-center gap-2"><input type="checkbox" formControlName="chatbot" /> Chatbot</label>
             <label class="flex items-center gap-2"><input type="checkbox" formControlName="clientPortal" /> Portal del cliente</label>
             <label class="flex items-center gap-2"><input type="checkbox" formControlName="advancedReports" /> Reportes avanzados</label>
+            <label class="flex items-center gap-2"><input type="checkbox" formControlName="taskApprovals" /> Aprobaciones de tareas</label>
+            <label class="flex items-center gap-2"><input type="checkbox" formControlName="customCatalogs" /> Catálogos personalizables</label>
+            <label class="flex items-center gap-2"><input type="checkbox" formControlName="mandatory2faPolicy" /> Política 2FA obligatoria</label>
+            <label class="flex items-center gap-2"><input type="checkbox" formControlName="exportableReports" /> Reportes exportables</label>
+            <label class="flex items-center gap-2"><input type="checkbox" formControlName="exportableAudit" /> Auditoría exportable</label>
+            <label class="flex items-center gap-2"><input type="checkbox" formControlName="earlyAccess" /> Early access</label>
           </div>
           <button
             type="submit"
@@ -125,9 +139,17 @@ export class AdminPlansComponent implements OnInit {
     maxUsers: [null as number | null],
     maxActiveProcesses: [null as number | null],
     maxStorageMb: [null as number | null],
+    aiCreditsMonth: [0, [Validators.required, Validators.min(0)]],
+    portalClientsMax: [null as number | null],
     chatbot: [false],
     clientPortal: [false],
     advancedReports: [false],
+    taskApprovals: [false],
+    customCatalogs: [false],
+    mandatory2faPolicy: [false],
+    exportableReports: [false],
+    exportableAudit: [false],
+    earlyAccess: [false],
   });
 
   ngOnInit(): void {
@@ -168,18 +190,39 @@ export class AdminPlansComponent implements OnInit {
         maxUsers: value.maxUsers,
         maxActiveProcesses: value.maxActiveProcesses,
         maxStorageMb: value.maxStorageMb,
+        aiCreditsMonth: value.aiCreditsMonth,
+        portalClientsMax: value.portalClientsMax,
         sortOrder: this.plans().length,
         features: {
           chatbot: value.chatbot,
           clientPortal: value.clientPortal,
           advancedReports: value.advancedReports,
+          taskApprovals: value.taskApprovals,
+          customCatalogs: value.customCatalogs,
+          mandatory2faPolicy: value.mandatory2faPolicy,
+          exportableReports: value.exportableReports,
+          exportableAudit: value.exportableAudit,
+          earlyAccess: value.earlyAccess,
         },
       })
       .subscribe({
         next: () => {
           this.isSaving.set(false);
           this.showCreateForm.set(false);
-          this.createForm.reset({ priceMonthly: 0, priceYearly: 0, chatbot: false, clientPortal: false, advancedReports: false });
+          this.createForm.reset({
+            priceMonthly: 0,
+            priceYearly: 0,
+            aiCreditsMonth: 0,
+            chatbot: false,
+            clientPortal: false,
+            advancedReports: false,
+            taskApprovals: false,
+            customCatalogs: false,
+            mandatory2faPolicy: false,
+            exportableReports: false,
+            exportableAudit: false,
+            earlyAccess: false,
+          });
           this.toast.success('Plan creado correctamente.');
           this.loadPlans();
         },

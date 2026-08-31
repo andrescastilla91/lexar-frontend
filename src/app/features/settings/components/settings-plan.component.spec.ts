@@ -28,8 +28,24 @@ describe('SettingsPlanComponent', () => {
     trialEndsAt: null,
     currentPeriodEnd: new Date().toISOString(),
     cancelAtPeriodEnd: false,
-    features: { chatbot: true, clientPortal: true, advancedReports: false },
-    limits: { maxUsers: 10, maxActiveProcesses: 100, maxStorageMb: 10240 },
+    features: {
+      chatbot: true,
+      clientPortal: true,
+      advancedReports: false,
+      taskApprovals: true,
+      customCatalogs: true,
+      mandatory2faPolicy: true,
+      exportableReports: true,
+      exportableAudit: false,
+      earlyAccess: false,
+    },
+    limits: {
+      maxUsers: 10,
+      maxActiveProcesses: 100,
+      maxStorageMb: 10240,
+      aiCreditsMonth: 50,
+      portalClientsMax: null,
+    },
     usage: { users: 3, activeProcesses: 5, storageMb: 120 },
   };
 
@@ -43,19 +59,43 @@ describe('SettingsPlanComponent', () => {
       maxUsers: 10,
       maxActiveProcesses: 100,
       maxStorageMb: 10240,
-      features: { chatbot: true, clientPortal: true, advancedReports: false },
+      aiCreditsMonth: 50,
+      portalClientsMax: null,
+      features: {
+        chatbot: true,
+        clientPortal: true,
+        advancedReports: false,
+        taskApprovals: true,
+        customCatalogs: true,
+        mandatory2faPolicy: true,
+        exportableReports: true,
+        exportableAudit: false,
+        earlyAccess: false,
+      },
       sortOrder: 0,
     },
     {
-      code: 'BASICO',
-      name: 'Básico',
+      code: 'INDEPENDIENTE',
+      name: 'Independiente',
       priceMonthly: 89000,
       priceYearly: 890000,
       currency: 'COP',
-      maxUsers: 3,
-      maxActiveProcesses: 25,
-      maxStorageMb: 2048,
-      features: { chatbot: false, clientPortal: false, advancedReports: false },
+      maxUsers: 2,
+      maxActiveProcesses: 40,
+      maxStorageMb: 5120,
+      aiCreditsMonth: 20,
+      portalClientsMax: 5,
+      features: {
+        chatbot: true,
+        clientPortal: true,
+        advancedReports: false,
+        taskApprovals: false,
+        customCatalogs: false,
+        mandatory2faPolicy: false,
+        exportableReports: false,
+        exportableAudit: false,
+        earlyAccess: false,
+      },
       sortOrder: 1,
     },
   ];
@@ -112,7 +152,7 @@ describe('SettingsPlanComponent', () => {
     const component = createComponent();
 
     expect(component.entitlements()).toEqual(entitlements);
-    expect(component.plans().map((p) => p.code)).toEqual(['BASICO']);
+    expect(component.plans().map((p) => p.code)).toEqual(['INDEPENDIENTE']);
     expect(component.invoices()).toEqual([invoice]);
     expect(component.simulationEnabled()).toBe(true);
     expect(component.isLoading()).toBe(false);
@@ -130,7 +170,7 @@ describe('SettingsPlanComponent', () => {
     confirmDialogMock.confirm.mockResolvedValue(false);
     const component = createComponent();
 
-    await component.checkout('BASICO');
+    await component.checkout('INDEPENDIENTE');
 
     expect(subscriptionServiceMock.simulateSubscription).not.toHaveBeenCalled();
     expect(subscriptionServiceMock.createCheckout).not.toHaveBeenCalled();
@@ -140,7 +180,7 @@ describe('SettingsPlanComponent', () => {
     const component = createComponent();
     component.isCheckingOut.set(true);
 
-    await component.checkout('BASICO');
+    await component.checkout('INDEPENDIENTE');
 
     expect(confirmDialogMock.confirm).not.toHaveBeenCalled();
   });
@@ -149,12 +189,12 @@ describe('SettingsPlanComponent', () => {
     subscriptionServiceMock.simulateSubscription.mockReturnValue(of({ message: 'Evento simulado aplicado' }));
     const component = createComponent();
 
-    await component.checkout('BASICO');
+    await component.checkout('INDEPENDIENTE');
 
     expect(confirmDialogMock.confirm).toHaveBeenCalledWith(
       expect.objectContaining({ title: 'Simular contratación de plan' }),
     );
-    expect(subscriptionServiceMock.simulateSubscription).toHaveBeenCalledWith('BASICO');
+    expect(subscriptionServiceMock.simulateSubscription).toHaveBeenCalledWith('INDEPENDIENTE');
     expect(subscriptionServiceMock.createCheckout).not.toHaveBeenCalled();
     expect(toastServiceMock.success).toHaveBeenCalledWith('Suscripción y factura simuladas correctamente.');
     expect(component.isCheckingOut()).toBe(false);
@@ -167,7 +207,7 @@ describe('SettingsPlanComponent', () => {
     subscriptionServiceMock.simulateSubscription.mockReturnValue(throwError(() => new Error('No se pudo simular')));
     const component = createComponent();
 
-    await component.checkout('BASICO');
+    await component.checkout('INDEPENDIENTE');
 
     expect(toastServiceMock.error).toHaveBeenCalledWith('No se pudo simular');
     expect(component.isCheckingOut()).toBe(false);
@@ -181,7 +221,7 @@ describe('SettingsPlanComponent', () => {
     );
     const component = createComponent();
 
-    await component.checkout('BASICO');
+    await component.checkout('INDEPENDIENTE');
     // No se avanza el temporizador: evita que jsdom intente navegar de verdad
     // (window.location.href) durante o después del test.
 
@@ -189,7 +229,7 @@ describe('SettingsPlanComponent', () => {
       expect.objectContaining({ title: 'Ir a la pasarela de pago' }),
     );
     expect(subscriptionServiceMock.createCheckout).toHaveBeenCalledWith({
-      planCode: 'BASICO',
+      planCode: 'INDEPENDIENTE',
       billingCycle: 'monthly',
     });
     expect(subscriptionServiceMock.simulateSubscription).not.toHaveBeenCalled();
@@ -201,7 +241,7 @@ describe('SettingsPlanComponent', () => {
     subscriptionServiceMock.createCheckout.mockReturnValue(throwError(() => new Error('No se pudo iniciar el pago')));
     const component = createComponent();
 
-    await component.checkout('BASICO');
+    await component.checkout('INDEPENDIENTE');
 
     expect(toastServiceMock.error).toHaveBeenCalledWith('No se pudo iniciar el pago');
     expect(component.isCheckingOut()).toBe(false);
