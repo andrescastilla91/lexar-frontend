@@ -7,6 +7,7 @@ import { ToastService } from '../../../core/services/toast.service';
 import { HasPermissionDirective } from '../../../core/directives/has-permission.directive';
 import { FormModalShellComponent } from '../../../core/components/form-modal-shell.component';
 import { getCatalogBadgeClasses } from '../../../core/utils/catalog-badge.util';
+import { PlanUpgradeService } from '../../../core/services/plan-upgrade.service';
 
 const COLOR_OPTIONS = ['info', 'warning', 'success', 'danger', 'accent', 'primary'] as const;
 
@@ -201,6 +202,7 @@ export class SettingsTaskStatusesComponent implements OnInit {
   private readonly taskStatusesService = inject(TaskStatusesService);
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly toast = inject(ToastService);
+  private readonly planUpgrade = inject(PlanUpgradeService);
 
   readonly statuses = signal<TaskStatusResponse[]>([]);
   readonly isLoading = signal(false);
@@ -351,9 +353,15 @@ export class SettingsTaskStatusesComponent implements OnInit {
         this.loadStatuses();
       },
       error: (error) => {
+        this.isSubmitting.set(false);
+        // F7-R3: el toast+CTA de upgrade ya lo dispara error.interceptor.ts
+        // de forma centralizada — aquí solo hace falta cerrar el modal.
+        if (this.planUpgrade.isPlanGateError(error)) {
+          this.closeModal();
+          return;
+        }
         this.formError.set(error.message || 'Error al guardar el estado');
         this.toast.error(error.message || 'Error al guardar el estado');
-        this.isSubmitting.set(false);
       },
     });
   }

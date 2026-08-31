@@ -1,9 +1,10 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, input, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { SubscriptionService } from '../../../core/services/subscription.service';
 import { ConfirmDialogService } from '../../../core/services/confirm-dialog.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { Entitlements, PlanCatalogEntry, SaasInvoice } from '../../../core/models/subscription-backend.model';
+import { PlanComparisonTableComponent } from './plan-comparison-table.component';
 
 interface UsageBar {
   label: string;
@@ -15,7 +16,7 @@ interface UsageBar {
 @Component({
   selector: 'app-settings-plan',
   standalone: true,
-  imports: [DatePipe],
+  imports: [DatePipe, PlanComparisonTableComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="flex flex-col gap-6">
@@ -103,43 +104,14 @@ interface UsageBar {
               </span>
             }
           </div>
-          <div class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-3">
-            @for (plan of plans(); track plan.code) {
-              <div
-                class="flex flex-col rounded-lg border p-5 shadow-card"
-                [class.border-navy-900]="plan.code === ent.planCode"
-                [class.border-default]="plan.code !== ent.planCode"
-              >
-                <p class="text-base font-semibold text-text">{{ plan.name }}</p>
-                <p class="mt-1 text-2xl font-bold text-text">
-                  {{ formatPrice(plan.priceMonthly, plan.currency) }}
-                  <span class="text-sm font-normal text-subtle">/mes</span>
-                </p>
-                <ul class="mt-3 flex-1 space-y-1 text-xs text-subtle">
-                  <li>{{ plan.maxUsers ?? 'Ilimitados' }} usuarios</li>
-                  <li>{{ plan.maxActiveProcesses ?? 'Ilimitados' }} procesos activos</li>
-                  <li>{{ plan.maxStorageMb ? plan.maxStorageMb / 1024 + ' GB' : 'Almacenamiento ilimitado' }}</li>
-                  @if (plan.features.chatbot) {
-                    <li>Chatbot IA</li>
-                  }
-                  @if (plan.features.clientPortal) {
-                    <li>Portal del cliente</li>
-                  }
-                </ul>
-                <button
-                  type="button"
-                  class="mt-4 rounded-md px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-60"
-                  [class.bg-navy-900]="plan.code !== ent.planCode"
-                  [class.text-white]="plan.code !== ent.planCode"
-                  [class.bg-surface-muted]="plan.code === ent.planCode"
-                  [class.text-subtle]="plan.code === ent.planCode"
-                  [disabled]="plan.code === ent.planCode || isCheckingOut()"
-                  (click)="checkout(plan.code)"
-                >
-                  {{ plan.code === ent.planCode ? 'Plan actual' : 'Actualizar a ' + plan.name }}
-                </button>
-              </div>
-            }
+          <div class="mt-3">
+            <app-plan-comparison-table
+              [plans]="plans()"
+              [currentPlanCode]="ent.planCode"
+              [suggestedPlanCode]="suggestedPlanCode()"
+              [isCheckingOut]="isCheckingOut()"
+              (selectPlan)="checkout($event)"
+            />
           </div>
         </div>
 
@@ -200,6 +172,9 @@ export class SettingsPlanComponent implements OnInit {
   private readonly subscriptionService = inject(SubscriptionService);
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly toast = inject(ToastService);
+
+  /** F7-R3: plan a resaltar cuando se llega vía el CTA de upgrade de otra pantalla. */
+  readonly suggestedPlanCode = input<string | null>(null);
 
   readonly isLoading = signal(true);
   readonly isCheckingOut = signal(false);

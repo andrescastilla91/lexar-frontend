@@ -1,8 +1,10 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { FormBuilder } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { CompanyService } from '../../core/services/company.service';
 import { CompanyProfile } from '../../core/models/company.model';
 import { ToastService } from '../../core/services/toast.service';
+import { PlanUpgradeService } from '../../core/services/plan-upgrade.service';
 import { SettingsLegalFormComponent } from './components/settings-legal-form.component';
 import { SettingsBillingFormComponent } from './components/settings-billing-form.component';
 import { SettingsBrandFormComponent } from './components/settings-brand-form.component';
@@ -23,6 +25,18 @@ type SettingsTab =
   | 'plan'
   | 'security'
   | 'notifications';
+
+const SETTINGS_TAB_IDS: SettingsTab[] = [
+  'legal',
+  'billing',
+  'brand',
+  'catalogs',
+  'task-templates',
+  'task-statuses',
+  'plan',
+  'security',
+  'notifications',
+];
 
 @Component({
   selector: 'app-settings',
@@ -130,7 +144,7 @@ type SettingsTab =
               <app-settings-task-statuses />
             }
             @case ('plan') {
-              <app-settings-plan />
+              <app-settings-plan [suggestedPlanCode]="suggestedPlanCode()" />
             }
             @case ('security') {
               <app-settings-security-form
@@ -153,6 +167,8 @@ export class SettingsComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly companyService = inject(CompanyService);
   private readonly toast = inject(ToastService);
+  private readonly planUpgrade = inject(PlanUpgradeService);
+  private readonly route = inject(ActivatedRoute);
 
   readonly tabs: { id: SettingsTab; label: string }[] = [
     { id: 'legal', label: 'Datos legales' },
@@ -166,6 +182,10 @@ export class SettingsComponent implements OnInit {
     { id: 'notifications', label: 'Notificaciones' },
   ];
   readonly activeTab = signal<SettingsTab>('legal');
+  // F7-R3: CTA de upgrade — cuando otra pantalla topa con un gate de plan,
+  // navega aquí con ?tab=plan&suggested=<code> para abrir directo en la
+  // pestaña de planes con el plan sugerido resaltado.
+  readonly suggestedPlanCode = signal<string | null>(null);
 
   readonly company = signal<CompanyProfile | null>(null);
 
@@ -209,6 +229,13 @@ export class SettingsComponent implements OnInit {
       next: (company) => this.applyCompany(company),
       error: () => this.legalError.set('No se pudo cargar la configuración de la empresa.'),
     });
+
+    const queryParams = this.route.snapshot.queryParamMap;
+    const tab = queryParams.get('tab');
+    if (tab && (SETTINGS_TAB_IDS as string[]).includes(tab)) {
+      this.activeTab.set(tab as SettingsTab);
+    }
+    this.suggestedPlanCode.set(queryParams.get('suggested'));
   }
 
   onTabSelect(event: Event): void {
@@ -300,9 +327,16 @@ export class SettingsComponent implements OnInit {
         this.toast.success('Política de seguridad guardada correctamente.');
       },
       error: (error) => {
+        this.isSubmittingSecurity.set(false);
+        // F7-R3: el toast+CTA de upgrade ya lo dispara error.interceptor.ts
+        // de forma centralizada — aquí solo hace falta revertir el
+        // checkbox: la activación no se aplicó.
+        if (this.planUpgrade.isPlanGateError(error)) {
+          this.securityForm.patchValue({ require2fa: false });
+          return;
+        }
         const message = error.error?.message || 'No se pudo guardar la política de seguridad.';
         this.securityError.set(message);
-        this.isSubmittingSecurity.set(false);
         this.toast.error(message);
       },
     });

@@ -6,6 +6,7 @@ import { TaskStatusesService } from '../../../core/services/task-statuses.servic
 import { ConfirmDialogService } from '../../../core/services/confirm-dialog.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { PermissionsService } from '../../../core/services/permissions.service';
+import { PlanUpgradeService } from '../../../core/services/plan-upgrade.service';
 import { TaskApprovalCandidate, TaskStatusResponse } from '../../../core/models/task-status.model';
 
 describe('SettingsTaskStatusesComponent', () => {
@@ -18,6 +19,7 @@ describe('SettingsTaskStatusesComponent', () => {
   };
   let confirmDialogMock: { confirm: jest.Mock };
   let toastServiceMock: { success: jest.Mock; error: jest.Mock };
+  let planUpgradeMock: { isPlanGateError: jest.Mock; promptUpgrade: jest.Mock };
 
   const statuses: TaskStatusResponse[] = [
     {
@@ -62,6 +64,7 @@ describe('SettingsTaskStatusesComponent', () => {
     };
     confirmDialogMock = { confirm: jest.fn().mockResolvedValue(true) };
     toastServiceMock = { success: jest.fn(), error: jest.fn() };
+    planUpgradeMock = { isPlanGateError: jest.fn().mockReturnValue(false), promptUpgrade: jest.fn() };
 
     TestBed.configureTestingModule({
       imports: [SettingsTaskStatusesComponent],
@@ -69,6 +72,7 @@ describe('SettingsTaskStatusesComponent', () => {
         { provide: TaskStatusesService, useValue: taskStatusesServiceMock },
         { provide: ConfirmDialogService, useValue: confirmDialogMock },
         { provide: ToastService, useValue: toastServiceMock },
+        { provide: PlanUpgradeService, useValue: planUpgradeMock },
         {
           provide: PermissionsService,
           useValue: {
@@ -282,5 +286,32 @@ describe('SettingsTaskStatusesComponent', () => {
     await component.deleteStatus(statuses[1]);
 
     expect(toastServiceMock.error).toHaveBeenCalledWith('No se pudo eliminar');
+  });
+
+  // F7-R3: taskApprovals solo gatea la creación/edición con requiresApproval:true.
+  // El toast+CTA de upgrade lo dispara error.interceptor.ts de forma
+  // centralizada (ver error.interceptor.spec.ts) — el componente solo cierra
+  // el modal y evita mostrar el error genérico encima.
+  it('submit en gate de plan: cierra el modal, no muestra el error genérico ni dispara el CTA él mismo', () => {
+    const gateError = { error: { code: 'FEATURE_NOT_IN_PLAN', message: 'Tu plan no incluye el motor de aprobaciones' } };
+    planUpgradeMock.isPlanGateError.mockReturnValue(true);
+    taskStatusesServiceMock.create.mockReturnValue(throwError(() => gateError));
+    const component = createComponent();
+    component.openCreateModal();
+    component.form.setValue({
+      code: 'en_revision',
+      label: 'En revisión',
+      color: 'warning',
+      isTerminal: false,
+      requiresApproval: true,
+      requiresNote: false,
+    });
+
+    component.submit();
+
+    expect(planUpgradeMock.promptUpgrade).not.toHaveBeenCalled();
+    expect(component.modalOpen()).toBe(false);
+    expect(component.formError()).toBeNull();
+    expect(toastServiceMock.error).not.toHaveBeenCalled();
   });
 });

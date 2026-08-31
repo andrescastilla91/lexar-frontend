@@ -7,6 +7,7 @@ import { ToastService } from '../../../core/services/toast.service';
 import { HasPermissionDirective } from '../../../core/directives/has-permission.directive';
 import { FormModalShellComponent } from '../../../core/components/form-modal-shell.component';
 import { getCatalogBadgeClasses } from '../../../core/utils/catalog-badge.util';
+import { PlanUpgradeService } from '../../../core/services/plan-upgrade.service';
 
 const CATALOG_TABS: { id: CatalogType; label: string }[] = [
   { id: 'document_type', label: 'Tipos de documento' },
@@ -238,6 +239,7 @@ export class SettingsCatalogsComponent implements OnInit {
   private readonly catalogsService = inject(CatalogsService);
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly toast = inject(ToastService);
+  private readonly planUpgrade = inject(PlanUpgradeService);
 
   readonly tabs = CATALOG_TABS;
   readonly colorOptions = COLOR_OPTIONS;
@@ -345,9 +347,15 @@ export class SettingsCatalogsComponent implements OnInit {
         this.loadItems();
       },
       error: (error) => {
-        const message = error.message || 'No se pudo guardar el ítem de catálogo.';
-        this.formError.set(message);
         this.isSubmitting.set(false);
+        // F7-R3: el toast+CTA de upgrade ya lo dispara error.interceptor.ts
+        // de forma centralizada — aquí solo hace falta la limpieza local
+        // (cerrar el modal) para no dejarlo abierto sobre un error de plan.
+        if (this.planUpgrade.isPlanGateError(error)) {
+          this.closeModal();
+          return;
+        }
+        this.formError.set(error.message || 'No se pudo guardar el ítem de catálogo.');
       },
     });
   }
@@ -359,6 +367,9 @@ export class SettingsCatalogsComponent implements OnInit {
         this.loadItems();
       },
       error: (error) => {
+        if (this.planUpgrade.isPlanGateError(error)) {
+          return;
+        }
         this.toast.error(error.message || 'No se pudo cambiar el estado del ítem.');
       },
     });
@@ -381,6 +392,9 @@ export class SettingsCatalogsComponent implements OnInit {
         });
       },
       error: (error) => {
+        if (this.planUpgrade.isPlanGateError(error)) {
+          return;
+        }
         this.toast.error(error.message || 'No se pudo reordenar el catálogo.');
       },
     });
@@ -406,6 +420,9 @@ export class SettingsCatalogsComponent implements OnInit {
         this.loadItems();
       },
       error: (error) => {
+        if (this.planUpgrade.isPlanGateError(error)) {
+          return;
+        }
         this.toast.error(error.message || 'No se pudo eliminar el ítem.');
       },
     });

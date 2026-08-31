@@ -12,7 +12,14 @@ export default defineConfig({
   testDir: './e2e/specs',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  // 1 retry también en local (antes solo CI): con E2E_BASE_URL apuntando al
+  // docker-compose local, un hipo transitorio del contenedor (recursos del
+  // host compartidos con el resto del ecosistema Piggy — mismo
+  // piggy_postgres/piggy_infra_net, ver infra/docker-compose.yml) puede
+  // tumbar un page.goto() aislado sin que sea un fallo real de la app. Sin
+  // retry local, ese hipo bloqueaba el commit por un rojo no reproducible.
+  // Ver 2026-08-31.
+  retries: process.env.CI ? 2 : 1,
   // 1 worker: el login del backend tiene @Throttle({ ttl: 60_000, limit: 5 })
   // por IP (protección de fuerza bruta, no se toca para conveniencia de
   // tests). Con más de 1 worker, varios tenants distintos intentan loguearse
@@ -31,7 +38,12 @@ export default defineConfig({
     baseURL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
-    navigationTimeout: 20_000,
+    // 20s -> 35s (2026-08-31): el fallo intermitente que motivó el retry de
+    // arriba era un TimeoutError puro en page.goto('/login') — la página
+    // nunca cargaba, no un redirect de sesión. 35s da más margen a un
+    // contenedor momentáneamente ocupado sin ocultar una regresión real
+    // (una app rota no empieza a responder ni en 35s).
+    navigationTimeout: 35_000,
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: explicitBaseURL

@@ -136,8 +136,11 @@ describe('SettingsPlanComponent', () => {
     });
   }
 
-  function createComponent() {
+  function createComponent(suggestedPlanCode: string | null = null) {
     const fixture = TestBed.createComponent(SettingsPlanComponent);
+    if (suggestedPlanCode !== null) {
+      fixture.componentRef.setInput('suggestedPlanCode', suggestedPlanCode);
+    }
     fixture.detectChanges();
     return fixture.componentInstance;
   }
@@ -277,5 +280,22 @@ describe('SettingsPlanComponent', () => {
 
     expect(toastServiceMock.success).toHaveBeenCalledWith('Se cancelará al final del período');
     expect(component.entitlements()?.cancelAtPeriodEnd).toBe(true);
+  });
+
+  // F7-R3: la tabla comparativa es un componente hijo real (no un mock) —
+  // esto verifica que el input llega hasta el DOM que renderiza.
+  it('sin plan sugerido, no muestra el badge de "Plan sugerido para ti"', () => {
+    const fixture = TestBed.createComponent(SettingsPlanComponent);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('Plan sugerido para ti');
+  });
+
+  it('con suggestedPlanCode, la tabla comparativa resalta ese plan', () => {
+    const fixture = TestBed.createComponent(SettingsPlanComponent);
+    fixture.componentRef.setInput('suggestedPlanCode', 'INDEPENDIENTE');
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Plan sugerido para ti');
   });
 });
