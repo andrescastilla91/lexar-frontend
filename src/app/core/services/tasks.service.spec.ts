@@ -1,10 +1,13 @@
 import { TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TasksService } from './tasks.service';
 import { TaskPriority, TaskResponse, TaskTemplateResponse } from '../models/task.model';
 import { TaskActivityResponse } from '../models/task-activity.model';
 import { environment } from '../../../environments/environment';
+
+import { errorInterceptor } from '../interceptors/error.interceptor';
+import { PlanUpgradeService } from './plan-upgrade.service';
 
 describe('TasksService', () => {
   let service: TasksService;
@@ -54,7 +57,11 @@ describe('TasksService', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideHttpClient(withInterceptors([errorInterceptor])),
+        provideHttpClientTesting(),
+        { provide: PlanUpgradeService, useValue: { isPlanGateError: () => false, promptUpgrade: () => {} } },
+      ],
     });
 
     service = TestBed.inject(TasksService);
@@ -138,7 +145,7 @@ describe('TasksService', () => {
 
     httpMock.expectOne(`${apiUrl}/legal-processes/process-1/tasks`).flush('error', { status: 500, statusText: 'Server Error' });
 
-    expect(error?.message).toBe('Error al cargar tareas');
+    expect(error?.message).toBe('Error interno del servidor');
   });
 
   it('create hace POST a /tasks y extrae la tarea creada', () => {
@@ -159,7 +166,7 @@ describe('TasksService', () => {
 
     httpMock.expectOne(`${apiUrl}/tasks`).flush('error', { status: 500, statusText: 'Server Error' });
 
-    expect(error?.message).toBe('Error al crear tarea');
+    expect(error?.message).toBe('Error interno del servidor');
   });
 
   it('update hace PATCH a /tasks/:id y extrae la tarea actualizada', () => {
@@ -180,7 +187,7 @@ describe('TasksService', () => {
 
     httpMock.expectOne(`${apiUrl}/tasks/task-1`).flush('error', { status: 500, statusText: 'Server Error' });
 
-    expect(error?.message).toBe('Error al actualizar tarea');
+    expect(error?.message).toBe('Error interno del servidor');
   });
 
   it('getActivity hace GET a /tasks/:id/activity y extrae la bitácora', () => {
@@ -200,7 +207,7 @@ describe('TasksService', () => {
 
     httpMock.expectOne(`${apiUrl}/tasks/task-1/activity`).flush('error', { status: 500, statusText: 'Server Error' });
 
-    expect(error?.message).toBe('Error al cargar la bitácora');
+    expect(error?.message).toBe('Error interno del servidor');
   });
 
   it('delete hace DELETE a /tasks/:id y resuelve void', () => {
@@ -220,7 +227,7 @@ describe('TasksService', () => {
 
     httpMock.expectOne(`${apiUrl}/tasks/task-1`).flush('error', { status: 500, statusText: 'Server Error' });
 
-    expect(error?.message).toBe('Error al eliminar tarea');
+    expect(error?.message).toBe('Error interno del servidor');
   });
 
   it('instantiateTemplate hace POST a /legal-processes/:id/tasks/instantiate-template', () => {
@@ -241,7 +248,7 @@ describe('TasksService', () => {
 
     httpMock.expectOne(`${apiUrl}/legal-processes/process-1/tasks/instantiate-template`).flush('error', { status: 500, statusText: 'Server Error' });
 
-    expect(error?.message).toBe('Error al instanciar la plantilla');
+    expect(error?.message).toBe('Error interno del servidor');
   });
 
   it('getTemplates hace GET a /task-templates', () => {
@@ -261,7 +268,7 @@ describe('TasksService', () => {
 
     httpMock.expectOne(`${apiUrl}/task-templates`).flush('error', { status: 500, statusText: 'Server Error' });
 
-    expect(error?.message).toBe('Error al cargar plantillas');
+    expect(error?.message).toBe('Error interno del servidor');
   });
 
   it('createTemplate hace POST a /task-templates', () => {
@@ -281,7 +288,7 @@ describe('TasksService', () => {
 
     httpMock.expectOne(`${apiUrl}/task-templates`).flush('error', { status: 500, statusText: 'Server Error' });
 
-    expect(error?.message).toBe('Error al crear la plantilla');
+    expect(error?.message).toBe('Error interno del servidor');
   });
 
   it('updateTemplate hace PATCH a /task-templates/:id', () => {
@@ -302,7 +309,7 @@ describe('TasksService', () => {
 
     httpMock.expectOne(`${apiUrl}/task-templates/template-1`).flush('error', { status: 500, statusText: 'Server Error' });
 
-    expect(error?.message).toBe('Error al actualizar la plantilla');
+    expect(error?.message).toBe('Error interno del servidor');
   });
 
   it('deleteTemplate hace DELETE a /task-templates/:id y resuelve void', () => {
@@ -322,6 +329,6 @@ describe('TasksService', () => {
 
     httpMock.expectOne(`${apiUrl}/task-templates/template-1`).flush('error', { status: 500, statusText: 'Server Error' });
 
-    expect(error?.message).toBe('Error al eliminar la plantilla');
+    expect(error?.message).toBe('Error interno del servidor');
   });
 });

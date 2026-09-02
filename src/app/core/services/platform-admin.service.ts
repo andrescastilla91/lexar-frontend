@@ -20,6 +20,12 @@ import {
   UpdateTenantSubscriptionRequest,
 } from '../models/admin.model';
 
+// BUG-20 ola 2: todos los catchError de este servicio leen error.message —
+// no error.error?.message — ver el comentario en deadlines.service.ts.
+// Excepción: login(), loginWithTwoFactor() y verifyTwoFactorSetup() sí leen
+// error.error?.message, porque ahí el fallo esperado es 401 y
+// error.interceptor.ts ignora ese status a propósito (ver el comentario
+// dentro de login()).
 @Injectable({ providedIn: 'root' })
 export class PlatformAdminService {
   private readonly http = inject(HttpClient);
@@ -45,7 +51,13 @@ export class PlatformAdminService {
       .pipe(
         catchError((error) => {
           this.currentAdminSignal.set(null);
-          return throwError(() => new Error(error.error?.message || 'Credenciales inválidas'));
+          // BUG-20 (excepción 401): error.interceptor.ts ignora a propósito
+          // todo 401 (deja pasar el HttpErrorResponse crudo para que
+          // auth.interceptor.ts pueda intentar refrescar el token) — un
+          // login fallido es 401, así que aquí error.message es el texto
+          // genérico de Angular, no el mensaje real del backend. Ver el
+          // comentario completo en auth.service.ts (login).
+          return throwError(() => new Error(error.error?.message || 'Credenciales inválidas')); // bug20-401-ok
         })
       );
   }
@@ -56,7 +68,7 @@ export class PlatformAdminService {
       .post<PlatformTwoFactorSetupResponse>(`${this.authUrl}/2fa/setup`, { pendingToken })
       .pipe(
         catchError((error) =>
-          throwError(() => new Error(error.error?.message || 'No se pudo iniciar la verificación en dos pasos.'))
+          throwError(() => new Error(error.message || 'No se pudo iniciar la verificación en dos pasos.'))
         )
       );
   }
@@ -67,8 +79,11 @@ export class PlatformAdminService {
       .post<PlatformTwoFactorVerifySetupResponse>(`${this.authUrl}/2fa/verify`, { pendingToken, code })
       .pipe(
         tap((response) => this.currentAdminSignal.set(response.user)),
+        // BUG-20 (excepción 401): igual que login() arriba — un código
+        // incorrecto en el enrolamiento forzado también responde 401, que
+        // error.interceptor.ts deja pasar crudo.
         catchError((error) =>
-          throwError(() => new Error(error.error?.message || 'El código ingresado no es válido.'))
+          throwError(() => new Error(error.error?.message || 'El código ingresado no es válido.')) // bug20-401-ok
         )
       );
   }
@@ -80,8 +95,9 @@ export class PlatformAdminService {
       .pipe(
         map((response) => response.user),
         tap((user) => this.currentAdminSignal.set(user)),
+        // BUG-20 (excepción 401): igual que login() arriba.
         catchError((error) =>
-          throwError(() => new Error(error.error?.message || 'El código ingresado no es válido.'))
+          throwError(() => new Error(error.error?.message || 'El código ingresado no es válido.')) // bug20-401-ok
         )
       );
   }
@@ -111,89 +127,89 @@ export class PlatformAdminService {
   listTenants(): Observable<TenantSummary[]> {
     return this.http.get<{ tenants: TenantSummary[] }>(`${this.apiUrl}/tenants`).pipe(
       map((response) => response.tenants),
-      catchError((error) => throwError(() => new Error(error.error?.message || 'Error al cargar los tenants')))
+      catchError((error) => throwError(() => new Error(error.message || 'Error al cargar los tenants')))
     );
   }
 
   getTenant(id: string): Observable<TenantDetail> {
     return this.http.get<{ tenant: TenantDetail }>(`${this.apiUrl}/tenants/${id}`).pipe(
       map((response) => response.tenant),
-      catchError((error) => throwError(() => new Error(error.error?.message || 'Error al cargar el tenant')))
+      catchError((error) => throwError(() => new Error(error.message || 'Error al cargar el tenant')))
     );
   }
 
   updateSubscription(id: string, dto: UpdateTenantSubscriptionRequest): Observable<{ message: string }> {
     return this.http.patch<{ message: string }>(`${this.apiUrl}/tenants/${id}/subscription`, dto).pipe(
-      catchError((error) => throwError(() => new Error(error.error?.message || 'No se pudo actualizar la suscripción')))
+      catchError((error) => throwError(() => new Error(error.message || 'No se pudo actualizar la suscripción')))
     );
   }
 
   impersonate(companyId: string, userId: string): Observable<{ message: string }> {
     return this.http.post<{ message: string }>(`${this.apiUrl}/tenants/${companyId}/impersonate/${userId}`, {}).pipe(
-      catchError((error) => throwError(() => new Error(error.error?.message || 'No se pudo iniciar la impersonación')))
+      catchError((error) => throwError(() => new Error(error.message || 'No se pudo iniciar la impersonación')))
     );
   }
 
   listPlans(): Observable<AdminPlan[]> {
     return this.http.get<{ plans: AdminPlan[] }>(`${this.apiUrl}/plans`).pipe(
       map((response) => response.plans),
-      catchError((error) => throwError(() => new Error(error.error?.message || 'Error al cargar los planes')))
+      catchError((error) => throwError(() => new Error(error.message || 'Error al cargar los planes')))
     );
   }
 
   createPlan(dto: CreatePlanRequest): Observable<AdminPlan> {
     return this.http.post<{ plan: AdminPlan }>(`${this.apiUrl}/plans`, dto).pipe(
       map((response) => response.plan),
-      catchError((error) => throwError(() => new Error(error.error?.message || 'No se pudo crear el plan')))
+      catchError((error) => throwError(() => new Error(error.message || 'No se pudo crear el plan')))
     );
   }
 
   updatePlan(id: string, dto: UpdatePlanRequest): Observable<AdminPlan> {
     return this.http.patch<{ plan: AdminPlan }>(`${this.apiUrl}/plans/${id}`, dto).pipe(
       map((response) => response.plan),
-      catchError((error) => throwError(() => new Error(error.error?.message || 'No se pudo actualizar el plan')))
+      catchError((error) => throwError(() => new Error(error.message || 'No se pudo actualizar el plan')))
     );
   }
 
   deactivatePlan(id: string): Observable<AdminPlan> {
     return this.http.delete<{ plan: AdminPlan }>(`${this.apiUrl}/plans/${id}`).pipe(
       map((response) => response.plan),
-      catchError((error) => throwError(() => new Error(error.error?.message || 'No se pudo desactivar el plan')))
+      catchError((error) => throwError(() => new Error(error.message || 'No se pudo desactivar el plan')))
     );
   }
 
   listPlatformAdmins(): Observable<PlatformAdminSummary[]> {
     return this.http.get<{ platformAdmins: PlatformAdminSummary[] }>(`${this.apiUrl}/platform-admins`).pipe(
       map((response) => response.platformAdmins),
-      catchError((error) => throwError(() => new Error(error.error?.message || 'Error al cargar los platform admins')))
+      catchError((error) => throwError(() => new Error(error.message || 'Error al cargar los platform admins')))
     );
   }
 
   createPlatformAdmin(dto: CreatePlatformAdminRequest): Observable<PlatformAdminSummary> {
     return this.http.post<{ platformAdmin: PlatformAdminSummary }>(`${this.apiUrl}/platform-admins`, dto).pipe(
       map((response) => response.platformAdmin),
-      catchError((error) => throwError(() => new Error(error.error?.message || 'No se pudo crear el platform admin')))
+      catchError((error) => throwError(() => new Error(error.message || 'No se pudo crear el platform admin')))
     );
   }
 
   togglePlatformAdminActive(id: string): Observable<PlatformAdminSummary> {
     return this.http.patch<{ platformAdmin: PlatformAdminSummary }>(`${this.apiUrl}/platform-admins/${id}/toggle-active`, {}).pipe(
       map((response) => response.platformAdmin),
-      catchError((error) => throwError(() => new Error(error.error?.message || 'No se pudo actualizar el platform admin')))
+      catchError((error) => throwError(() => new Error(error.message || 'No se pudo actualizar el platform admin')))
     );
   }
 
   getMetrics(): Observable<AdminMetrics> {
     return this.http.get<{ metrics: AdminMetrics }>(`${this.apiUrl}/metrics`).pipe(
       map((response) => response.metrics),
-      catchError((error) => throwError(() => new Error(error.error?.message || 'Error al cargar las métricas')))
+      catchError((error) => throwError(() => new Error(error.message || 'Error al cargar las métricas')))
     );
   }
 
   getNotificationTypes(): Observable<PlatformNotificationTypeSetting[]> {
     return this.http.get<{ types: PlatformNotificationTypeSetting[] }>(`${this.apiUrl}/notifications/types`).pipe(
       map((response) => response.types),
-      catchError((error) => throwError(() => new Error(error.error?.message || 'Error al cargar los tipos de notificación')))
+      catchError((error) => throwError(() => new Error(error.message || 'Error al cargar los tipos de notificación')))
     );
   }
 
@@ -201,7 +217,7 @@ export class PlatformAdminService {
     return this.http
       .patch<void>(`${this.apiUrl}/notifications/types`, { settings: [{ type, ...changes }] })
       .pipe(
-        catchError((error) => throwError(() => new Error(error.error?.message || 'No se pudo actualizar el tipo de notificación')))
+        catchError((error) => throwError(() => new Error(error.message || 'No se pudo actualizar el tipo de notificación')))
       );
   }
 
@@ -209,14 +225,14 @@ export class PlatformAdminService {
     return this.http
       .patch<void>(`${this.apiUrl}/notifications/types/channels`, { settings: [{ type, channel, enabled }] })
       .pipe(
-        catchError((error) => throwError(() => new Error(error.error?.message || 'No se pudo actualizar el canal para este evento')))
+        catchError((error) => throwError(() => new Error(error.message || 'No se pudo actualizar el canal para este evento')))
       );
   }
 
   getNotificationChannels(): Observable<PlatformNotificationChannelSetting[]> {
     return this.http.get<{ channels: PlatformNotificationChannelSetting[] }>(`${this.apiUrl}/notifications/channels`).pipe(
       map((response) => response.channels),
-      catchError((error) => throwError(() => new Error(error.error?.message || 'Error al cargar los canales de notificación')))
+      catchError((error) => throwError(() => new Error(error.message || 'Error al cargar los canales de notificación')))
     );
   }
 
@@ -224,7 +240,7 @@ export class PlatformAdminService {
     return this.http
       .patch<void>(`${this.apiUrl}/notifications/channels`, { settings: [{ channel, enabled }] })
       .pipe(
-        catchError((error) => throwError(() => new Error(error.error?.message || 'No se pudo actualizar el canal de notificación')))
+        catchError((error) => throwError(() => new Error(error.message || 'No se pudo actualizar el canal de notificación')))
       );
   }
 }

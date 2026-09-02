@@ -7,6 +7,7 @@ import { ClientsService } from '../../core/services/clients.service';
 import { CatalogsService } from '../../core/services/catalogs.service';
 import { ConfirmDialogService } from '../../core/services/confirm-dialog.service';
 import { PermissionsService } from '../../core/services/permissions.service';
+import { ToastService } from '../../core/services/toast.service';
 import { FilesService } from '../../core/services/files.service';
 import { ClientPortalInvitationsService } from '../../core/services/client-portal-invitations.service';
 import { SubscriptionService } from '../../core/services/subscription.service';
@@ -42,8 +43,8 @@ describe('ClientsComponent', () => {
   };
   let catalogsServiceMock: { getActiveCatalog: jest.Mock };
   let confirmDialogMock: { confirm: jest.Mock };
+  let toastMock: { error: jest.Mock; success: jest.Mock };
   let navigateSpy: jest.SpyInstance;
-  let alertSpy: jest.SpyInstance;
   let consoleErrorSpy: jest.SpyInstance;
 
   const documentTypes: CatalogItem[] = [
@@ -66,6 +67,7 @@ describe('ClientsComponent', () => {
       getActiveCatalog: jest.fn((type: string) => (type === 'document_type' ? of(documentTypes) : of(riskLevels))),
     };
     confirmDialogMock = { confirm: jest.fn().mockResolvedValue(true) };
+    toastMock = { error: jest.fn(), success: jest.fn() };
 
     const activatedRouteMock = {
       snapshot: { queryParamMap: { get: () => openId } },
@@ -105,6 +107,7 @@ describe('ClientsComponent', () => {
         { provide: ClientsService, useValue: clientsServiceMock },
         { provide: CatalogsService, useValue: catalogsServiceMock },
         { provide: ConfirmDialogService, useValue: confirmDialogMock },
+        { provide: ToastService, useValue: toastMock },
         { provide: ActivatedRoute, useValue: activatedRouteMock },
         {
           provide: PermissionsService,
@@ -119,7 +122,6 @@ describe('ClientsComponent', () => {
 
     const router = TestBed.inject(Router);
     navigateSpy = jest.spyOn(router, 'navigate').mockResolvedValue(true);
-    alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {});
     consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
   }
 
@@ -130,7 +132,6 @@ describe('ClientsComponent', () => {
   }
 
   afterEach(() => {
-    alertSpy?.mockRestore();
     consoleErrorSpy?.mockRestore();
   });
 
@@ -332,14 +333,14 @@ describe('ClientsComponent', () => {
     expect(clientsServiceMock.getClients).toHaveBeenCalledTimes(2);
   });
 
-  it('toggleClientStatus en error muestra una alerta', async () => {
+  it('toggleClientStatus en error, muestra un toast (BUG-20: ya no usa alert nativo)', async () => {
     configure();
     clientsServiceMock.toggleActive.mockReturnValue(throwError(() => ({ message: 'Error al cambiar estado del cliente' })));
     const { component } = createComponent();
 
     await component.toggleClientStatus(buildClient());
 
-    expect(alertSpy).toHaveBeenCalledWith('Error al cambiar estado del cliente');
+    expect(toastMock.error).toHaveBeenCalledWith('Error al cambiar estado del cliente');
   });
 
   it('filteredClients filtra por búsqueda, estado y nivel de riesgo', () => {

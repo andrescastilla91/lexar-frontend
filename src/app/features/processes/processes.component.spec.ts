@@ -57,7 +57,6 @@ describe('ProcessesComponent', () => {
   let toastMock: { success: jest.Mock; error: jest.Mock };
   let queryParamId: string | null;
   let navigateSpy: jest.SpyInstance;
-  let alertSpy: jest.SpyInstance;
 
   const process: LegalProcessResponse = {
     id: 'p1',
@@ -237,8 +236,6 @@ describe('ProcessesComponent', () => {
     confirmDialogMock = { confirm: jest.fn().mockResolvedValue(overrides.confirmResolves ?? true) };
     toastMock = { success: jest.fn(), error: jest.fn() };
 
-    alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {});
-
     const activatedRouteMock = {
       snapshot: { queryParamMap: { get: () => queryParamId } },
     };
@@ -278,10 +275,6 @@ describe('ProcessesComponent', () => {
     fixture.detectChanges();
     return fixture.componentInstance;
   }
-
-  afterEach(() => {
-    alertSpy?.mockRestore();
-  });
 
   describe('carga inicial', () => {
     it('carga procesos, asesores, clientes y catálogos al construirse', async () => {
@@ -438,12 +431,16 @@ describe('ProcessesComponent', () => {
       );
     });
 
-    it('en error, expone el mensaje del backend', async () => {
+    // BUG-10: legalProcessesService.createLegalProcess()/updateLegalProcess()
+    // ya envuelven el error en un Error nativo con el mensaje real — .error
+    // no existe ahí. El mock refleja esa forma real, no la forma cruda del
+    // interceptor (que nunca llega así hasta el componente).
+    it('en error, expone el mensaje real en el form y en el toast', async () => {
       await configure({
         legalProcesses: {
           createLegalProcess: jest
             .fn()
-            .mockReturnValue(throwError(() => ({ error: { message: 'Cliente inválido' } }))),
+            .mockReturnValue(throwError(() => new Error('Cliente inválido'))),
         },
       });
       const component = createComponent();
@@ -452,6 +449,7 @@ describe('ProcessesComponent', () => {
       component.submitProcess();
 
       expect(component.formError()).toBe('Cliente inválido');
+      expect(toastMock.error).toHaveBeenCalledWith('Cliente inválido');
       expect(component.isLoading()).toBe(false);
     });
   });
@@ -592,12 +590,17 @@ describe('ProcessesComponent', () => {
       expect(component.statusModalOpen()).toBe(false);
     });
 
-    it('en error, expone el mensaje del backend', async () => {
+    // BUG-10: legalProcessesService.updateProcessStatus() ya envuelve el
+    // error del interceptor en un Error nativo (new Error(mensaje real)) —
+    // .error no existe ahí. El mock refleja esa forma real, no
+    // { error: { message } } (la forma cruda del interceptor, que nunca
+    // llega así hasta el componente).
+    it('en error, expone el mensaje real en el form y en el toast', async () => {
       await configure({
         legalProcesses: {
           updateProcessStatus: jest
             .fn()
-            .mockReturnValue(throwError(() => ({ error: { message: 'Transición inválida' } }))),
+            .mockReturnValue(throwError(() => new Error('Transición inválida'))),
         },
       });
       const component = createComponent();
@@ -607,6 +610,7 @@ describe('ProcessesComponent', () => {
       await component.updateStatus();
 
       expect(component.formError()).toBe('Transición inválida');
+      expect(toastMock.error).toHaveBeenCalledWith('Transición inválida');
     });
   });
 
@@ -630,7 +634,7 @@ describe('ProcessesComponent', () => {
       expect(component.isLoading()).toBe(false);
     });
 
-    it('en error, muestra una alerta', async () => {
+    it('en error, muestra un toast (BUG-20: ya no usa alert nativo)', async () => {
       await configure({
         confirmResolves: true,
         legalProcesses: { deleteLegalProcess: jest.fn().mockReturnValue(throwError(() => new Error('falló'))) },
@@ -639,7 +643,7 @@ describe('ProcessesComponent', () => {
 
       await component.deleteProcess(process);
 
-      expect(alertSpy).toHaveBeenCalledWith('Error al eliminar el proceso');
+      expect(toastMock.error).toHaveBeenCalledWith('falló');
       expect(component.isLoading()).toBe(false);
     });
   });
@@ -743,7 +747,7 @@ describe('ProcessesComponent', () => {
     it('submitAnnotation en error expone el mensaje del backend', async () => {
       await configure({
         processEvents: {
-          createAnnotation: jest.fn().mockReturnValue(throwError(() => ({ error: { message: 'Nota inválida' } }))),
+          createAnnotation: jest.fn().mockReturnValue(throwError(() => ({ message: 'Nota inválida' }))),
         },
       });
       const component = createComponent();
@@ -1040,13 +1044,13 @@ describe('ProcessesComponent', () => {
   });
 
   describe('archivos: descarga y previsualización', () => {
-    it('downloadFile en error muestra una alerta', async () => {
+    it('downloadFile en error muestra un toast (BUG-20: ya no usa alert nativo)', async () => {
       await configure({ files: { downloadFile: jest.fn().mockReturnValue(throwError(() => new Error('falló'))) } });
       const component = createComponent();
 
       component.downloadFile('f1');
 
-      expect(alertSpy).toHaveBeenCalledWith('Error al descargar el archivo');
+      expect(toastMock.error).toHaveBeenCalledWith('falló');
     });
 
     it('previewFileFromHistory reconoce un PDF', async () => {
@@ -1077,13 +1081,13 @@ describe('ProcessesComponent', () => {
       expect(component.previewingFile()?.isPdf).toBe(false);
     });
 
-    it('previewFileFromHistory en error muestra una alerta', async () => {
+    it('previewFileFromHistory en error muestra un toast (BUG-20: ya no usa alert nativo)', async () => {
       await configure({ files: { getDownloadUrl: jest.fn().mockReturnValue(throwError(() => new Error('falló'))) } });
       const component = createComponent();
 
       component.previewFileFromHistory('f1', 'contrato.pdf');
 
-      expect(alertSpy).toHaveBeenCalledWith('Error al cargar vista previa del archivo');
+      expect(toastMock.error).toHaveBeenCalledWith('falló');
     });
 
     it('closePreviewModal limpia el archivo y la url en vista previa', async () => {

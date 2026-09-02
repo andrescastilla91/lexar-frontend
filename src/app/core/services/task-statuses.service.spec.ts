@@ -1,9 +1,12 @@
 import { TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TaskStatusesService } from './task-statuses.service';
 import { TaskApprovalCandidate, TaskStatusResponse } from '../models/task-status.model';
 import { environment } from '../../../environments/environment';
+
+import { errorInterceptor } from '../interceptors/error.interceptor';
+import { PlanUpgradeService } from './plan-upgrade.service';
 
 describe('TaskStatusesService', () => {
   let service: TaskStatusesService;
@@ -33,7 +36,11 @@ describe('TaskStatusesService', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideHttpClient(withInterceptors([errorInterceptor])),
+        provideHttpClientTesting(),
+        { provide: PlanUpgradeService, useValue: { isPlanGateError: () => false, promptUpgrade: () => {} } },
+      ],
     });
 
     service = TestBed.inject(TaskStatusesService);
@@ -103,7 +110,7 @@ describe('TaskStatusesService', () => {
 
     httpMock.expectOne(`${apiUrl}/status-1`).flush('error', { status: 500, statusText: 'Server Error' });
 
-    expect(error?.message).toBe('Error al actualizar el estado');
+    expect(error?.message).toBe('Error interno del servidor');
   });
 
   it('delete hace DELETE a /:id y resuelve void', () => {
@@ -143,6 +150,6 @@ describe('TaskStatusesService', () => {
 
     httpMock.expectOne(`${apiUrl}/approval-candidates`).flush('error', { status: 500, statusText: 'Server Error' });
 
-    expect(error?.message).toBe('Error al cargar los candidatos');
+    expect(error?.message).toBe('Error interno del servidor');
   });
 });

@@ -9,6 +9,8 @@ import {
   OnboardingChecklistResponse,
 } from '../models/dashboard.model';
 
+// BUG-20 ola 2: lee error.message — no error.error?.message — ver el
+// comentario en deadlines.service.ts.
 @Injectable({ providedIn: 'root' })
 export class DashboardService {
   private readonly http = inject(HttpClient);
@@ -19,7 +21,7 @@ export class DashboardService {
       map((response) => response.summary),
       catchError((error) => {
         console.error('Error al obtener el resumen del tablero:', error);
-        return throwError(() => new Error(error.error?.message || 'Error al cargar el tablero'));
+        return throwError(() => new Error(error.message || 'Error al cargar el tablero'));
       })
     );
   }
@@ -30,7 +32,7 @@ export class DashboardService {
       map((response) => response.checklist),
       catchError((error) => {
         console.error('Error al obtener el checklist de primeros pasos:', error);
-        return throwError(() => new Error(error.error?.message || 'Error al cargar el checklist'));
+        return throwError(() => new Error(error.message || 'Error al cargar el checklist'));
       })
     );
   }

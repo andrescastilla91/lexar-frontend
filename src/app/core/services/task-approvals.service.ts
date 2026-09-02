@@ -15,7 +15,12 @@ interface TaskApprovalDecideResponse {
   task: TaskResponse | null;
 }
 
-/** Bandeja de aprobaciones pendientes de tareas (F14, segunda ronda). */
+/**
+ * Bandeja de aprobaciones pendientes de tareas (F14, segunda ronda).
+ *
+ * BUG-20 ola 2: los catchError leen error.message — no error.error?.message
+ * — ver el comentario en deadlines.service.ts.
+ */
 @Injectable({ providedIn: 'root' })
 export class TaskApprovalsService {
   private readonly http = inject(HttpClient);
@@ -26,7 +31,7 @@ export class TaskApprovalsService {
       map((response) => response.approvals),
       catchError((error) => {
         console.error('Error al obtener aprobaciones pendientes:', error);
-        return throwError(() => new Error(error.error?.message || 'Error al cargar las aprobaciones pendientes'));
+        return throwError(() => new Error(error.message || 'Error al cargar las aprobaciones pendientes'));
       })
     );
   }
@@ -38,7 +43,7 @@ export class TaskApprovalsService {
         map((response) => response.task),
         catchError((error) => {
           console.error('Error al decidir la solicitud de aprobación:', error);
-          return throwError(() => new Error(error.error?.message || 'Error al decidir la solicitud'));
+          return throwError(() => new Error(error.message || 'Error al decidir la solicitud'));
         })
       );
   }

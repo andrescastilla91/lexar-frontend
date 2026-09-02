@@ -1,9 +1,12 @@
 import { TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { PortalAuthService } from './portal-auth.service';
 import { PortalUser } from '../models/portal.model';
 import { environment } from '../../../environments/environment';
+
+import { errorInterceptor } from '../interceptors/error.interceptor';
+import { PlanUpgradeService } from './plan-upgrade.service';
 
 describe('PortalAuthService', () => {
   let service: PortalAuthService;
@@ -17,7 +20,11 @@ describe('PortalAuthService', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideHttpClient(withInterceptors([errorInterceptor])),
+        provideHttpClientTesting(),
+        { provide: PlanUpgradeService, useValue: { isPlanGateError: () => false, promptUpgrade: () => {} } },
+      ],
     });
 
     service = TestBed.inject(PortalAuthService);
@@ -175,7 +182,10 @@ describe('PortalAuthService', () => {
     expect(result).toEqual({ success: true, message: 'Si el correo existe...' });
   });
 
-  it('forgotPassword en error expone el mensaje genérico si el backend no da uno', () => {
+  // BUG-20: un 500 nunca confía en el body — error.interceptor.ts (BUG-19)
+  // siempre usa su genérico en español ahí, así que error.message nunca
+  // llega vacío y el fallback local de este método ya no se dispara.
+  it('forgotPassword en un 500, usa el genérico del interceptor (nunca confía en el body)', () => {
     let result: { success: boolean; message?: string } | undefined;
 
     service.forgotPassword('cliente@x.com').subscribe((r) => (result = r));
@@ -183,7 +193,7 @@ describe('PortalAuthService', () => {
     httpMock.expectOne(`${apiUrl}/forgot-password`).flush('error', { status: 500, statusText: 'Server Error' });
 
     expect(result?.success).toBe(false);
-    expect(result?.message).toBe('No pudimos procesar tu solicitud. Intenta de nuevo en unos minutos.');
+    expect(result?.message).toBe('Error interno del servidor');
   });
 
   it('resetPassword hace POST con el token y la nueva contraseña', () => {

@@ -82,7 +82,9 @@ export class SettingsNotificationsComponent implements OnInit {
         this.isLoading.set(false);
       },
       error: (error) => {
-        this.toast.error(error.error?.message || 'No se pudo cargar la configuración de notificaciones.');
+        // BUG-20 ola 3: error.message, no error.error?.message — ver
+        // comentario en settings.component.ts.
+        this.toast.error(error.message || 'No se pudo cargar la configuración de notificaciones.');
         this.isLoading.set(false);
       },
     });
@@ -114,7 +116,7 @@ export class SettingsNotificationsComponent implements OnInit {
         this.toast.success('Configuración de notificaciones actualizada.');
       },
       error: (error) => {
-        this.toast.error(error.error?.message || 'No se pudo actualizar la configuración.');
+        this.toast.error(error.message || 'No se pudo actualizar la configuración.');
         this.savingKey.set(null);
       },
     });

@@ -5,6 +5,7 @@ import { FilesService } from '../services/files.service';
 import { FileModel } from '../models/file.model';
 import { HasPermissionDirective } from '../directives/has-permission.directive';
 import { ConfirmDialogService } from '../services/confirm-dialog.service';
+import { ToastService } from '../services/toast.service';
 import { FilePreviewModalComponent } from './file-preview-modal.component';
 
 /**
@@ -166,6 +167,7 @@ export class EntityFilesComponent implements OnInit {
   private readonly filesService = inject(FilesService);
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly sanitizer = inject(DomSanitizer);
+  private readonly toast = inject(ToastService);
 
   readonly files = signal<FileModel[]>([]);
   readonly loading = signal(false);
@@ -210,8 +212,13 @@ export class EntityFilesComponent implements OnInit {
         input.value = '';
       },
       error: (err) => {
+        // BUG-20 ola 1: err.message ya es el mensaje real y seguro que
+        // calculó error.interceptor.ts (BUG-19) — err.error?.message lee el
+        // body crudo, sin sus reglas de seguridad.
         this.uploading.set(false);
-        this.uploadError.set(err.error?.message || 'Error al subir el archivo');
+        const message = err.message || 'Error al subir el archivo';
+        this.uploadError.set(message);
+        this.toast.error(message);
         input.value = '';
       },
     });
@@ -248,7 +255,11 @@ export class EntityFilesComponent implements OnInit {
 
     this.filesService.deleteFile(file.id).subscribe({
       next: () => this.loadFiles(),
-      error: (err) => alert('Error al eliminar: ' + (err.error?.message || 'Error desconocido')),
+      error: (err) => {
+        // BUG-20 ola 1: alert() nativo reemplazado por ToastService; se lee
+        // err.message en vez de err.error?.message.
+        this.toast.error(err.message || 'Error al eliminar el documento');
+      },
     });
   }
 
@@ -260,7 +271,12 @@ export class EntityFilesComponent implements OnInit {
           current.map((f) => (f.id === file.id ? { ...f, visibleToClient: next } : f)),
         );
       },
-      error: (err) => console.error('Error al actualizar la visibilidad:', err),
+      error: (err) => {
+        // BUG-20 ola 1: antes fallaba en silencio (solo consola) — el
+        // usuario veía el toggle sin cambios y no sabía por qué.
+        console.error('Error al actualizar la visibilidad:', err);
+        this.toast.error(err.message || 'Error al actualizar la visibilidad del archivo');
+      },
     });
   }
 

@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Router } from '@angular/router';
 import { of } from 'rxjs';
@@ -7,6 +7,8 @@ import { AuthService } from './auth.service';
 import { ProfileService } from './profile.service';
 import { AuthUser } from '../models/auth.model';
 import { environment } from '../../../environments/environment';
+import { errorInterceptor } from '../interceptors/error.interceptor';
+import { PlanUpgradeService } from './plan-upgrade.service';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -15,10 +17,13 @@ describe('AuthService', () => {
   const user: AuthUser = { email: 'admin@lexar.com', roles: ['admin'], permissions: ['clients.view'] };
 
   beforeEach(() => {
+    // BUG-20 ola 2: se incluye errorInterceptor real en el pipeline — en
+    // producción el servicio siempre recibe el error YA procesado por él.
     TestBed.configureTestingModule({
       providers: [
-        provideHttpClient(),
+        provideHttpClient(withInterceptors([errorInterceptor])),
         provideHttpClientTesting(),
+        { provide: PlanUpgradeService, useValue: { isPlanGateError: () => false, promptUpgrade: () => {} } },
         { provide: Router, useValue: { navigate: jest.fn() } },
         {
           provide: ProfileService,

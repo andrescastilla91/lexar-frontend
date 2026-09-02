@@ -162,7 +162,13 @@ export class ClientPortalInvitationsComponent implements OnInit {
         if (this.planUpgrade.isPlanGateError(error)) {
           return;
         }
-        this.errorMessage.set(error.error?.message || 'Error al invitar al cliente');
+        // BUG-20 ola 1: error.message ya es el mensaje real y seguro que
+        // calculó error.interceptor.ts (BUG-19) — error.error?.message lee
+        // el body crudo, sin sus reglas de seguridad. Además faltaba el
+        // toast (solo se mostraba inline).
+        const message = error.message || 'Error al invitar al cliente';
+        this.errorMessage.set(message);
+        this.toastService.error(message);
       },
     });
   }
@@ -179,7 +185,9 @@ export class ClientPortalInvitationsComponent implements OnInit {
       },
       error: (error) => {
         this.resendingId.set(null);
-        this.toastService.error(error.error?.message || 'Error al reenviar la invitación');
+        // BUG-20 ola 1: ver comentario en invite() — error.message, no
+        // error.error?.message.
+        this.toastService.error(error.message || 'Error al reenviar la invitación');
       },
     });
   }

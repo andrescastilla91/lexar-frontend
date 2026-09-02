@@ -8,6 +8,7 @@ import { FileModel } from '../../core/models/file.model';
 import { HasPermissionDirective } from '../../core/directives/has-permission.directive';
 import { PermissionsService } from '../../core/services/permissions.service';
 import { ConfirmDialogService } from '../../core/services/confirm-dialog.service';
+import { ToastService } from '../../core/services/toast.service';
 import { FilePreviewModalComponent } from '../../core/components/file-preview-modal.component';
 import { DocumentUploadPanelComponent } from './components/document-upload-panel.component';
 import { DocumentsListComponent, DocumentRow } from './components/documents-list.component';
@@ -94,6 +95,7 @@ export class DocumentsComponent implements OnInit {
   private readonly clientsService = inject(ClientsService);
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly permissionsService = inject(PermissionsService);
+  private readonly toast = inject(ToastService);
 
   readonly files = signal<FileModel[]>([]);
   readonly processes = signal<{ id: string; title: string }[]>([]);
@@ -231,8 +233,14 @@ export class DocumentsComponent implements OnInit {
           this.loadFiles();
         },
         error: (err) => {
+          // BUG-20 ola 1: err.message ya es el mensaje real y seguro que
+          // calculó error.interceptor.ts (BUG-19) — err.error?.message lee
+          // el body crudo, sin sus reglas de seguridad (p. ej. un 500 nunca
+          // confía en el body).
           this.isUploading.set(false);
-          this.uploadError.set(err.error?.message || 'Error al subir el archivo');
+          const message = err.message || 'Error al subir el archivo';
+          this.uploadError.set(message);
+          this.toast.error(message);
         },
       });
   }
@@ -260,7 +268,10 @@ export class DocumentsComponent implements OnInit {
       },
       error: (err) => {
         console.error('Error downloading file:', err);
-        alert('Error al descargar el archivo');
+        // BUG-20 ola 1: alert() nativo reemplazado por ToastService; se lee
+        // err.message (el mensaje real y seguro del interceptor) en vez de
+        // un texto hardcodeado que ocultaba el motivo real del fallo.
+        this.toast.error(err.message || 'Error al descargar el archivo');
       },
     });
   }
@@ -277,7 +288,12 @@ export class DocumentsComponent implements OnInit {
 
     this.filesService.deleteFile(file.id).subscribe({
       next: () => this.loadFiles(),
-      error: (err) => alert('Error al eliminar: ' + err.error?.message),
+      error: (err) => {
+        // BUG-20 ola 1: alert() nativo reemplazado por ToastService; se lee
+        // err.message en vez de err.error?.message (ver comentario en
+        // handleUpload).
+        this.toast.error(err.message || 'Error al eliminar el documento');
+      },
     });
   }
 

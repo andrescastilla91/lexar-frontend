@@ -215,8 +215,11 @@ export class ProfileComponent implements OnInit {
         this.toast.success('Preferencias de notificación actualizadas.');
       },
       error: (error) => {
+        // BUG-20 ola 1: error.message ya es el mensaje real y seguro que
+        // calculó error.interceptor.ts (BUG-19) — error.error?.message lee
+        // el body crudo, sin sus reglas de seguridad.
         this.isSavingPreferences.set(false);
-        this.toast.error(error.error?.message || 'No se pudieron guardar las preferencias.');
+        this.toast.error(error.message || 'No se pudieron guardar las preferencias.');
       },
     });
   }
@@ -242,7 +245,8 @@ export class ProfileComponent implements OnInit {
         this.toast.success('Perfil actualizado correctamente.');
       },
       error: (error) => {
-        const message = error.error?.message || 'No se pudo actualizar tu perfil.';
+        // BUG-20 ola 1: ver comentario en onSaveNotificationPreferences.
+        const message = error.message || 'No se pudo actualizar tu perfil.';
         this.profileError.set(message);
         this.isSubmittingProfile.set(false);
         this.toast.error(message);
@@ -264,7 +268,8 @@ export class ProfileComponent implements OnInit {
         this.toast.success('Foto de perfil actualizada correctamente.');
       },
       error: (error) => {
-        const message = error.error?.message || 'No se pudo subir la foto de perfil.';
+        // BUG-20 ola 1: ver comentario en onSaveNotificationPreferences.
+        const message = error.message || 'No se pudo subir la foto de perfil.';
         this.profileError.set(message);
         this.isUploadingAvatar.set(false);
         this.toast.error(message);
@@ -293,7 +298,8 @@ export class ProfileComponent implements OnInit {
         });
       },
       error: (error) => {
-        const message = error.error?.message || 'La contraseña actual es incorrecta.';
+        // BUG-20 ola 1: ver comentario en onSaveNotificationPreferences.
+        const message = error.message || 'La contraseña actual es incorrecta.';
         this.passwordError.set(message);
         this.isSubmittingPassword.set(false);
         this.toast.error(message);
@@ -319,7 +325,8 @@ export class ProfileComponent implements OnInit {
             this.toast.success('Sesión cerrada correctamente.');
           },
           error: (error) => {
-            this.toast.error(error.error?.message || 'No se pudo cerrar la sesión.');
+            // BUG-20 ola 1: ver comentario en onSaveNotificationPreferences.
+            this.toast.error(error.message || 'No se pudo cerrar la sesión.');
           },
         });
       });
@@ -339,8 +346,9 @@ export class ProfileComponent implements OnInit {
         this.isStartingTwoFactor.set(false);
       },
       error: (error) => {
+        // BUG-20 ola 1: ver comentario en onSaveNotificationPreferences.
         this.isStartingTwoFactor.set(false);
-        this.toast.error(error.error?.message || 'No se pudo iniciar la activación.');
+        this.toast.error(error.message || 'No se pudo iniciar la activación.');
       },
     });
   }
@@ -370,8 +378,12 @@ export class ProfileComponent implements OnInit {
         this.toast.success('Verificación en dos pasos activada correctamente.');
       },
       error: (error) => {
-        this.twoFactorVerifyError.set(error.error?.message || 'El código ingresado no es válido.');
+        // BUG-20 ola 1: error.message en vez de error.error?.message; se
+        // agrega el toast que faltaba (antes solo se mostraba inline).
+        const message = error.message || 'El código ingresado no es válido.';
+        this.twoFactorVerifyError.set(message);
         this.isVerifyingTwoFactor.set(false);
+        this.toast.error(message);
       },
     });
   }
@@ -401,8 +413,11 @@ export class ProfileComponent implements OnInit {
         this.toast.success('Verificación en dos pasos desactivada correctamente.');
       },
       error: (error) => {
-        this.disableTwoFactorError.set(error.error?.message || 'No se pudo desactivar la verificación en dos pasos.');
+        // BUG-20 ola 1: ver comentario en onConfirmTwoFactorSetup.
+        const message = error.message || 'No se pudo desactivar la verificación en dos pasos.';
+        this.disableTwoFactorError.set(message);
         this.isDisablingTwoFactor.set(false);
+        this.toast.error(message);
       },
     });
   }
@@ -429,8 +444,11 @@ export class ProfileComponent implements OnInit {
         this.toast.success('Códigos de recuperación regenerados correctamente.');
       },
       error: (error) => {
-        this.regenerateCodesError.set(error.error?.message || 'No se pudieron regenerar los códigos de recuperación.');
+        // BUG-20 ola 1: ver comentario en onConfirmTwoFactorSetup.
+        const message = error.message || 'No se pudieron regenerar los códigos de recuperación.';
+        this.regenerateCodesError.set(message);
         this.isRegeneratingRecoveryCodes.set(false);
+        this.toast.error(message);
       },
     });
   }

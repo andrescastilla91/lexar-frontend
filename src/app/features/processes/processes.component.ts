@@ -629,9 +629,12 @@ export class ProcessesComponent implements OnInit, OnDestroy {
       },
       error: (error) => {
         console.error('Error saving process:', error);
-        this.formError.set(
-          error.error?.message || 'Error al guardar el proceso',
-        );
+        // BUG-10: legalProcessesService ya envuelve el error en un Error
+        // nativo con el mensaje real extraído (.message) — error.error no
+        // existe ahí, así que error.error?.message siempre caía al genérico.
+        const message = error.message || 'Error al guardar el proceso';
+        this.formError.set(message);
+        this.toast.error(message);
         this.isLoading.set(false);
       },
     });
@@ -820,8 +823,10 @@ export class ProcessesComponent implements OnInit, OnDestroy {
         },
         error: (error) => {
           console.error('Error creating annotation:', error);
+          // BUG-20 (hallazgo tardío en ola 3): error.message, no
+          // error.error?.message — ver comentario en settings.component.ts.
           this.formError.set(
-            error.error?.message || 'Error al crear anotación o subir archivos',
+            error.message || 'Error al crear anotación o subir archivos',
           );
           this.isLoading.set(false);
         },
@@ -1160,9 +1165,11 @@ export class ProcessesComponent implements OnInit, OnDestroy {
         },
         error: (error) => {
           console.error('Error updating status:', error);
-          this.formError.set(
-            error.error?.message || 'Error al actualizar el estado',
-          );
+          // BUG-10: mismo patrón que saveProcess — updateProcessStatus
+          // también envuelve el error en un Error nativo.
+          const message = error.message || 'Error al actualizar el estado';
+          this.formError.set(message);
+          this.toast.error(message);
           this.isLoading.set(false);
         },
       });
@@ -1186,7 +1193,10 @@ export class ProcessesComponent implements OnInit, OnDestroy {
       },
       error: (error) => {
         console.error('Error deleting process:', error);
-        alert('Error al eliminar el proceso');
+        // BUG-20 (hallazgo tardío en ola 3): alert() nativo reemplazado por
+        // ToastService, leyendo error.message (no error.error?.message) —
+        // ver comentario en settings.component.ts.
+        this.toast.error(error.message || 'Error al eliminar el proceso');
         this.isLoading.set(false);
       },
     });
@@ -1273,7 +1283,7 @@ export class ProcessesComponent implements OnInit, OnDestroy {
       },
       error: (error) => {
         console.error('Error al descargar archivo:', error);
-        alert('Error al descargar el archivo');
+        this.toast.error(error.message || 'Error al descargar el archivo');
       },
     });
   }
@@ -1295,7 +1305,7 @@ export class ProcessesComponent implements OnInit, OnDestroy {
       },
       error: (error) => {
         console.error('Error al obtener URL del archivo:', error);
-        alert('Error al cargar vista previa del archivo');
+        this.toast.error(error.message || 'Error al cargar vista previa del archivo');
       },
     });
   }

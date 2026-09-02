@@ -251,7 +251,10 @@ export class OnboardingComponent {
         this.goToStep(2);
       },
       error: (error) => {
-        const message = error.error?.message || 'No se pudieron guardar los datos.';
+        // BUG-20 ola 1: error.message ya es el mensaje real y seguro que
+        // calculó error.interceptor.ts (BUG-19) — error.error?.message lee
+        // el body crudo, sin sus reglas de seguridad.
+        const message = error.message || 'No se pudieron guardar los datos.';
         this.legalError.set(message);
         this.isSubmittingLegal.set(false);
         this.toast.error(message);
@@ -280,7 +283,8 @@ export class OnboardingComponent {
         this.goToStep(3);
       },
       error: (error) => {
-        const message = error.error?.message || 'No se pudo enviar la invitación.';
+        // BUG-20 ola 1: ver comentario en onSubmitLegal.
+        const message = error.message || 'No se pudo enviar la invitación.';
         this.inviteError.set(message);
         this.isSubmittingInvite.set(false);
         this.toast.error(message);
@@ -319,8 +323,9 @@ export class OnboardingComponent {
         this.router.navigate(['/dashboard']);
       },
       error: (error) => {
+        // BUG-20 ola 1: ver comentario en onSubmitLegal.
         this.isFinishing.set(false);
-        this.toast.error(error.error?.message || 'No se pudo completar la configuración inicial.');
+        this.toast.error(error.message || 'No se pudo completar la configuración inicial.');
       },
     });
   }

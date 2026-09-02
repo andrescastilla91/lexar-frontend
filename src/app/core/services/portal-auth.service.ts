@@ -22,6 +22,12 @@ export interface PortalLoginOutcome {
  * F16: equivalente de AuthService pero para el portal de cliente — actor
  * completamente separado (sin roles/permisos), consume solo `/portal/auth/*`.
  * Nunca comparte estado con AuthService/PlatformAdminService.
+ *
+ * BUG-20 ola 2: los `message:` armados abajo leen error.message — no
+ * error.error?.message — ver el comentario en deadlines.service.ts.
+ * Excepción: `login()` sí lee `error.error?.message`, porque un login
+ * fallido es 401 y error.interceptor.ts ignora ese status a propósito
+ * (ver el comentario dentro de `login()`).
  */
 @Injectable({ providedIn: 'root' })
 export class PortalAuthService {
@@ -40,9 +46,15 @@ export class PortalAuthService {
       map((response) => ({ success: true, user: response.user })),
       catchError((error) => {
         console.error('Error en login de portal:', error);
+        // BUG-20 (excepción 401): error.interceptor.ts ignora a propósito
+        // todo 401 (deja pasar el HttpErrorResponse crudo para que
+        // portal-auth.interceptor.ts pueda intentar refrescar el token) —
+        // un login fallido es 401, así que error.message aquí es el texto
+        // genérico de Angular, no el mensaje real del backend. Ver el
+        // comentario completo en auth.service.ts (login).
         return of({
           success: false,
-          message: error.error?.message || 'Error al iniciar sesión. Verifica tus credenciales.',
+          message: error.error?.message || 'Error al iniciar sesión. Verifica tus credenciales.', // bug20-401-ok
         });
       })
     );
@@ -92,7 +104,7 @@ export class PortalAuthService {
         console.error('Error en accept-invitation de portal:', error);
         return of({
           success: false,
-          message: error.error?.message || 'El enlace no es válido o ya expiró. Solicita uno nuevo al despacho.',
+          message: error.message || 'El enlace no es válido o ya expiró. Solicita uno nuevo al despacho.',
         });
       })
     );
@@ -107,7 +119,7 @@ export class PortalAuthService {
         console.error('Error en forgot-password de portal:', error);
         return of({
           success: false,
-          message: error.error?.message || 'No pudimos procesar tu solicitud. Intenta de nuevo en unos minutos.',
+          message: error.message || 'No pudimos procesar tu solicitud. Intenta de nuevo en unos minutos.',
         });
       })
     );
@@ -122,7 +134,7 @@ export class PortalAuthService {
         console.error('Error en reset-password de portal:', error);
         return of({
           success: false,
-          message: error.error?.message || 'El enlace no es válido o ya expiró. Solicita uno nuevo.',
+          message: error.message || 'El enlace no es válido o ya expiró. Solicita uno nuevo.',
         });
       })
     );

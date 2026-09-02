@@ -38,6 +38,11 @@ export interface LoginOutcome {
   pendingToken?: string;
 }
 
+// BUG-20 ola 2: los `message:` armados abajo leen error.message — no
+// error.error?.message — ver el comentario en deadlines.service.ts.
+// Excepción: login() y loginWithTwoFactor() sí leen error.error?.message,
+// porque ahí el fallo esperado es 401 y error.interceptor.ts ignora ese
+// status a propósito (ver el comentario dentro de login()).
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly http = inject(HttpClient);
@@ -73,9 +78,20 @@ export class AuthService {
       }),
       catchError((error) => {
         console.error('Error en login:', error);
+        // BUG-20 (excepción, hallazgo 2026-09-01): error.interceptor.ts
+        // ignora a propósito todo 401 (línea `if (error.status === 401)
+        // return throwError(() => error)`, para que auth.interceptor.ts
+        // pueda intentar refrescar el token) — así que aquí NUNCA llega el
+        // objeto {message, statusCode, error} que arma el interceptor, sino
+        // el HttpErrorResponse crudo de Angular. error.message en ese caso
+        // es un texto genérico en inglés ("Http failure response for...");
+        // el mensaje real del backend (p. ej. "Credenciales inválidas")
+        // solo está en error.error?.message. Un login fallido es
+        // prácticamente siempre un 401, así que se lee de ahí — no aplica
+        // la regla general de BUG-20 de leer siempre error.message.
         return of({
           success: false,
-          message: error.error?.message || 'Error al iniciar sesión. Verifica tus credenciales.',
+          message: error.error?.message || 'Error al iniciar sesión. Verifica tus credenciales.', // bug20-401-ok
         });
       })
     );
@@ -92,9 +108,12 @@ export class AuthService {
       }),
       catchError((error) => {
         console.error('Error en login/2fa:', error);
+        // BUG-20 (excepción 401): mismo caso que login() arriba — código
+        // incorrecto en el segundo paso del login también responde 401, que
+        // error.interceptor.ts deja pasar crudo.
         return of({
           success: false,
-          message: error.error?.message || 'El código ingresado no es válido.',
+          message: error.error?.message || 'El código ingresado no es válido.', // bug20-401-ok
         });
       })
     );
@@ -146,7 +165,7 @@ export class AuthService {
         console.error('Error en forgot-2fa:', error);
         return of({
           success: false,
-          message: error.error?.message || 'No pudimos procesar tu solicitud. Intenta de nuevo en unos minutos.',
+          message: error.message || 'No pudimos procesar tu solicitud. Intenta de nuevo en unos minutos.',
         });
       })
     );
@@ -168,7 +187,7 @@ export class AuthService {
         console.error('Error en registro:', error);
         return of({
           success: false,
-          message: error.error?.message || 'Error al registrar la empresa. Intenta nuevamente.',
+          message: error.message || 'Error al registrar la empresa. Intenta nuevamente.',
         });
       })
     );
@@ -239,7 +258,7 @@ export class AuthService {
         console.error('Error al verificar el correo:', error);
         return of({
           success: false,
-          message: error.error?.message || 'El enlace no es válido o ya expiró.',
+          message: error.message || 'El enlace no es válido o ya expiró.',
         });
       })
     );
@@ -253,7 +272,7 @@ export class AuthService {
         console.error('Error al reenviar la verificación:', error);
         return of({
           success: false,
-          message: error.error?.message || 'No se pudo reenviar el correo de verificación.',
+          message: error.message || 'No se pudo reenviar el correo de verificación.',
         });
       })
     );
@@ -289,7 +308,7 @@ export class AuthService {
         console.error('Error en forgot-password:', error);
         return of({
           success: false,
-          message: error.error?.message || 'No pudimos procesar tu solicitud. Intenta de nuevo en unos minutos.',
+          message: error.message || 'No pudimos procesar tu solicitud. Intenta de nuevo en unos minutos.',
         });
       })
     );
@@ -304,7 +323,7 @@ export class AuthService {
         console.error('Error en reset-password:', error);
         return of({
           success: false,
-          message: error.error?.message || 'El enlace no es válido o ya expiró. Solicita uno nuevo.',
+          message: error.message || 'El enlace no es válido o ya expiró. Solicita uno nuevo.',
         });
       })
     );
@@ -323,7 +342,7 @@ export class AuthService {
         console.error('Error en accept-invitation:', error);
         return of({
           success: false,
-          message: error.error?.message || 'El enlace no es válido o ya expiró. Solicita uno nuevo al administrador.',
+          message: error.message || 'El enlace no es válido o ya expiró. Solicita uno nuevo al administrador.',
         });
       })
     );

@@ -47,7 +47,11 @@ export class AdvisorsService {
     return this.http.get<AdvisorsListResponse>(this.apiUrl, { params }).pipe(
       catchError((error) => {
         console.error('Error al obtener asesores:', error);
-        return throwError(() => new Error(error.error?.message || 'Error al cargar asesores'));
+        // BUG-20 ola 1: error.message ya es el mensaje real y seguro que
+        // calculó error.interceptor.ts (BUG-19) — leer error.error?.message
+        // aquí duplicaba esa lógica y podía mostrar el body crudo sin pasar
+        // por sus reglas de seguridad (p. ej. un 500 nunca confía en el body).
+        return throwError(() => new Error(error.message || 'Error al cargar asesores'));
       })
     );
   }
@@ -57,7 +61,7 @@ export class AdvisorsService {
       map((response) => response.advisor),
       catchError((error) => {
         console.error('Error al obtener asesor:', error);
-        return throwError(() => new Error(error.error?.message || 'Error al cargar asesor'));
+        return throwError(() => new Error(error.message || 'Error al cargar asesor'));
       })
     );
   }
@@ -67,7 +71,7 @@ export class AdvisorsService {
       map((response) => response.advisor),
       catchError((error) => {
         console.error('Error al crear asesor:', error);
-        return throwError(() => new Error(error.error?.message || 'Error al crear asesor'));
+        return throwError(() => new Error(error.message || 'Error al crear asesor'));
       })
     );
   }
@@ -77,7 +81,7 @@ export class AdvisorsService {
       map((response) => response.advisor),
       catchError((error) => {
         console.error('Error al actualizar asesor:', error);
-        return throwError(() => new Error(error.error?.message || 'Error al actualizar asesor'));
+        return throwError(() => new Error(error.message || 'Error al actualizar asesor'));
       })
     );
   }
@@ -87,7 +91,7 @@ export class AdvisorsService {
       map((response) => response.advisor),
       catchError((error) => {
         console.error('Error al cambiar estado del asesor:', error);
-        return throwError(() => new Error(error.error?.message || 'Error al cambiar estado del asesor'));
+        return throwError(() => new Error(error.message || 'Error al cambiar estado del asesor'));
       })
     );
   }
@@ -97,7 +101,7 @@ export class AdvisorsService {
       map(() => void 0),
       catchError((error) => {
         console.error('Error al eliminar asesor:', error);
-        return throwError(() => new Error(error.error?.message || 'Error al eliminar asesor'));
+        return throwError(() => new Error(error.message || 'Error al eliminar asesor'));
       })
     );
   }

@@ -13,6 +13,7 @@ import { CatalogsService } from '../../core/services/catalogs.service';
 import { CatalogItem } from '../../core/models/catalog-backend.model';
 import { HasPermissionDirective } from '../../core/directives/has-permission.directive';
 import { ConfirmDialogService } from '../../core/services/confirm-dialog.service';
+import { ToastService } from '../../core/services/toast.service';
 import { PaginationComponent } from '../../core/components/pagination.component';
 import { ClientFormComponent } from './components/client-form.component';
 import { ClientsTableComponent } from './components/clients-table.component';
@@ -176,6 +177,7 @@ export class ClientsComponent implements OnInit {
   private readonly clientsService = inject(ClientsService);
   private readonly catalogsService = inject(CatalogsService);
   private readonly confirmDialog = inject(ConfirmDialogService);
+  private readonly toast = inject(ToastService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
@@ -451,7 +453,8 @@ export class ClientsComponent implements OnInit {
         this.loadClients();
       },
       error: (error) => {
-        alert(error.message || 'Error al cambiar estado del cliente');
+        // BUG-20 ola 1: alert() nativo reemplazado por ToastService.
+        this.toast.error(error.message || 'Error al cambiar estado del cliente');
       },
     });
   }

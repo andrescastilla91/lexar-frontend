@@ -149,8 +149,11 @@ describe('SettingsComponent', () => {
   });
 
   it('onSubmitLegal en error muestra el mensaje del backend y un toast', () => {
+    // BUG-20: el mock simula la forma real que arma error.interceptor.ts
+    // ({message, statusCode, error}) — el componente lee error.message, no
+    // error.error?.message.
     companyServiceMock.updateCompany.mockReturnValue(
-      throwError(() => ({ error: { message: 'Dato inválido' } })),
+      throwError(() => ({ message: 'Dato inválido' })),
     );
     const component = createComponent();
 
@@ -298,7 +301,7 @@ describe('SettingsComponent', () => {
   });
 
   it('onSubmitSecurity: en un error que no es de plan, muestra el mensaje real y no llama al CTA de upgrade', () => {
-    companyServiceMock.updateCompany.mockReturnValue(throwError(() => ({ error: { message: 'Dato inválido' } })));
+    companyServiceMock.updateCompany.mockReturnValue(throwError(() => ({ message: 'Dato inválido' })));
     const component = createComponent();
 
     component.onSubmitSecurity();

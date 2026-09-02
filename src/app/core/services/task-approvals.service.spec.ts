@@ -1,10 +1,13 @@
 import { TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TaskApprovalsService } from './task-approvals.service';
 import { TaskApprovalRequestResponse } from '../models/task-approval.model';
 import { TaskPriority, TaskResponse } from '../models/task.model';
 import { environment } from '../../../environments/environment';
+
+import { errorInterceptor } from '../interceptors/error.interceptor';
+import { PlanUpgradeService } from './plan-upgrade.service';
 
 describe('TaskApprovalsService', () => {
   let service: TaskApprovalsService;
@@ -52,7 +55,11 @@ describe('TaskApprovalsService', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideHttpClient(withInterceptors([errorInterceptor])),
+        provideHttpClientTesting(),
+        { provide: PlanUpgradeService, useValue: { isPlanGateError: () => false, promptUpgrade: () => {} } },
+      ],
     });
 
     service = TestBed.inject(TaskApprovalsService);
@@ -89,7 +96,7 @@ describe('TaskApprovalsService', () => {
 
     httpMock.expectOne(apiUrl).flush('error', { status: 500, statusText: 'Server Error' });
 
-    expect(error?.message).toBe('Error al cargar las aprobaciones pendientes');
+    expect(error?.message).toBe('Error interno del servidor');
   });
 
   it('decide hace POST a /:id/decide y extrae la tarea resultante', () => {

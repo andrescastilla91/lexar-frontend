@@ -106,7 +106,10 @@ describe('UsersComponent', () => {
 
   it('si getUsers falla, apaga isLoading sin lanzar', () => {
     configure();
-    usersServiceMock.getUsers.mockReturnValue(throwError(() => ({ error: { message: 'boom' } })));
+    // BUG-20: el mock simula la forma real que arma error.interceptor.ts
+    // ({message, statusCode, error}) — el componente lee error.message, no
+    // error.error?.message.
+    usersServiceMock.getUsers.mockReturnValue(throwError(() => ({ message: 'boom' })));
     const { component } = createComponent();
 
     expect(component.isLoading()).toBe(false);
@@ -180,7 +183,7 @@ describe('UsersComponent', () => {
 
   it('editUser en error muestra el toast con el mensaje del backend', () => {
     configure();
-    usersServiceMock.getUserById.mockReturnValue(throwError(() => ({ error: { message: 'Usuario no encontrado' } })));
+    usersServiceMock.getUserById.mockReturnValue(throwError(() => ({ message: 'Usuario no encontrado' })));
     const { component } = createComponent();
 
     component.editUser(buildUser());
@@ -225,7 +228,7 @@ describe('UsersComponent', () => {
 
   it('submitUser en error de creación expone el mensaje y no cierra el panel', () => {
     configure();
-    usersServiceMock.createUser.mockReturnValue(throwError(() => ({ error: { message: 'Email ya registrado' } })));
+    usersServiceMock.createUser.mockReturnValue(throwError(() => ({ message: 'Email ya registrado' })));
     const { component } = createComponent();
 
     component.userForm.setValue({ firstName: 'Ana', lastName: 'Gómez', email: 'ana@lexar.com' });
@@ -276,7 +279,7 @@ describe('UsersComponent', () => {
 
   it('toggleUserStatus en error notifica con el mensaje del backend', async () => {
     configure();
-    usersServiceMock.toggleActive.mockReturnValue(throwError(() => ({ error: { message: 'No autorizado' } })));
+    usersServiceMock.toggleActive.mockReturnValue(throwError(() => ({ message: 'No autorizado' })));
     const { component } = createComponent();
 
     await component.toggleUserStatus(buildUser());
@@ -317,7 +320,7 @@ describe('UsersComponent', () => {
 
   it('resendInvitation en error notifica el mensaje del backend', () => {
     configure();
-    usersServiceMock.resendInvitation.mockReturnValue(throwError(() => ({ error: { message: 'Límite alcanzado' } })));
+    usersServiceMock.resendInvitation.mockReturnValue(throwError(() => ({ message: 'Límite alcanzado' })));
     const { component } = createComponent();
 
     component.resendInvitation(buildUser());
@@ -361,7 +364,7 @@ describe('UsersComponent', () => {
 
   it('saveRoles en error notifica y detiene isSubmitting', () => {
     configure();
-    usersServiceMock.assignRoles.mockReturnValue(throwError(() => ({ error: { message: 'Rol inválido' } })));
+    usersServiceMock.assignRoles.mockReturnValue(throwError(() => ({ message: 'Rol inválido' })));
     const { component } = createComponent();
     component.assignRoles(buildUser());
 

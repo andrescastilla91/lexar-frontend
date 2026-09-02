@@ -109,7 +109,9 @@ export class TwoFactorRequiredComponent {
         this.isVerifying.set(false);
       },
       error: (error) => {
-        this.verifyError.set(error.error?.message || 'El código ingresado no es válido.');
+        // BUG-20 ola 3: error.message, no error.error?.message — ver
+        // comentario en settings.component.ts.
+        this.verifyError.set(error.message || 'El código ingresado no es válido.');
         this.isVerifying.set(false);
       },
     });

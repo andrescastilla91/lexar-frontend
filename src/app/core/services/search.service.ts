@@ -9,6 +9,8 @@ interface SearchResponse {
   results: SearchResultItem[];
 }
 
+// BUG-20 ola 2: lee error.message — no error.error?.message — ver el
+// comentario en deadlines.service.ts.
 @Injectable({ providedIn: 'root' })
 export class SearchService {
   private readonly http = inject(HttpClient);
@@ -23,7 +25,7 @@ export class SearchService {
         catchError((error) => {
           console.error('Error al buscar:', error);
           return throwError(
-            () => new Error(error.error?.message || 'Error al buscar'),
+            () => new Error(error.message || 'Error al buscar'),
           );
         }),
       );

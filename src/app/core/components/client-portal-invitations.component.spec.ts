@@ -148,8 +148,11 @@ describe('ClientPortalInvitationsComponent', () => {
     expect(component.isInviting()).toBe(false);
   });
 
-  it('invite() en un error normal: expone el mensaje del backend inline', () => {
-    portalInvitationsServiceMock.invite.mockReturnValue(throwError(() => ({ error: { message: 'Correo ya invitado' } })));
+  it('invite() en un error normal: expone el mensaje real del backend inline y en un toast', () => {
+    // BUG-20 ola 1: ClientPortalInvitationsService no envuelve sus errores —
+    // el componente recibe directo el objeto de error.interceptor.ts, con
+    // .message ya resuelto (no anidado bajo .error).
+    portalInvitationsServiceMock.invite.mockReturnValue(throwError(() => ({ message: 'Correo ya invitado' })));
     const component = createComponent();
     component.inviteEmail = 'nuevo@x.com';
 
@@ -157,6 +160,7 @@ describe('ClientPortalInvitationsComponent', () => {
 
     expect(planUpgradeMock.promptUpgrade).not.toHaveBeenCalled();
     expect(component.errorMessage()).toBe('Correo ya invitado');
+    expect(toastServiceMock.error).toHaveBeenCalledWith('Correo ya invitado');
   });
 
   it('resend() en éxito muestra un toast', () => {
@@ -167,6 +171,16 @@ describe('ClientPortalInvitationsComponent', () => {
 
     expect(portalInvitationsServiceMock.resend).toHaveBeenCalledWith('client-1', 'p1');
     expect(toastServiceMock.success).toHaveBeenCalledWith('Invitación reenviada');
+    expect(component.resendingId()).toBeNull();
+  });
+
+  it('resend() en error, muestra un toast con el mensaje real', () => {
+    portalInvitationsServiceMock.resend.mockReturnValue(throwError(() => ({ message: 'No se pudo reenviar' })));
+    const component = createComponent();
+
+    component.resend(invitations[0]);
+
+    expect(toastServiceMock.error).toHaveBeenCalledWith('No se pudo reenviar');
     expect(component.resendingId()).toBeNull();
   });
 

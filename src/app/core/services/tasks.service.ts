@@ -38,6 +38,8 @@ interface TaskTemplateItemResponse {
   template: TaskTemplateResponse;
 }
 
+// BUG-20 ola 2: todos los catchError de este servicio leen error.message —
+// no error.error?.message — ver el comentario en deadlines.service.ts.
 @Injectable({ providedIn: 'root' })
 export class TasksService {
   private readonly http = inject(HttpClient);
@@ -59,7 +61,7 @@ export class TasksService {
         catchError((error) => {
           console.error('Error al obtener tareas:', error);
           return throwError(
-            () => new Error(error.error?.message || 'Error al cargar tareas'),
+            () => new Error(error.message || 'Error al cargar tareas'),
           );
         }),
       );
@@ -72,7 +74,7 @@ export class TasksService {
       catchError((error) => {
         console.error('Error al obtener la tarea:', error);
         return throwError(
-          () => new Error(error.error?.message || 'Error al cargar la tarea'),
+          () => new Error(error.message || 'Error al cargar la tarea'),
         );
       }),
     );
@@ -89,7 +91,7 @@ export class TasksService {
         catchError((error) => {
           console.error('Error al obtener tareas del proceso:', error);
           return throwError(
-            () => new Error(error.error?.message || 'Error al cargar tareas'),
+            () => new Error(error.message || 'Error al cargar tareas'),
           );
         }),
       );
@@ -101,7 +103,7 @@ export class TasksService {
       catchError((error) => {
         console.error('Error al crear tarea:', error);
         return throwError(
-          () => new Error(error.error?.message || 'Error al crear tarea'),
+          () => new Error(error.message || 'Error al crear tarea'),
         );
       }),
     );
@@ -116,7 +118,7 @@ export class TasksService {
           console.error('Error al actualizar tarea:', error);
           return throwError(
             () =>
-              new Error(error.error?.message || 'Error al actualizar tarea'),
+              new Error(error.message || 'Error al actualizar tarea'),
           );
         }),
       );
@@ -132,7 +134,7 @@ export class TasksService {
           console.error('Error al obtener la bitácora de la tarea:', error);
           return throwError(
             () =>
-              new Error(error.error?.message || 'Error al cargar la bitácora'),
+              new Error(error.message || 'Error al cargar la bitácora'),
           );
         }),
       );
@@ -146,7 +148,7 @@ export class TasksService {
         catchError((error) => {
           console.error('Error al eliminar tarea:', error);
           return throwError(
-            () => new Error(error.error?.message || 'Error al eliminar tarea'),
+            () => new Error(error.message || 'Error al eliminar tarea'),
           );
         }),
       );
@@ -170,7 +172,7 @@ export class TasksService {
           return throwError(
             () =>
               new Error(
-                error.error?.message || 'Error al instanciar la plantilla',
+                error.message || 'Error al instanciar la plantilla',
               ),
           );
         }),
@@ -186,7 +188,7 @@ export class TasksService {
           console.error('Error al obtener plantillas de tareas:', error);
           return throwError(
             () =>
-              new Error(error.error?.message || 'Error al cargar plantillas'),
+              new Error(error.message || 'Error al cargar plantillas'),
           );
         }),
       );
@@ -203,7 +205,7 @@ export class TasksService {
           console.error('Error al crear plantilla de tareas:', error);
           return throwError(
             () =>
-              new Error(error.error?.message || 'Error al crear la plantilla'),
+              new Error(error.message || 'Error al crear la plantilla'),
           );
         }),
       );
@@ -225,7 +227,7 @@ export class TasksService {
           return throwError(
             () =>
               new Error(
-                error.error?.message || 'Error al actualizar la plantilla',
+                error.message || 'Error al actualizar la plantilla',
               ),
           );
         }),
@@ -242,7 +244,7 @@ export class TasksService {
           return throwError(
             () =>
               new Error(
-                error.error?.message || 'Error al eliminar la plantilla',
+                error.message || 'Error al eliminar la plantilla',
               ),
           );
         }),

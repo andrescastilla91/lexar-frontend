@@ -24,7 +24,12 @@ interface TaskApprovalCandidatesResponse {
   users: TaskApprovalCandidate[];
 }
 
-/** Catálogo de estados de tarea, configurable por tenant (F14). */
+/**
+ * Catálogo de estados de tarea, configurable por tenant (F14).
+ *
+ * BUG-20 ola 2: los catchError leen error.message — no error.error?.message
+ * — ver el comentario en deadlines.service.ts.
+ */
 @Injectable({ providedIn: 'root' })
 export class TaskStatusesService {
   private readonly http = inject(HttpClient);
@@ -35,7 +40,7 @@ export class TaskStatusesService {
       map((response) => response.statuses),
       catchError((error) => {
         console.error('Error al obtener estados de tareas:', error);
-        return throwError(() => new Error(error.error?.message || 'Error al cargar los estados'));
+        return throwError(() => new Error(error.message || 'Error al cargar los estados'));
       })
     );
   }
@@ -45,7 +50,7 @@ export class TaskStatusesService {
       map((response) => response.status),
       catchError((error) => {
         console.error('Error al crear estado de tarea:', error);
-        return throwError(() => new Error(error.error?.message || 'Error al crear el estado'));
+        return throwError(() => new Error(error.message || 'Error al crear el estado'));
       })
     );
   }
@@ -55,7 +60,7 @@ export class TaskStatusesService {
       map((response) => response.status),
       catchError((error) => {
         console.error('Error al actualizar estado de tarea:', error);
-        return throwError(() => new Error(error.error?.message || 'Error al actualizar el estado'));
+        return throwError(() => new Error(error.message || 'Error al actualizar el estado'));
       })
     );
   }
@@ -65,7 +70,7 @@ export class TaskStatusesService {
       map(() => undefined),
       catchError((error) => {
         console.error('Error al eliminar estado de tarea:', error);
-        return throwError(() => new Error(error.error?.message || 'Error al eliminar el estado'));
+        return throwError(() => new Error(error.message || 'Error al eliminar el estado'));
       })
     );
   }
@@ -79,7 +84,7 @@ export class TaskStatusesService {
         map((response) => response.users),
         catchError((error) => {
           console.error('Error al obtener candidatos a aprobador:', error);
-          return throwError(() => new Error(error.error?.message || 'Error al cargar los candidatos'));
+          return throwError(() => new Error(error.message || 'Error al cargar los candidatos'));
         })
       );
   }

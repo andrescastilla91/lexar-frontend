@@ -14,6 +14,7 @@ import { UserBackend } from '../../core/models/user-backend.model';
 import { CatalogItem } from '../../core/models/catalog-backend.model';
 import { HasPermissionDirective } from '../../core/directives/has-permission.directive';
 import { ConfirmDialogService } from '../../core/services/confirm-dialog.service';
+import { ToastService } from '../../core/services/toast.service';
 import { PaginationComponent } from '../../core/components/pagination.component';
 import { AdvisorFormComponent } from './components/advisor-form.component';
 import { AdvisorsTableComponent } from './components/advisors-table.component';
@@ -166,6 +167,7 @@ export class AdvisorsComponent {
   private readonly usersService = inject(UsersService);
   private readonly catalogsService = inject(CatalogsService);
   private readonly confirmDialog = inject(ConfirmDialogService);
+  private readonly toast = inject(ToastService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
@@ -299,9 +301,11 @@ export class AdvisorsComponent {
       .getAdvisors(this.currentPage(), this.pageSize)
       .pipe(
         catchError((error) => {
-          this.errorMessage.set(
-            error.error?.message || 'Error al cargar asesores',
-          );
+          // BUG-20 ola 1: advisorsService ya envuelve el error en un Error
+          // nativo con el mensaje real (error.error no existe ahí).
+          const message = error.message || 'Error al cargar asesores';
+          this.errorMessage.set(message);
+          this.toast.error(message);
           return of({
             advisors: [],
             total: 0,
@@ -405,9 +409,9 @@ export class AdvisorsComponent {
             this.togglePanel();
           },
           error: (error) => {
-            this.errorMessage.set(
-              error.error?.message || 'Error al actualizar asesor',
-            );
+            const message = error.message || 'Error al actualizar asesor';
+            this.errorMessage.set(message);
+            this.toast.error(message);
             this.isSubmitting.set(false);
           },
         });
@@ -428,9 +432,9 @@ export class AdvisorsComponent {
           this.loadAdvisors();
         },
         error: (error) => {
-          this.errorMessage.set(
-            error.error?.message || 'Error al crear asesor',
-          );
+          const message = error.message || 'Error al crear asesor';
+          this.errorMessage.set(message);
+          this.toast.error(message);
           this.isSubmitting.set(false);
         },
       });
@@ -471,7 +475,9 @@ export class AdvisorsComponent {
         );
       },
       error: (error) => {
-        alert(error.message || `Error al ${action} asesor`);
+        // BUG-20 ola 1: alert() nativo reemplazado por ToastService, siguiendo
+        // la convención del proyecto de feedback visible vía toast.
+        this.toast.error(error.message || `Error al ${action} asesor`);
       },
     });
   }

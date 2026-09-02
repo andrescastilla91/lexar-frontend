@@ -258,7 +258,11 @@ export class SettingsComponent implements OnInit {
         this.toast.success('Datos legales guardados correctamente.');
       },
       error: (error) => {
-        const message = error.error?.message || 'No se pudieron guardar los datos legales.';
+        // BUG-20 ola 3: error.message ya es el mensaje real y seguro que
+        // calculó error.interceptor.ts (BUG-19) — error.error?.message lee
+        // el body crudo, sin sus reglas de seguridad (los 5 error: de este
+        // componente comparten el mismo fix, ver comentario aquí).
+        const message = error.message || 'No se pudieron guardar los datos legales.';
         this.legalError.set(message);
         this.isSubmittingLegal.set(false);
         this.toast.error(message);
@@ -281,7 +285,7 @@ export class SettingsComponent implements OnInit {
         this.toast.success('Datos de facturación guardados correctamente.');
       },
       error: (error) => {
-        const message = error.error?.message || 'No se pudo guardar el correo de facturación.';
+        const message = error.message || 'No se pudo guardar el correo de facturación.';
         this.billingError.set(message);
         this.isSubmittingBilling.set(false);
         this.toast.error(message);
@@ -304,7 +308,7 @@ export class SettingsComponent implements OnInit {
         this.toast.success('Datos de marca guardados correctamente.');
       },
       error: (error) => {
-        const message = error.error?.message || 'No se pudo guardar el sitio web.';
+        const message = error.message || 'No se pudo guardar el sitio web.';
         this.brandError.set(message);
         this.isSubmittingBrand.set(false);
         this.toast.error(message);
@@ -335,7 +339,7 @@ export class SettingsComponent implements OnInit {
           this.securityForm.patchValue({ require2fa: false });
           return;
         }
-        const message = error.error?.message || 'No se pudo guardar la política de seguridad.';
+        const message = error.message || 'No se pudo guardar la política de seguridad.';
         this.securityError.set(message);
         this.toast.error(message);
       },
@@ -356,7 +360,7 @@ export class SettingsComponent implements OnInit {
         this.toast.success('Logo actualizado correctamente.');
       },
       error: (error) => {
-        const message = error.error?.message || 'No se pudo subir el logo.';
+        const message = error.message || 'No se pudo subir el logo.';
         this.brandError.set(message);
         this.isUploadingLogo.set(false);
         this.toast.error(message);

@@ -91,14 +91,18 @@ describe('OnboardingComponent', () => {
     expect(toastServiceMock.success).toHaveBeenCalled();
   });
 
-  it('onSubmitLegal en error se queda en el paso 1 y expone el mensaje', () => {
-    companyServiceMock.updateCompany.mockReturnValue(throwError(() => ({ error: { message: 'No se pudo' } })));
+  it('onSubmitLegal en error se queda en el paso 1, expone el mensaje real y un toast', () => {
+    // BUG-20 ola 1: CompanyService no envuelve sus errores — el componente
+    // recibe directo el objeto de error.interceptor.ts, con .message ya
+    // resuelto (no anidado bajo .error).
+    companyServiceMock.updateCompany.mockReturnValue(throwError(() => ({ message: 'No se pudo' })));
     const { component } = createComponent();
 
     component.onSubmitLegal();
 
     expect(component.currentStep()).toBe(1);
     expect(component.legalError()).toBe('No se pudo');
+    expect(toastServiceMock.error).toHaveBeenCalledWith('No se pudo');
   });
 
   it('goToStep(2) permite saltar el paso 1 sin guardar', () => {
@@ -134,6 +138,19 @@ describe('OnboardingComponent', () => {
     expect(component.currentStep()).toBe(3);
   });
 
+  it('onSubmitInvite en error, expone el mensaje real y un toast', () => {
+    usersServiceMock.createUser.mockReturnValue(throwError(() => ({ message: 'Correo ya registrado' })));
+    const { component } = createComponent();
+    component.goToStep(2);
+    component.inviteForm.setValue({ firstName: 'Ana', lastName: 'Gómez', email: 'ana@bufete.com' });
+
+    component.onSubmitInvite();
+
+    expect(component.currentStep()).toBe(2);
+    expect(component.inviteError()).toBe('Correo ya registrado');
+    expect(toastServiceMock.error).toHaveBeenCalledWith('Correo ya registrado');
+  });
+
   it('finish() completa el onboarding y navega al dashboard', () => {
     const { component } = createComponent();
     component.goToStep(3);
@@ -145,7 +162,7 @@ describe('OnboardingComponent', () => {
   });
 
   it('finish() muestra un toast de error si falla', () => {
-    companyServiceMock.completeOnboarding.mockReturnValue(throwError(() => ({ error: { message: 'Falló' } })));
+    companyServiceMock.completeOnboarding.mockReturnValue(throwError(() => ({ message: 'Falló' })));
     const { component } = createComponent();
     component.goToStep(3);
 

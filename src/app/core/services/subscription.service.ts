@@ -20,6 +20,9 @@ import {
  * `CatalogsService` (F25) — se invalida tras checkout/cancelación o cuando
  * una acción del usuario cambia el uso medido (altas de usuario, procesos,
  * archivos), para que la próxima lectura refleje el estado real.
+ *
+ * BUG-20 ola 2: los catchError leen error.message — no error.error?.message
+ * — ver el comentario en deadlines.service.ts.
  */
 @Injectable({ providedIn: 'root' })
 export class SubscriptionService {
@@ -45,7 +48,7 @@ export class SubscriptionService {
       catchError((error) => {
         this.entitlementsCache = null;
         console.error('Error al obtener la suscripción:', error);
-        return throwError(() => new Error(error.error?.message || 'Error al cargar la suscripción'));
+        return throwError(() => new Error(error.message || 'Error al cargar la suscripción'));
       }),
       shareReplay({ bufferSize: 1, refCount: false })
     );
@@ -59,7 +62,7 @@ export class SubscriptionService {
       map((response) => response.plans),
       catchError((error) => {
         console.error('Error al obtener el catálogo de planes:', error);
-        return throwError(() => new Error(error.error?.message || 'Error al cargar los planes'));
+        return throwError(() => new Error(error.message || 'Error al cargar los planes'));
       })
     );
   }
@@ -69,7 +72,7 @@ export class SubscriptionService {
       map((response) => response.checkout),
       catchError((error) => {
         console.error('Error al iniciar el checkout:', error);
-        return throwError(() => new Error(error.error?.message || 'Error al iniciar el pago'));
+        return throwError(() => new Error(error.message || 'Error al iniciar el pago'));
       })
     );
   }
@@ -86,7 +89,7 @@ export class SubscriptionService {
       tap(() => this.invalidate()),
       catchError((error) => {
         console.error('Error al simular la suscripción:', error);
-        return throwError(() => new Error(error.error?.message || 'No se pudo simular la suscripción'));
+        return throwError(() => new Error(error.message || 'No se pudo simular la suscripción'));
       })
     );
   }
@@ -96,7 +99,7 @@ export class SubscriptionService {
       tap(() => this.invalidate()),
       catchError((error) => {
         console.error('Error al cancelar la suscripción:', error);
-        return throwError(() => new Error(error.error?.message || 'Error al cancelar la suscripción'));
+        return throwError(() => new Error(error.message || 'Error al cancelar la suscripción'));
       })
     );
   }
@@ -111,7 +114,7 @@ export class SubscriptionService {
       map((response) => response.invoices),
       catchError((error) => {
         console.error('Error al obtener las facturas:', error);
-        return throwError(() => new Error(error.error?.message || 'Error al cargar las facturas'));
+        return throwError(() => new Error(error.message || 'Error al cargar las facturas'));
       })
     );
   }
@@ -121,7 +124,7 @@ export class SubscriptionService {
       map((response) => response.url),
       catchError((error) => {
         console.error('Error al obtener la descarga de la factura:', error);
-        return throwError(() => new Error(error.error?.message || 'Error al descargar la factura'));
+        return throwError(() => new Error(error.message || 'Error al descargar la factura'));
       })
     );
   }

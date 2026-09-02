@@ -5,6 +5,7 @@ import { RolesComponent } from './roles.component';
 import { RolesService } from '../../core/services/roles.service';
 import { ConfirmDialogService } from '../../core/services/confirm-dialog.service';
 import { PermissionsService } from '../../core/services/permissions.service';
+import { ToastService } from '../../core/services/toast.service';
 import { Role, RolesListResponse, PermissionsListResponse } from '../../core/models/role-backend.model';
 
 function buildRole(overrides: Partial<Role> = {}): Role {
@@ -29,7 +30,7 @@ describe('RolesComponent', () => {
     assignPermissions: jest.Mock;
   };
   let confirmDialogMock: { confirm: jest.Mock };
-  let alertSpy: jest.SpyInstance;
+  let toastMock: { error: jest.Mock; success: jest.Mock };
 
   const rolesResponse: RolesListResponse = { roles: [buildRole()], total: 1 };
   const permissionsResponse: PermissionsListResponse = {
@@ -48,13 +49,14 @@ describe('RolesComponent', () => {
       assignPermissions: jest.fn(),
     };
     confirmDialogMock = { confirm: jest.fn().mockResolvedValue(true) };
-    alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {});
+    toastMock = { error: jest.fn(), success: jest.fn() };
 
     TestBed.configureTestingModule({
       imports: [RolesComponent],
       providers: [
         { provide: RolesService, useValue: rolesServiceMock },
         { provide: ConfirmDialogService, useValue: confirmDialogMock },
+        { provide: ToastService, useValue: toastMock },
         {
           provide: PermissionsService,
           useValue: {
@@ -66,10 +68,6 @@ describe('RolesComponent', () => {
       ],
     });
   }
-
-  afterEach(() => {
-    alertSpy.mockRestore();
-  });
 
   function createComponent() {
     const fixture = TestBed.createComponent(RolesComponent);
@@ -256,14 +254,14 @@ describe('RolesComponent', () => {
     expect(rolesServiceMock.deleteRole).not.toHaveBeenCalled();
   });
 
-  it('deleteRole en error muestra un alert con el mensaje del backend', async () => {
+  it('deleteRole en error, muestra un toast con el mensaje real (BUG-20: ya no usa alert nativo)', async () => {
     configure();
     rolesServiceMock.deleteRole.mockReturnValue(throwError(() => ({ message: 'No se puede eliminar un rol en uso' })));
     const { component } = createComponent();
 
     await component.deleteRole(buildRole());
 
-    expect(alertSpy).toHaveBeenCalledWith('No se puede eliminar un rol en uso');
+    expect(toastMock.error).toHaveBeenCalledWith('No se puede eliminar un rol en uso');
   });
 
   it('managePermissions abre el modal con los permisos actuales del rol', () => {
@@ -279,14 +277,14 @@ describe('RolesComponent', () => {
     expect(component.showPermissionsModal()).toBe(true);
   });
 
-  it('managePermissions en error muestra un alert', () => {
+  it('managePermissions en error, muestra un toast (BUG-20: ya no usa alert nativo)', () => {
     configure();
     rolesServiceMock.getRolePermissions.mockReturnValue(throwError(() => ({ message: 'No se pudieron cargar los permisos' })));
     const { component } = createComponent();
 
     component.managePermissions(buildRole());
 
-    expect(alertSpy).toHaveBeenCalledWith('No se pudieron cargar los permisos');
+    expect(toastMock.error).toHaveBeenCalledWith('No se pudieron cargar los permisos');
     expect(component.showPermissionsModal()).toBe(false);
   });
 
@@ -325,7 +323,7 @@ describe('RolesComponent', () => {
     expect(rolesServiceMock.assignPermissions).not.toHaveBeenCalled();
   });
 
-  it('savePermissions en error muestra un alert y detiene isSubmitting', () => {
+  it('savePermissions en error, muestra un toast y detiene isSubmitting (BUG-20: ya no usa alert nativo)', () => {
     configure();
     rolesServiceMock.getRolePermissions.mockReturnValue(of({ permissions: [], total: 0 }));
     rolesServiceMock.assignPermissions.mockReturnValue(throwError(() => ({ message: 'Permiso inválido' })));
@@ -334,7 +332,7 @@ describe('RolesComponent', () => {
 
     component.savePermissions(['p1']);
 
-    expect(alertSpy).toHaveBeenCalledWith('Permiso inválido');
+    expect(toastMock.error).toHaveBeenCalledWith('Permiso inválido');
     expect(component.isSubmitting()).toBe(false);
   });
 });
