@@ -76,7 +76,7 @@ describe('DashboardService', () => {
   });
 
   it('getOnboardingChecklist extrae el checklist de la respuesta', () => {
-    let result: OnboardingChecklist | undefined;
+    let result: OnboardingChecklist | null | undefined;
     service.getOnboardingChecklist().subscribe((c) => (result = c));
 
     const req = httpMock.expectOne(`${apiUrl}/onboarding-checklist`);
@@ -84,5 +84,17 @@ describe('DashboardService', () => {
     req.flush({ message: 'ok', checklist });
 
     expect(result).toEqual(checklist);
+  });
+
+  // BUG-11: el backend devuelve checklist: null cuando quien pide el
+  // checklist no es el dueño de la empresa — la card no aplica a invitados.
+  it('getOnboardingChecklist extrae null si el backend indica que no aplica (usuario no-dueño)', () => {
+    let result: OnboardingChecklist | null | undefined;
+    service.getOnboardingChecklist().subscribe((c) => (result = c));
+
+    const req = httpMock.expectOne(`${apiUrl}/onboarding-checklist`);
+    req.flush({ message: 'ok', checklist: null });
+
+    expect(result).toBeNull();
   });
 });

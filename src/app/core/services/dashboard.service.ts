@@ -26,8 +26,12 @@ export class DashboardService {
     );
   }
 
-  /** F10: checklist "Primeros pasos" calculado a partir de datos reales del tenant. */
-  getOnboardingChecklist(): Observable<OnboardingChecklist> {
+  /**
+   * F10: checklist "Primeros pasos" calculado a partir de datos reales del
+   * tenant. BUG-11: null si quien lo pide no es el dueño de la empresa —
+   * la card no aplica a usuarios invitados.
+   */
+  getOnboardingChecklist(): Observable<OnboardingChecklist | null> {
     return this.http.get<OnboardingChecklistResponse>(`${this.apiUrl}/onboarding-checklist`).pipe(
       map((response) => response.checklist),
       catchError((error) => {

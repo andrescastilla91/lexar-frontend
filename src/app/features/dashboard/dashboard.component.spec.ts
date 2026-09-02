@@ -49,7 +49,7 @@ describe('DashboardComponent — checklist de primeros pasos (F10)', () => {
         { provide: TasksService, useValue: tasksServiceMock },
         {
           provide: AuthService,
-          useValue: { currentUser: signal<AuthUser | null>({ email: 'ana@bufete.com', roles: [], permissions: [] }) },
+          useValue: { currentUser: signal<AuthUser | null>({ email: 'ana@bufete.com', roles: [], permissions: [], isOwner: true }) },
         },
       ],
     });
@@ -92,6 +92,46 @@ describe('DashboardComponent — checklist de primeros pasos (F10)', () => {
     expect(component.showChecklist()).toBe(false);
   });
 
+  // BUG-11: aunque llegara un checklist con wizard incompleto (hoy el
+  // backend ya no lo calcula para no-dueños y manda null), la card no debe
+  // mostrarse a un usuario invitado — defensa en profundidad.
+  it('no muestra la card si el usuario actual no es el dueño, aunque el checklist esté incompleto', () => {
+    dashboardServiceMock = {
+      getSummary: jest.fn().mockReturnValue(of(summary)),
+      getOnboardingChecklist: jest.fn().mockReturnValue(
+        of({
+          emailVerified: false,
+          companyProfileComplete: false,
+          firstClientCreated: false,
+          firstProcessCreated: false,
+          firstDocumentUploaded: false,
+          teamInvited: false,
+          wizardCompleted: false,
+        }),
+      ),
+    };
+    deadlinesServiceMock = { getAll: jest.fn().mockReturnValue(of([])) };
+    tasksServiceMock = { getAll: jest.fn().mockReturnValue(of([])) };
+
+    TestBed.configureTestingModule({
+      imports: [DashboardComponent],
+      providers: [
+        provideRouter([]),
+        { provide: DashboardService, useValue: dashboardServiceMock },
+        { provide: DeadlinesService, useValue: deadlinesServiceMock },
+        { provide: TasksService, useValue: tasksServiceMock },
+        {
+          provide: AuthService,
+          useValue: { currentUser: signal<AuthUser | null>({ email: 'invitado@bufete.com', roles: [], permissions: [], isOwner: false }) },
+        },
+      ],
+    });
+
+    const { component } = createComponent();
+
+    expect(component.showChecklist()).toBe(false);
+  });
+
   it('si falla la carga del checklist, el dashboard sigue funcionando sin la card', () => {
     dashboardServiceMock = {
       getSummary: jest.fn().mockReturnValue(of(summary)),
@@ -113,7 +153,7 @@ describe('DashboardComponent — checklist de primeros pasos (F10)', () => {
         { provide: TasksService, useValue: tasksServiceMock },
         {
           provide: AuthService,
-          useValue: { currentUser: signal<AuthUser | null>({ email: 'ana@bufete.com', roles: [], permissions: [] }) },
+          useValue: { currentUser: signal<AuthUser | null>({ email: 'ana@bufete.com', roles: [], permissions: [], isOwner: true }) },
         },
       ],
     });

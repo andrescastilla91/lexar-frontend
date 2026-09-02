@@ -72,5 +72,7 @@ export interface OnboardingChecklist {
 
 export interface OnboardingChecklistResponse {
   message: string;
-  checklist: OnboardingChecklist;
+  // BUG-11: null cuando quien pide el checklist no es el dueño de la
+  // empresa — la card "Primeros pasos" no aplica a usuarios invitados.
+  checklist: OnboardingChecklist | null;
 }

@@ -481,9 +481,13 @@ export class DashboardComponent implements OnInit {
 
   readonly checklist = signal<OnboardingChecklist | null>(null);
 
+  // BUG-11: el backend ya devuelve null para no-dueños, así que en la
+  // práctica esta condición nunca dispara con datos reales — se deja como
+  // defensa en profundidad, por si algo llega a poblar `checklist` sin
+  // pasar por loadChecklist().
   readonly showChecklist = computed(() => {
     const checklist = this.checklist();
-    return checklist !== null && !checklist.wizardCompleted;
+    return checklist !== null && !checklist.wizardCompleted && this.authService.currentUser()?.isOwner === true;
   });
 
   readonly checklistItems = computed<ChecklistItemView[]>(() => {

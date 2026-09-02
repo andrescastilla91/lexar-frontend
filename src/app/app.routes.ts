@@ -3,6 +3,7 @@ import { authGuard } from './core/guards/auth.guard';
 import { platformAdminGuard } from './core/guards/platform-admin.guard';
 import { chatbotFeatureGuard } from './core/guards/feature-flag.guard';
 import { emailVerifiedGuard } from './core/guards/email-verified.guard';
+import { ownerOnlyGuard } from './core/guards/owner-only.guard';
 import { twoFactorRequiredGuard } from './core/guards/two-factor-required.guard';
 import { portalAuthGuard } from './core/guards/portal-auth.guard';
 import { MainLayoutComponent } from './layout/main-layout.component';
@@ -113,7 +114,12 @@ export const routes: Routes = [
 				loadComponent: () => import('./features/dashboard/dashboard.component').then((m) => m.DashboardComponent),
 			},
 			{
+				// BUG-11: el checklist/wizard de "Primeros pasos" solo aplica al
+				// dueño de la empresa — ownerOnlyGuard cierra el acceso directo
+				// por URL (espejo de la restricción ya aplicada en el backend,
+				// DashboardService.getOnboardingChecklist).
 				path: 'onboarding',
+				canActivate: [ownerOnlyGuard],
 				loadComponent: () => import('./features/onboarding/onboarding.component').then((m) => m.OnboardingComponent),
 			},
 			{
