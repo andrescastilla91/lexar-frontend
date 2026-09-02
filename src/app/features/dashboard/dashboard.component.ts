@@ -74,7 +74,7 @@ const STATUS_LABELS: Record<string, string> = {
         <div class="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div class="min-w-0">
             <p class="text-sm uppercase tracking-[0.3em] text-white/70">Tablero ejecutivo</p>
-            <h2 class="mt-4 break-words text-2xl font-semibold sm:text-3xl">Hola {{ firstName() }}, listo para tu jornada legal.</h2>
+            <h2 class="mt-4 break-words text-2xl font-semibold sm:text-3xl">{{ heroGreeting() }}</h2>
             <p class="mt-3 max-w-xl text-sm text-white/70">
               Revisa el estado general de tu operación, audiencias próximas y los procesos que requieren atención prioritaria.
             </p>
@@ -506,19 +506,20 @@ export class DashboardComponent implements OnInit {
     ];
   });
 
+  // BUG-18: el saludo usa el nombre real del usuario (ya disponible desde
+  // F4 en AuthUser.firstName) en vez de derivarlo del email — con
+  // acastilla@, info@ o abogado1@ el heurístico anterior nunca daba un
+  // nombre real. Sin firstName (usuario legado o sin sesión aún), el
+  // saludo se muestra sin nombre (decisión del propietario) en vez de
+  // volver a inventar uno desde el correo.
   readonly firstName = computed(() => {
     const user = this.authService.currentUser();
-    if (!user) {
-      return 'Equipo';
-    }
+    return user?.firstName?.trim() || null;
+  });
 
-    const emailPart = user.email.split('@')[0];
-    const parts = emailPart.split('.');
-    if (parts.length > 0) {
-      return parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
-    }
-
-    return 'Usuario';
+  readonly heroGreeting = computed(() => {
+    const name = this.firstName();
+    return name ? `Hola ${name}, listo para tu jornada legal.` : 'Hola, listo para tu jornada legal.';
   });
 
   readonly statCards = computed(() => {

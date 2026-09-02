@@ -132,6 +132,84 @@ describe('DashboardComponent — checklist de primeros pasos (F10)', () => {
     expect(component.showChecklist()).toBe(false);
   });
 
+  // BUG-18: el saludo del hero usa el nombre real (AuthUser.firstName),
+  // no un fragmento derivado del email — antes 'acastilla@x.com' producía
+  // "Hola Acastilla", nunca el nombre de la persona.
+  it('el saludo del hero usa firstName y no un fragmento del email', () => {
+    dashboardServiceMock = {
+      getSummary: jest.fn().mockReturnValue(of(summary)),
+      getOnboardingChecklist: jest.fn().mockReturnValue(of(null)),
+    };
+    deadlinesServiceMock = { getAll: jest.fn().mockReturnValue(of([])) };
+    tasksServiceMock = { getAll: jest.fn().mockReturnValue(of([])) };
+
+    TestBed.configureTestingModule({
+      imports: [DashboardComponent],
+      providers: [
+        provideRouter([]),
+        { provide: DashboardService, useValue: dashboardServiceMock },
+        { provide: DeadlinesService, useValue: deadlinesServiceMock },
+        { provide: TasksService, useValue: tasksServiceMock },
+        {
+          provide: AuthService,
+          useValue: {
+            currentUser: signal<AuthUser | null>({
+              email: 'acastilla@bufete.com',
+              firstName: 'Andrés',
+              roles: [],
+              permissions: [],
+              isOwner: true,
+            }),
+          },
+        },
+      ],
+    });
+
+    const { component, fixture } = createComponent();
+
+    expect(component.heroGreeting()).toBe('Hola Andrés, listo para tu jornada legal.');
+    expect(fixture.nativeElement.textContent).toContain('Hola Andrés, listo para tu jornada legal.');
+    expect(fixture.nativeElement.textContent).not.toContain('Acastilla');
+  });
+
+  // BUG-18: sin firstName (usuario legado), el saludo no inventa un
+  // nombre desde el email — cae a una frase genérica sin nombre.
+  it('sin firstName, el saludo del hero no expone el correo', () => {
+    dashboardServiceMock = {
+      getSummary: jest.fn().mockReturnValue(of(summary)),
+      getOnboardingChecklist: jest.fn().mockReturnValue(of(null)),
+    };
+    deadlinesServiceMock = { getAll: jest.fn().mockReturnValue(of([])) };
+    tasksServiceMock = { getAll: jest.fn().mockReturnValue(of([])) };
+
+    TestBed.configureTestingModule({
+      imports: [DashboardComponent],
+      providers: [
+        provideRouter([]),
+        { provide: DashboardService, useValue: dashboardServiceMock },
+        { provide: DeadlinesService, useValue: deadlinesServiceMock },
+        { provide: TasksService, useValue: tasksServiceMock },
+        {
+          provide: AuthService,
+          useValue: {
+            currentUser: signal<AuthUser | null>({
+              email: 'info@bufete.com',
+              roles: [],
+              permissions: [],
+              isOwner: true,
+            }),
+          },
+        },
+      ],
+    });
+
+    const { component, fixture } = createComponent();
+
+    expect(component.heroGreeting()).toBe('Hola, listo para tu jornada legal.');
+    expect(fixture.nativeElement.textContent).not.toContain('Info');
+    expect(fixture.nativeElement.textContent).not.toContain('info@bufete.com');
+  });
+
   it('si falla la carga del checklist, el dashboard sigue funcionando sin la card', () => {
     dashboardServiceMock = {
       getSummary: jest.fn().mockReturnValue(of(summary)),
