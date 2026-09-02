@@ -32,12 +32,17 @@ export interface ProcessEvent {
   legalProcessId: string;
   user: ProcessEventUser;
   createdAt: Date;
-  /** F16: toggle "compartir con cliente" — nunca disponible para ANNOTATION. */
+  /** F16: toggle "compartir con cliente". F27: ya no está bloqueado para
+   * ANNOTATION — se rige por la política de visibilidad como cualquier
+   * otro tipo (ver PortalEventVisibilityMode). */
   visibleToClient?: boolean;
 }
 
 export interface CreateAnnotationRequest {
   description: string;
+  /** F27 — solo tiene efecto si la política de ANNOTATION está en
+   * DEFAULT_ON (nace visible): permite marcarla interna antes de guardar. */
+  markAsInternal?: boolean;
 }
 
 export interface ProcessHistoryResponse {

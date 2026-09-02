@@ -43,9 +43,11 @@ import {
   UpdateLegalProcessRequest,
   UpdateProcessStatusRequest,
 } from '../../core/models/legal-process.model';
-import { ProcessEvent } from '../../core/models/process-event.model';
+import { ProcessEvent, ProcessEventType } from '../../core/models/process-event.model';
 import { ConfirmDialogService } from '../../core/services/confirm-dialog.service';
 import { ToastService } from '../../core/services/toast.service';
+import { PortalVisibilityPolicyService } from '../../core/services/portal-visibility-policy.service';
+import { PortalEventVisibilityPolicy } from '../../core/models/portal-visibility-policy.model';
 import { ProcessesTableComponent } from './components/processes-table.component';
 import { ProcessFormComponent } from './components/process-form.component';
 import { ProcessStatusModalComponent } from './components/process-status-modal.component';
@@ -212,6 +214,7 @@ import {
         [processTitle]="editingProcess()?.title ?? null"
         [isLoadingHistory]="isLoadingHistory()"
         [events]="processHistory()"
+        [visibilityPolicies]="visibilityPolicies()"
         (close)="closeHistoryModal()"
         (previewFile)="previewFileFromHistory($event.fileId, $event.filename)"
         (downloadFile)="downloadFile($event)"
@@ -272,6 +275,7 @@ import {
         [errorMessage]="formError()"
         [processTitle]="editingProcess()?.title ?? null"
         [files]="annotationFiles()"
+        [visibilityMode]="annotationVisibilityMode()"
         (close)="closeAnnotationModal()"
         (submit)="submitAnnotation()"
         (filesSelected)="onAnnotationFilesSelected($event)"
@@ -318,6 +322,7 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   private readonly deadlinesService = inject(DeadlinesService);
   private readonly tasksService = inject(TasksService);
   private readonly taskStatusesService = inject(TaskStatusesService);
+  private readonly visibilityPolicyService = inject(PortalVisibilityPolicyService);
   private readonly sanitizer = inject(DomSanitizer);
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly toast = inject(ToastService);
@@ -359,6 +364,14 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   readonly editingProcess = signal<LegalProcessResponse | null>(null);
   readonly processHistory = signal<ProcessEvent[]>([]); // HU-17
   readonly isLoadingHistory = signal(false); // HU-17
+  // F27: política de visibilidad del portal por tipo de evento — se carga
+  // una vez y se reutiliza en el modal de historial y el de anotaciones.
+  readonly visibilityPolicies = signal<PortalEventVisibilityPolicy[]>([]);
+  readonly annotationVisibilityMode = computed(
+    () =>
+      this.visibilityPolicies().find((p) => p.eventType === ProcessEventType.ANNOTATION)?.mode ??
+      null
+  );
   readonly previewingFile = signal<{
     id: string;
     originalFilename: string;
@@ -435,9 +448,11 @@ export class ProcessesComponent implements OnInit, OnDestroy {
     notes: [''],
   });
 
-  // HU-16: Formulario de anotación
+  // HU-16: Formulario de anotación. F27: markAsInternal solo se manda si
+  // la política de ANNOTATION está en DEFAULT_ON (ver annotation-modal).
   readonly annotationForm = this.fb.nonNullable.group({
     description: ['', [Validators.required, Validators.maxLength(2000)]],
+    markAsInternal: [false],
   });
 
   // F13: Formulario de creación de plazos
@@ -464,6 +479,15 @@ export class ProcessesComponent implements OnInit, OnDestroy {
     this.loadCatalogs();
     this.loadTaskTemplates();
     this.loadTaskStatuses();
+    this.loadVisibilityPolicies();
+  }
+
+  // F27: política de visibilidad del portal por tipo de evento.
+  loadVisibilityPolicies(): void {
+    this.visibilityPolicyService.getAll().subscribe({
+      next: (policies) => this.visibilityPolicies.set(policies),
+      error: (error) => console.error('Error loading visibility policies:', error),
+    });
   }
 
   loadCatalogs(): void {
@@ -742,7 +766,7 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   openAnnotationModal(process: LegalProcessResponse): void {
     this.editingProcess.set(process);
     this.annotationModalOpen.set(true);
-    this.annotationForm.reset();
+    this.annotationForm.reset({ description: '', markAsInternal: false });
     this.annotationFiles.set([]);
   }
 
@@ -750,7 +774,7 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   closeAnnotationModal(): void {
     this.annotationModalOpen.set(false);
     this.editingProcess.set(null);
-    this.annotationForm.reset();
+    this.annotationForm.reset({ description: '', markAsInternal: false });
     this.annotationFiles.set([]);
     this.formError.set(null);
   }
@@ -783,12 +807,12 @@ export class ProcessesComponent implements OnInit, OnDestroy {
 
     this.isLoading.set(true);
     this.formError.set(null);
-    const description = this.annotationForm.getRawValue().description;
+    const { description, markAsInternal } = this.annotationForm.getRawValue();
     const processId = this.editingProcess()!.id;
 
     // Primero crear la anotación
     this.processEventsService
-      .createAnnotation(processId, description)
+      .createAnnotation(processId, description, markAsInternal)
       .pipe(
         // Luego subir archivos si hay, vinculándolos a la anotación creada
         switchMap((annotationEvent) => {

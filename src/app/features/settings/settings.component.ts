@@ -14,6 +14,7 @@ import { SettingsTaskStatusesComponent } from './components/settings-task-status
 import { SettingsPlanComponent } from './components/settings-plan.component';
 import { SettingsSecurityFormComponent } from './components/settings-security-form.component';
 import { SettingsNotificationsComponent } from './components/settings-notifications.component';
+import { SettingsPortalVisibilityComponent } from './components/settings-portal-visibility.component';
 
 type SettingsTab =
   | 'legal'
@@ -24,7 +25,8 @@ type SettingsTab =
   | 'task-statuses'
   | 'plan'
   | 'security'
-  | 'notifications';
+  | 'notifications'
+  | 'portal-visibility';
 
 const SETTINGS_TAB_IDS: SettingsTab[] = [
   'legal',
@@ -36,6 +38,7 @@ const SETTINGS_TAB_IDS: SettingsTab[] = [
   'plan',
   'security',
   'notifications',
+  'portal-visibility',
 ];
 
 @Component({
@@ -51,6 +54,7 @@ const SETTINGS_TAB_IDS: SettingsTab[] = [
     SettingsPlanComponent,
     SettingsSecurityFormComponent,
     SettingsNotificationsComponent,
+    SettingsPortalVisibilityComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -157,6 +161,9 @@ const SETTINGS_TAB_IDS: SettingsTab[] = [
             @case ('notifications') {
               <app-settings-notifications />
             }
+            @case ('portal-visibility') {
+              <app-settings-portal-visibility />
+            }
           }
         </div>
       </div>
@@ -180,6 +187,7 @@ export class SettingsComponent implements OnInit {
     { id: 'plan', label: 'Plan y facturación' },
     { id: 'security', label: 'Seguridad' },
     { id: 'notifications', label: 'Notificaciones' },
+    { id: 'portal-visibility', label: 'Portal del cliente' },
   ];
   readonly activeTab = signal<SettingsTab>('legal');
   // F7-R3: CTA de upgrade — cuando otra pantalla topa con un gate de plan,

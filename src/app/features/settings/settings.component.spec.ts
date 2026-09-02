@@ -8,6 +8,7 @@ import { ToastService } from '../../core/services/toast.service';
 import { PlanUpgradeService } from '../../core/services/plan-upgrade.service';
 import { SubscriptionService } from '../../core/services/subscription.service';
 import { Entitlements } from '../../core/models/subscription-backend.model';
+import { PortalVisibilityPolicyService } from '../../core/services/portal-visibility-policy.service';
 
 describe('SettingsComponent', () => {
   let companyServiceMock: {
@@ -26,6 +27,7 @@ describe('SettingsComponent', () => {
     listInvoices: jest.Mock;
     isSimulationEnabled: jest.Mock;
   };
+  let portalVisibilityPolicyServiceMock: { getAll: jest.Mock; update: jest.Mock };
   let queryParams: Record<string, string>;
 
   const baseEntitlements: Entitlements = {
@@ -85,6 +87,13 @@ describe('SettingsComponent', () => {
       listInvoices: jest.fn().mockReturnValue(of([])),
       isSimulationEnabled: jest.fn().mockReturnValue(of(false)),
     };
+    // F27: al abrir la pestaña "Portal del cliente" se renderiza el
+    // SettingsPortalVisibilityComponent real — igual que con SettingsPlanComponent
+    // (ver comentario de subscriptionServiceMock), su dependencia hay que proveerla aquí.
+    portalVisibilityPolicyServiceMock = {
+      getAll: jest.fn().mockReturnValue(of([])),
+      update: jest.fn(),
+    };
     queryParams = initialQueryParams;
 
     TestBed.configureTestingModule({
@@ -94,6 +103,7 @@ describe('SettingsComponent', () => {
         { provide: ToastService, useValue: toastServiceMock },
         { provide: PlanUpgradeService, useValue: planUpgradeMock },
         { provide: SubscriptionService, useValue: subscriptionServiceMock },
+        { provide: PortalVisibilityPolicyService, useValue: portalVisibilityPolicyServiceMock },
         {
           provide: ActivatedRoute,
           useValue: { snapshot: { queryParamMap: convertToParamMap(queryParams) } },
@@ -216,7 +226,8 @@ describe('SettingsComponent', () => {
   // select de siempre (celular Y tablet, sin cambios de comportamiento en
   // ese rango); desde 1024px se muestra un sidebar real a la izquierda en
   // vez de una lista apilada arriba del contenido.
-  it('el sidebar de escritorio está oculto por debajo de lg y visible desde lg, con las 9 secciones', () => {
+  // F27: se agregó la pestaña "Portal del cliente" — pasa de 9 a 10 secciones.
+  it('el sidebar de escritorio está oculto por debajo de lg y visible desde lg, con las 10 secciones', () => {
     const fixture = TestBed.createComponent(SettingsComponent);
     fixture.detectChanges();
 
@@ -226,17 +237,17 @@ describe('SettingsComponent', () => {
     expect(nav?.className).toContain('hidden');
     expect(nav?.className).toContain('lg:flex');
     expect(nav?.className).toContain('lg:flex-col');
-    expect(buttons?.length).toBe(9);
+    expect(buttons?.length).toBe(10);
   });
 
-  it('el select cubre mobile y tablet (oculto solo desde lg), con las mismas 9 opciones', () => {
+  it('el select cubre mobile y tablet (oculto solo desde lg), con las mismas 10 opciones', () => {
     const fixture = TestBed.createComponent(SettingsComponent);
     fixture.detectChanges();
 
     const mobileWrapper = fixture.nativeElement.querySelector('.lg\\:hidden');
     const options = mobileWrapper?.querySelectorAll('option');
 
-    expect(options?.length).toBe(9);
+    expect(options?.length).toBe(10);
   });
 
   it('click en un ítem del sidebar cambia de tab directamente', () => {
@@ -251,6 +262,23 @@ describe('SettingsComponent', () => {
     billingButton.click();
 
     expect(component.activeTab()).toBe('billing');
+  });
+
+  // F27: verifica que la nueva pestaña se pueda abrir y cargue la política real.
+  it('click en "Portal del cliente" cambia de tab y carga la política de visibilidad', () => {
+    const fixture = TestBed.createComponent(SettingsComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+
+    const nav = fixture.nativeElement.querySelector('nav[aria-label="Secciones de configuración"]');
+    const portalButton = Array.from(nav.querySelectorAll('button')).find((btn) =>
+      (btn as HTMLElement).textContent?.includes('Portal del cliente'),
+    ) as HTMLElement;
+    portalButton.click();
+    fixture.detectChanges();
+
+    expect(component.activeTab()).toBe('portal-visibility');
+    expect(portalVisibilityPolicyServiceMock.getAll).toHaveBeenCalled();
   });
 
   // F7-R3: ?tab=&suggested= navegan directo a la pestaña de planes con el

@@ -49,15 +49,14 @@ async function makeAdminAnAdvisor(page: Page): Promise<string> {
  * Alcance real de "des-compartir documento" en este flujo: NO se incluye.
  * Los documentos de un proceso solo se adjuntan a través de una anotación
  * (HU-16), y el toggle "compartir con cliente" que expone el historial
- * (HU-17) es a nivel de evento y el propio template lo oculta para eventos
- * de tipo ANNOTATION — el backend además lo rechaza explícitamente para ese
- * tipo de evento (ver comentario en ProcessEventsService.setEventVisibility
- * y el `@if` correspondiente en process-history-modal.component.ts). Es
- * decir: hoy no existe un camino de UI para des-compartir un documento
- * adjunto a un proceso — el toggle por archivo (FilesService.setVisibility)
- * solo está cableado en `EntityFilesComponent`, que Procesos no usa (sí lo
- * usa Clientes, vía client-form.component.ts). Ver e2e/pages/processes.page.ts
- * para el detalle completo de esta decisión.
+ * (HU-17) es a nivel de EVENTO, no de archivo — hoy no existe un camino de
+ * UI para des-compartir un documento adjunto a un proceso directamente. El
+ * toggle por archivo (FilesService.setVisibility) solo está cableado en
+ * `EntityFilesComponent`, que Procesos no usa (sí lo usa Clientes, vía
+ * client-form.component.ts). F27 (2026-09-02) reabrió el alcance del toggle
+ * de evento — ya no se oculta categóricamente para ANNOTATION, se rige por
+ * la política de visibilidad configurable (ver e2e/pages/processes.page.ts
+ * y portal-visibility-policy.spec.ts para el detalle).
  */
 test.describe('CRUD de proceso con documentos', () => {
   test('crea, edita, sube y descarga un documento adjunto a un proceso', async ({ page, tenant }) => {

@@ -14,8 +14,10 @@ import { TasksService } from '../../core/services/tasks.service';
 import { TaskStatusesService } from '../../core/services/task-statuses.service';
 import { ConfirmDialogService } from '../../core/services/confirm-dialog.service';
 import { ToastService } from '../../core/services/toast.service';
+import { PortalVisibilityPolicyService } from '../../core/services/portal-visibility-policy.service';
 import { LegalProcessResponse, ProcessStatus } from '../../core/models/legal-process.model';
 import { ProcessEvent, ProcessEventType } from '../../core/models/process-event.model';
+import { PortalEventVisibilityMode, PortalEventVisibilityPolicy } from '../../core/models/portal-visibility-policy.model';
 import { DeadlineResponse, DeadlineStatus } from '../../core/models/deadline.model';
 import { TaskPriority, TaskResponse } from '../../core/models/task.model';
 import { TaskStatusResponse } from '../../core/models/task-status.model';
@@ -53,6 +55,7 @@ describe('ProcessesComponent', () => {
     instantiateTemplate: jest.Mock;
   };
   let taskStatusesServiceMock: { getAll: jest.Mock };
+  let visibilityPolicyServiceMock: { getAll: jest.Mock };
   let confirmDialogMock: { confirm: jest.Mock };
   let toastMock: { success: jest.Mock; error: jest.Mock };
   let queryParamId: string | null;
@@ -168,6 +171,7 @@ describe('ProcessesComponent', () => {
     files?: Partial<typeof filesServiceMock>;
     deadlines?: Partial<typeof deadlinesServiceMock>;
     tasks?: Partial<typeof tasksServiceMock>;
+    visibilityPolicies?: PortalEventVisibilityPolicy[];
     confirmResolves?: boolean;
     queryParamId?: string | null;
   } = {}) {
@@ -233,6 +237,10 @@ describe('ProcessesComponent', () => {
 
     taskStatusesServiceMock = { getAll: jest.fn().mockReturnValue(of([taskStatus])) };
 
+    visibilityPolicyServiceMock = {
+      getAll: jest.fn().mockReturnValue(of(overrides.visibilityPolicies ?? [])),
+    };
+
     confirmDialogMock = { confirm: jest.fn().mockResolvedValue(overrides.confirmResolves ?? true) };
     toastMock = { success: jest.fn(), error: jest.fn() };
 
@@ -258,6 +266,7 @@ describe('ProcessesComponent', () => {
         { provide: DeadlinesService, useValue: deadlinesServiceMock },
         { provide: TasksService, useValue: tasksServiceMock },
         { provide: TaskStatusesService, useValue: taskStatusesServiceMock },
+        { provide: PortalVisibilityPolicyService, useValue: visibilityPolicyServiceMock },
         { provide: ConfirmDialogService, useValue: confirmDialogMock },
         { provide: ToastService, useValue: toastMock },
         { provide: ActivatedRoute, useValue: activatedRouteMock },
@@ -725,7 +734,7 @@ describe('ProcessesComponent', () => {
 
       component.submitAnnotation();
 
-      expect(processEventsServiceMock.createAnnotation).toHaveBeenCalledWith('p1', 'Nota importante');
+      expect(processEventsServiceMock.createAnnotation).toHaveBeenCalledWith('p1', 'Nota importante', false);
       expect(filesServiceMock.uploadFile).toHaveBeenCalledWith(file, 'legal_process', 'p1', undefined, 'ev1');
       expect(component.isLoading()).toBe(false);
       expect(component.annotationModalOpen()).toBe(false);
@@ -815,6 +824,44 @@ describe('ProcessesComponent', () => {
       component.toggleEventVisibility({ eventId: 'ev1', visibleToClient: true });
 
       expect(processEventsServiceMock.setEventVisibility).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('F27 política de visibilidad del portal', () => {
+    it('carga la política al construirse', async () => {
+      await configure();
+      createComponent();
+
+      expect(visibilityPolicyServiceMock.getAll).toHaveBeenCalled();
+    });
+
+    it('annotationVisibilityMode expone el modo de ANNOTATION cargado', async () => {
+      const policies: PortalEventVisibilityPolicy[] = [
+        { eventType: ProcessEventType.ANNOTATION, mode: PortalEventVisibilityMode.DEFAULT_ON, allowsAlways: false },
+        { eventType: ProcessEventType.STATUS_CHANGE, mode: PortalEventVisibilityMode.ALWAYS, allowsAlways: true },
+      ];
+      await configure({ visibilityPolicies: policies });
+      const component = createComponent();
+
+      expect(component.annotationVisibilityMode()).toBe(PortalEventVisibilityMode.DEFAULT_ON);
+    });
+
+    it('annotationVisibilityMode es null si aún no hay política cargada para ANNOTATION', async () => {
+      await configure({ visibilityPolicies: [] });
+      const component = createComponent();
+
+      expect(component.annotationVisibilityMode()).toBeNull();
+    });
+
+    it('submitAnnotation envía markAsInternal cuando el usuario lo marca', async () => {
+      await configure();
+      const component = createComponent();
+      component.editingProcess.set(process);
+      component.annotationForm.patchValue({ description: 'Nota interna', markAsInternal: true });
+
+      component.submitAnnotation();
+
+      expect(processEventsServiceMock.createAnnotation).toHaveBeenCalledWith('p1', 'Nota interna', true);
     });
   });
 
