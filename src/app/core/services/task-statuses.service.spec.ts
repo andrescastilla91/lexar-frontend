@@ -133,6 +133,30 @@ describe('TaskStatusesService', () => {
     expect(error?.message).toBe('Estado en uso');
   });
 
+  it('reorder hace PATCH a /reorder con la lista completa y extrae el catálogo reordenado', () => {
+    let result: TaskStatusResponse[] | undefined;
+    const reordered = { ...status, sortOrder: 0 };
+    service.reorder(['status-2', 'status-1']).subscribe((r) => (result = r));
+
+    const req = httpMock.expectOne(`${apiUrl}/reorder`);
+    expect(req.request.method).toBe('PATCH');
+    expect(req.request.body).toEqual({ orderedIds: ['status-2', 'status-1'] });
+    req.flush({ message: 'ok', statuses: [reordered] });
+
+    expect(result).toEqual([reordered]);
+  });
+
+  it('reorder en error propaga el mensaje del backend', () => {
+    let error: Error | undefined;
+    service.reorder(['status-1']).subscribe({ error: (e) => (error = e) });
+
+    httpMock
+      .expectOne(`${apiUrl}/reorder`)
+      .flush({ message: 'La lista debe incluir exactamente todos los estados' }, { status: 400, statusText: 'Bad Request' });
+
+    expect(error?.message).toBe('La lista debe incluir exactamente todos los estados');
+  });
+
   it('getApprovalCandidates hace GET a /approval-candidates y extrae users', () => {
     let result: TaskApprovalCandidate[] | undefined;
     service.getApprovalCandidates().subscribe((r) => (result = r));

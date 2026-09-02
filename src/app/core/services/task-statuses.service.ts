@@ -75,6 +75,20 @@ export class TaskStatusesService {
     );
   }
 
+  /** F28 — reordenamiento en lote: se manda la lista COMPLETA de ids en el
+   * orden final deseado (no un delta), igual que el contrato del backend. */
+  reorder(orderedIds: string[]): Observable<TaskStatusResponse[]> {
+    return this.http
+      .patch<TaskStatusesListResponse>(`${this.apiUrl}/task-statuses/reorder`, { orderedIds })
+      .pipe(
+        map((response) => response.statuses),
+        catchError((error) => {
+          console.error('Error al reordenar los estados de tareas:', error);
+          return throwError(() => new Error(error.message || 'Error al reordenar los estados'));
+        })
+      );
+  }
+
   /** Candidatos a aprobador para el selector en Configuración: usuarios
    * activos con el permiso tasks.approve. */
   getApprovalCandidates(): Observable<TaskApprovalCandidate[]> {
