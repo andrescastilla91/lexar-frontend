@@ -131,3 +131,32 @@ export interface PlatformNotificationChannelSetting {
   channel: PlatformNotificationChannel;
   enabled: boolean;
 }
+
+// F31 — catálogo global de textos legibles de permisos, editable en
+// runtime solo desde Super-Admin. Mismo shape que PermissionResponseDto del
+// backend (permission.mapper.ts): label/groupLabel nunca vienen vacíos.
+export interface AdminPermission {
+  id: string;
+  code: string;
+  description: string;
+  label: string;
+  groupCode: string;
+  groupLabel: string;
+  groupDescription: string | null;
+}
+
+export interface AdminPermissionGroup {
+  code: string;
+  label: string;
+  description: string | null;
+}
+
+export interface UpdatePermissionLabelRequest {
+  label?: string;
+  description?: string;
+}
+
+export interface UpdatePermissionGroupRequest {
+  label?: string;
+  description?: string;
+}

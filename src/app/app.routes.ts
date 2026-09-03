@@ -98,6 +98,11 @@ export const routes: Routes = [
 					import('./features/admin/notifications/admin-notifications.component').then((m) => m.AdminNotificationsComponent),
 			},
 			{
+				path: 'permissions',
+				loadComponent: () =>
+					import('./features/admin/permissions/admin-permissions.component').then((m) => m.AdminPermissionsComponent),
+			},
+			{
 				path: '',
 				pathMatch: 'full',
 				redirectTo: 'tenants',

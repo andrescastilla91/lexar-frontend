@@ -76,6 +76,7 @@ import { RolesTableComponent } from './components/roles-table.component';
         [selectedIds]="selectedPermissionIds()"
         [isOpen]="showPermissionsModal()"
         [isSubmitting]="isSubmitting()"
+        [searchable]="true"
         submitLabel="Guardar permisos"
         (cancel)="closePermissionsModal()"
         (save)="savePermissions($event)"
@@ -108,17 +109,16 @@ export class RolesComponent implements OnInit {
   readonly systemRolesCount = computed(() => this.roles().filter((r) => r.isSystem).length);
   readonly customRolesCount = computed(() => this.roles().filter((r) => !r.isSystem).length);
 
+  // F31: label/group ya vienen traducidos y sin el code técnico desde el
+  // backend (permission.mapper.ts nunca los deja vacíos) — el frontend solo
+  // los usa tal cual, sin reconstruir nada a partir del code.
   readonly permissionCatalogItems = computed<CatalogAssignItem[]>(() =>
-    this.allPermissions().map((permission) => {
-      const parts = permission.code.split('.');
-      const module = parts.length > 1 ? parts[0] : 'General';
-      return {
-        id: permission.id,
-        label: permission.code,
-        description: permission.description,
-        group: module,
-      };
-    })
+    this.allPermissions().map((permission) => ({
+      id: permission.id,
+      label: permission.label,
+      description: permission.description,
+      group: permission.groupLabel,
+    }))
   );
 
   ngOnInit(): void {

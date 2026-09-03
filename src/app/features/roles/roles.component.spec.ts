@@ -34,7 +34,17 @@ describe('RolesComponent', () => {
 
   const rolesResponse: RolesListResponse = { roles: [buildRole()], total: 1 };
   const permissionsResponse: PermissionsListResponse = {
-    permissions: [{ id: 'p1', code: 'clients.view', description: 'Ver clientes' }],
+    permissions: [
+      {
+        id: 'p1',
+        code: 'clients.view',
+        description: 'Ver clientes',
+        label: 'Ver detalle de cliente',
+        groupCode: 'clients',
+        groupLabel: 'Clientes',
+        groupDescription: null,
+      },
+    ],
     total: 1,
   };
 
@@ -104,13 +114,32 @@ describe('RolesComponent', () => {
     expect(component.customRolesCount()).toBe(1);
   });
 
-  it('permissionCatalogItems agrupa por el prefijo del código de permiso', () => {
+  // F31: label/group ya vienen traducidos del backend (permission.mapper.ts
+  // nunca los deja vacíos) — el componente ya no reconstruye nada a partir
+  // del code, solo pasa label/groupLabel tal cual llegaron.
+  it('permissionCatalogItems usa label/groupLabel del backend, nunca el code crudo', () => {
     configure();
     rolesServiceMock.getAllPermissions.mockReturnValue(
       of({
         permissions: [
-          { id: 'p1', code: 'clients.view' },
-          { id: 'p2', code: 'general-permission' },
+          {
+            id: 'p1',
+            code: 'clients.view',
+            description: 'Ver detalle de cliente',
+            label: 'Ver detalle de cliente',
+            groupCode: 'clients',
+            groupLabel: 'Clientes',
+            groupDescription: 'Gestión de la cartera de clientes',
+          },
+          {
+            id: 'p2',
+            code: 'audit.view',
+            description: 'Ver auditoría',
+            label: 'Ver auditoría',
+            groupCode: 'general',
+            groupLabel: 'General',
+            groupDescription: null,
+          },
         ],
         total: 2,
       }),
@@ -118,8 +147,8 @@ describe('RolesComponent', () => {
     const { component } = createComponent();
 
     expect(component.permissionCatalogItems()).toEqual([
-      { id: 'p1', label: 'clients.view', description: undefined, group: 'clients' },
-      { id: 'p2', label: 'general-permission', description: undefined, group: 'General' },
+      { id: 'p1', label: 'Ver detalle de cliente', description: 'Ver detalle de cliente', group: 'Clientes' },
+      { id: 'p2', label: 'Ver auditoría', description: 'Ver auditoría', group: 'General' },
     ]);
   });
 

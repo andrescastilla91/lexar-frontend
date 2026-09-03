@@ -353,7 +353,12 @@ export class MainLayoutComponent {
       description: 'Seguimiento procesal detallado',
       icon: 'm4.5 19.5 7.5-7.5 7.5 7.5M12 12V3.75',
       route: '/procesos',
-      permissions: ['processes.list'],
+      // BUG (2026-09-02): antes gateado con el code muerto 'processes.list'
+      // (nunca verificado por ningún @RequirePermissions del backend). El
+      // módulo real de procesos legales exige 'legal_processes.*' — con el
+      // code viejo, un rol personalizado con solo 'processes.list' veía el
+      // link pero recibía 403 en cada llamada real a la API.
+      permissions: ['legal_processes.list'],
     },
     {
       label: 'Calendario',

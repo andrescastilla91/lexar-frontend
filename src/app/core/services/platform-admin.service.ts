@@ -4,6 +4,8 @@ import { Observable, catchError, map, of, tap, throwError } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
   AdminMetrics,
+  AdminPermission,
+  AdminPermissionGroup,
   AdminPlan,
   CreatePlanRequest,
   CreatePlatformAdminRequest,
@@ -16,6 +18,8 @@ import {
   PlatformTwoFactorVerifySetupResponse,
   TenantDetail,
   TenantSummary,
+  UpdatePermissionGroupRequest,
+  UpdatePermissionLabelRequest,
   UpdatePlanRequest,
   UpdateTenantSubscriptionRequest,
 } from '../models/admin.model';
@@ -242,5 +246,35 @@ export class PlatformAdminService {
       .pipe(
         catchError((error) => throwError(() => new Error(error.message || 'No se pudo actualizar el canal de notificación')))
       );
+  }
+
+  // F31 — catálogo global de textos legibles de permisos, editable solo
+  // desde Super-Admin.
+  listPermissions(): Observable<AdminPermission[]> {
+    return this.http.get<{ permissions: AdminPermission[] }>(`${this.apiUrl}/permissions`).pipe(
+      map((response) => response.permissions),
+      catchError((error) => throwError(() => new Error(error.message || 'Error al cargar los permisos')))
+    );
+  }
+
+  updatePermission(code: string, dto: UpdatePermissionLabelRequest): Observable<AdminPermission> {
+    return this.http.patch<{ permission: AdminPermission }>(`${this.apiUrl}/permissions/${code}`, dto).pipe(
+      map((response) => response.permission),
+      catchError((error) => throwError(() => new Error(error.message || 'No se pudo actualizar el permiso')))
+    );
+  }
+
+  listPermissionGroups(): Observable<AdminPermissionGroup[]> {
+    return this.http.get<{ groups: AdminPermissionGroup[] }>(`${this.apiUrl}/permission-groups`).pipe(
+      map((response) => response.groups),
+      catchError((error) => throwError(() => new Error(error.message || 'Error al cargar los grupos de permisos')))
+    );
+  }
+
+  updatePermissionGroup(code: string, dto: UpdatePermissionGroupRequest): Observable<AdminPermissionGroup> {
+    return this.http.patch<{ group: AdminPermissionGroup }>(`${this.apiUrl}/permission-groups/${code}`, dto).pipe(
+      map((response) => response.group),
+      catchError((error) => throwError(() => new Error(error.message || 'No se pudo actualizar el grupo')))
+    );
   }
 }
