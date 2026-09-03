@@ -1,7 +1,8 @@
-import { CommonModule } from '@angular/common';
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { CommonModule, NgComponentOutlet } from '@angular/common';
+import { Component, OnInit, Type, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { DashboardService } from '../../core/services/dashboard.service';
+import { DashboardWidgetsService } from '../../core/services/dashboard-widgets.service';
 import { AuthService } from '../../core/services/auth.service';
 import { DeadlinesService } from '../../core/services/deadlines.service';
 import { TasksService } from '../../core/services/tasks.service';
@@ -21,30 +22,90 @@ interface ChecklistItemView {
   done: boolean;
 }
 
+// F32 PR2: si GET /dashboard/widgets falla, el dashboard no debe quedar en
+// blanco — cae a este orden fijo (idéntico al defaultOrder del catálogo en
+// el backend, ver dashboard-widgets.catalog.ts) en vez de un layout vacío.
+const FALLBACK_WIDGET_ORDER = [
+  'stats',
+  'today-deadlines',
+  'today-tasks',
+  'high-risk-processes',
+  'upcoming-hearings',
+  'recent-documents',
+  'top-advisors',
+];
+
+/**
+ * F32 PR2 (ajuste 2026-09-03, feedback del propietario): registro
+ * key → { componente, inputs } en vez de un `@switch` en la plantilla.
+ * `inputs` recibe la instancia del contenedor y devuelve el objeto que se
+ * pasa a `[ngComponentOutletInputs]` — un widget nuevo solo agrega una
+ * entrada aquí (componente + de dónde saca sus datos); la plantilla y el
+ * `@for` no cambian. Es, además, el mismo mecanismo que necesitará la
+ * pantalla de configuración de PR3 para listar "todo lo disponible" sin
+ * acoplarse a un template fijo.
+ */
+interface DashboardWidgetRegistryEntry {
+  component: Type<unknown>;
+  inputs: (host: DashboardComponent) => Record<string, unknown>;
+}
+
+const WIDGET_REGISTRY: Record<string, DashboardWidgetRegistryEntry> = {
+  stats: {
+    component: DashboardStatsWidgetComponent,
+    inputs: (host) => ({ summary: host.summary(), isLoading: host.isLoading() }),
+  },
+  'today-deadlines': {
+    component: DashboardTodayDeadlinesWidgetComponent,
+    inputs: (host) => ({ deadlines: host.todayDeadlines(), isLoading: host.isLoadingToday() }),
+  },
+  'today-tasks': {
+    component: DashboardTodayTasksWidgetComponent,
+    inputs: (host) => ({ tasks: host.todayTasks(), isLoading: host.isLoadingTodayTasks() }),
+  },
+  'high-risk-processes': {
+    component: DashboardHighRiskProcessesWidgetComponent,
+    inputs: (host) => ({ summary: host.summary(), isLoading: host.isLoading() }),
+  },
+  'upcoming-hearings': {
+    component: DashboardUpcomingHearingsWidgetComponent,
+    inputs: (host) => ({ summary: host.summary(), isLoading: host.isLoading() }),
+  },
+  'recent-documents': {
+    component: DashboardRecentDocumentsWidgetComponent,
+    inputs: (host) => ({ summary: host.summary(), isLoading: host.isLoading() }),
+  },
+  'top-advisors': {
+    component: DashboardTopAdvisorsWidgetComponent,
+    inputs: (host) => ({ summary: host.summary(), isLoading: host.isLoading() }),
+  },
+};
+
 /**
  * F32 PR1 (2026-09-03) — refactor puro: el contenido de cada tarjeta pasó a
  * su propio componente de widget en `widgets/` (patrón contenedor/
- * presentacional). Este componente sigue siendo dueño de la carga de datos
- * (signals + servicios) y de la disposición general de la página; el hero y
- * el bloque de onboarding quedan **fijos, fuera del sistema de widgets**
- * (decisión del propietario, ver docs/05-features/F32-dashboard-widgets-configurable.md).
- * El catálogo administrable, la persistencia por usuario y el render dinámico
- * por layout llegan en PR2/PR3 — este PR no cambia el comportamiento visible.
+ * presentacional). El hero y el bloque de onboarding quedan **fijos, fuera
+ * del sistema de widgets** (decisión del propietario, ver
+ * docs/05-features/F32-dashboard-widgets-configurable.md).
+ *
+ * F32 PR2 (2026-09-03) — el orden de los widgets ya no es fijo en la
+ * plantilla: se resuelve en `GET /dashboard/widgets` (catálogo de 3 capas
+ * plataforma/empresa/usuario) y se renderiza dinámicamente con
+ * `NgComponentOutlet` + `WIDGET_REGISTRY` (ver más abajo) — un widget nuevo
+ * agrega una entrada al registro, no una rama nueva en la plantilla. Cada
+ * widget ocupa su propia fila de ancho completo ("una debajo de otra", tal
+ * como pide el alcance de la ficha) — se abandona el layout previo en
+ * pares de 2/3 columnas porque ya no puede asumirse qué widget queda junto
+ * a cuál. Sin pantalla de configuración todavía (PR3): el usuario no puede
+ * reordenar desde la UI, pero el mecanismo de persistencia ya existe en el
+ * backend.
  */
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [
-    CommonModule,
-    RouterLink,
-    DashboardStatsWidgetComponent,
-    DashboardTodayDeadlinesWidgetComponent,
-    DashboardTodayTasksWidgetComponent,
-    DashboardHighRiskProcessesWidgetComponent,
-    DashboardUpcomingHearingsWidgetComponent,
-    DashboardRecentDocumentsWidgetComponent,
-    DashboardTopAdvisorsWidgetComponent,
-  ],
+  // Los componentes de widget NO van aquí: se instancian en runtime vía
+  // NgComponentOutlet (WIDGET_REGISTRY), no se declaran en la plantilla.
+  imports: [CommonModule, RouterLink, NgComponentOutlet],
   template: `
     <div class="space-y-10">
       @if (showChecklist()) {
@@ -132,26 +193,17 @@ interface ChecklistItemView {
         </div>
       }
 
-      <app-dashboard-today-deadlines-widget [deadlines]="todayDeadlines()" [isLoading]="isLoadingToday()" />
-
-      <app-dashboard-today-tasks-widget [tasks]="todayTasks()" [isLoading]="isLoadingTodayTasks()" />
-
-      <app-dashboard-stats-widget [summary]="summary()" [isLoading]="isLoading()" />
-
-      <section class="grid gap-6 lg:grid-cols-5">
-        <app-dashboard-high-risk-processes-widget class="lg:col-span-3" [summary]="summary()" [isLoading]="isLoading()" />
-        <app-dashboard-upcoming-hearings-widget class="lg:col-span-2" [summary]="summary()" [isLoading]="isLoading()" />
-      </section>
-
-      <section class="grid gap-6 lg:grid-cols-2">
-        <app-dashboard-recent-documents-widget [summary]="summary()" [isLoading]="isLoading()" />
-        <app-dashboard-top-advisors-widget [summary]="summary()" [isLoading]="isLoading()" />
-      </section>
+      @for (widgetKey of layout(); track widgetKey) {
+        @if (widgetComponent(widgetKey); as component) {
+          <ng-container *ngComponentOutlet="component; inputs: widgetInputs(widgetKey)" />
+        }
+      }
     </div>
   `,
 })
 export class DashboardComponent implements OnInit {
   private readonly dashboardService = inject(DashboardService);
+  private readonly dashboardWidgetsService = inject(DashboardWidgetsService);
   private readonly authService = inject(AuthService);
   private readonly deadlinesService = inject(DeadlinesService);
   private readonly tasksService = inject(TasksService);
@@ -165,6 +217,9 @@ export class DashboardComponent implements OnInit {
 
   readonly todayTasks = signal<TaskResponse[]>([]);
   readonly isLoadingTodayTasks = signal(true);
+
+  /** F32 PR2: orden efectivo de widgets a renderizar (catálogo de 3 capas + layout del usuario). */
+  readonly layout = signal<string[]>([]);
 
   readonly checklist = signal<OnboardingChecklist | null>(null);
 
@@ -214,6 +269,27 @@ export class DashboardComponent implements OnInit {
     this.loadChecklist();
     this.loadTodayDeadlines();
     this.loadTodayTasks();
+    this.loadWidgets();
+  }
+
+  loadWidgets(): void {
+    this.dashboardWidgetsService.getWidgets().subscribe({
+      next: ({ layout }) => this.layout.set(layout),
+      error: () => {
+        // El layout dinámico es una mejora de UX, no una dependencia dura —
+        // si falla, el dashboard se ve como siempre en vez de quedar vacío.
+        this.layout.set(FALLBACK_WIDGET_ORDER);
+      },
+    });
+  }
+
+  /** Componente a instanciar para un widgetKey — null si el key ya no está en WIDGET_REGISTRY (defensivo ante un layout guardado con una key obsoleta). */
+  widgetComponent(widgetKey: string): Type<unknown> | null {
+    return WIDGET_REGISTRY[widgetKey]?.component ?? null;
+  }
+
+  widgetInputs(widgetKey: string): Record<string, unknown> {
+    return WIDGET_REGISTRY[widgetKey]?.inputs(this) ?? {};
   }
 
   loadTodayTasks(): void {
