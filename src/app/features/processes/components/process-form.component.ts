@@ -1,14 +1,15 @@
-import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import { FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { ProcessStatus } from '../../../core/models/legal-process.model';
 import { AdvisorResponse } from '../../../core/models/advisor-backend.model';
 import { ClientResponse } from '../../../core/models/client-backend.model';
 import { CatalogItem } from '../../../core/models/catalog-backend.model';
+import { MultiSelectComponent, MultiSelectItem } from '../../../shared/components/multi-select/multi-select.component';
 
 @Component({
   selector: 'app-process-form',
   standalone: true,
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, MultiSelectComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (isOpen()) {
@@ -50,47 +51,35 @@ import { CatalogItem } from '../../../core/models/catalog-backend.model';
                 class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
               ></textarea>
             </label>
-            <div class="grid gap-4 md:grid-cols-2">
-              <label class="text-sm text-muted">
-                Cliente *
-                <select
-                  formControlName="clientId"
-                  class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
-                >
-                  <option value="">Seleccionar cliente</option>
-                  @for (client of clients(); track client.id) {
-                    <option [value]="client.id">{{ client.fullName }}</option>
-                  }
-                </select>
-              </label>
-              <div class="text-sm text-muted">
-                <label class="mb-2 block">Asesores responsables</label>
-                <div class="mt-2 max-h-40 overflow-y-auto rounded-md border border-default bg-surface-muted p-3 shadow-card">
-                  @if (advisors().length === 0) {
-                    <p class="text-center text-xs text-subtle">No hay asesores disponibles</p>
-                  } @else {
-                    <div class="space-y-2">
-                      @for (advisor of advisors(); track advisor.id) {
-                        <label class="flex cursor-pointer items-center gap-3 rounded-lg p-2 transition hover:bg-surface">
-                          <input
-                            type="checkbox"
-                            [checked]="isAdvisorSelected(advisor.id)"
-                            (change)="toggleAdvisor.emit(advisor.id)"
-                            class="h-4 w-4 rounded border-strong text-navy-900 focus:ring-2 focus:ring-navy-900/30"
-                          />
-                          <div class="flex-1">
-                            <p class="text-xs font-medium text-text">
-                              {{ advisor.user?.firstName }} {{ advisor.user?.lastName }}
-                            </p>
-                            <p class="text-xs text-subtle">{{ advisor.specialty?.label || 'N/A' }}</p>
-                          </div>
-                        </label>
-                      }
-                    </div>
-                  }
-                </div>
-                <p class="mt-1 text-xs text-subtle">Selecciona uno o más asesores para el proceso</p>
-              </div>
+            <label class="text-sm text-muted">
+              Cliente *
+              <select
+                formControlName="clientId"
+                class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
+              >
+                <option value="">Seleccionar cliente</option>
+                @for (client of clients(); track client.id) {
+                  <option [value]="client.id">{{ client.fullName }}</option>
+                }
+              </select>
+            </label>
+            <div class="text-sm text-muted">
+              <!--
+                BUG-06 etapa 2 (ajuste 2026-09-03): este campo se sacó del
+                grid de 2 columnas y ocupa su propia fila completa. El
+                multi-select crece verticalmente con los chips seleccionados
+                mientras que los campos vecinos (selects simples) no, así que
+                compartir columna con otro campo quedaba desbalanceado.
+              -->
+              <app-multi-select
+                [items]="advisorItems()"
+                [selectedIds]="selectedAdvisorIds()"
+                label="Asesores responsables"
+                placeholder="Buscar asesor…"
+                emptyStateText="No hay asesores disponibles"
+                (selectionChange)="advisorIdsChange.emit($event)"
+              />
+              <p class="mt-1 text-xs text-subtle">Selecciona uno o más asesores para el proceso</p>
             </div>
             <div class="grid gap-4 md:grid-cols-2">
               <label class="text-sm text-muted">
@@ -211,13 +200,28 @@ export class ProcessFormComponent {
 
   close = output<void>();
   submit = output<void>();
-  toggleAdvisor = output<string>();
+  // BUG-06 etapa 2: reemplaza el toggle por-id (`toggleAdvisor: output<string>`)
+  // por el array completo que emite MultiSelectComponent en cada cambio —
+  // el contenedor (processes.component.ts) hace un patchValue directo en vez
+  // de calcular el diff él mismo.
+  advisorIdsChange = output<string[]>();
   generateCaseNumber = output<void>();
 
   protected readonly ProcessStatus = ProcessStatus;
 
-  isAdvisorSelected(advisorId: string): boolean {
-    const selectedIds = this.form().get('advisorIds')?.value || [];
-    return selectedIds.includes(advisorId);
+  readonly advisorItems = computed<MultiSelectItem[]>(() =>
+    this.advisors().map((advisor) => ({
+      id: advisor.id,
+      label: `${advisor.user?.firstName ?? ''} ${advisor.user?.lastName ?? ''}`.trim(),
+      description: advisor.specialty?.label || 'N/A',
+    })),
+  );
+
+  // No es un computed a propósito: form() es un input de FormGroup mutable
+  // (patchValue no cambia la referencia), así que este valor debe leerse en
+  // cada ciclo de detección de cambios del template, igual que ya hacía
+  // isAdvisorSelected() antes de esta migración.
+  selectedAdvisorIds(): string[] {
+    return this.form().get('advisorIds')?.value || [];
   }
 }

@@ -68,18 +68,29 @@ describe('ProcessFormComponent', () => {
     expect(fixture.nativeElement.querySelector('form')).toBeNull();
   });
 
-  it('isAdvisorSelected refleja el valor actual del control advisorIds', () => {
+  it('selectedAdvisorIds refleja el valor actual del control advisorIds (BUG-06: input de MultiSelectComponent)', () => {
     const fixture = createComponent();
     fixture.componentRef.setInput('form', buildForm(['adv1']));
     fixture.componentRef.setInput('isOpen', true);
     fixture.detectChanges();
 
     const component = fixture.componentInstance;
-    expect(component.isAdvisorSelected('adv1')).toBe(true);
-    expect(component.isAdvisorSelected('adv2')).toBe(false);
+    expect(component.selectedAdvisorIds()).toEqual(['adv1']);
   });
 
-  it('emite toggleAdvisor al marcar el checkbox de un asesor', () => {
+  it('advisorItems traduce AdvisorResponse a MultiSelectItem (nombre completo + especialidad)', () => {
+    const fixture = createComponent();
+    fixture.componentRef.setInput('form', buildForm());
+    fixture.componentRef.setInput('isOpen', true);
+    fixture.componentRef.setInput('advisors', [advisor]);
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.advisorItems()).toEqual([
+      { id: 'adv1', label: 'Ana Gómez', description: 'N/A' },
+    ]);
+  });
+
+  it('emite advisorIdsChange (BUG-06: reemplaza a toggleAdvisor) al marcar el checkbox de un asesor en MultiSelectComponent', () => {
     const fixture = createComponent();
     fixture.componentRef.setInput('form', buildForm());
     fixture.componentRef.setInput('isOpen', true);
@@ -87,12 +98,23 @@ describe('ProcessFormComponent', () => {
     fixture.detectChanges();
 
     const spy = jest.fn();
-    fixture.componentInstance.toggleAdvisor.subscribe(spy);
+    fixture.componentInstance.advisorIdsChange.subscribe(spy);
+
+    // MultiSelectComponent (ajuste 2026-09-03) solo renderiza el listbox
+    // cuando el input de búsqueda tiene foco — igual que un <select>. Se
+    // escopa a "app-multi-select" porque el formulario tiene varios
+    // input[type="text"] (Título, Corte/Jurisdicción, etc.) — sin el scope,
+    // querySelector encuentra el de "Título del proceso" en su lugar.
+    const searchInput: HTMLInputElement = fixture.nativeElement.querySelector(
+      'app-multi-select input[type="text"]',
+    );
+    searchInput.dispatchEvent(new Event('focus'));
+    fixture.detectChanges();
 
     const checkbox: HTMLInputElement = fixture.nativeElement.querySelector('input[type="checkbox"]');
     checkbox.dispatchEvent(new Event('change'));
 
-    expect(spy).toHaveBeenCalledWith('adv1');
+    expect(spy).toHaveBeenCalledWith(['adv1']);
   });
 
   it('emite generateCaseNumber al hacer clic en el botón de generar', () => {

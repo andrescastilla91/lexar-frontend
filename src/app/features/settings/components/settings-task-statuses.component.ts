@@ -9,13 +9,14 @@ import { PermissionsService } from '../../../core/services/permissions.service';
 import { FormModalShellComponent } from '../../../core/components/form-modal-shell.component';
 import { getCatalogBadgeClasses } from '../../../core/utils/catalog-badge.util';
 import { PlanUpgradeService } from '../../../core/services/plan-upgrade.service';
+import { MultiSelectComponent, MultiSelectItem } from '../../../shared/components/multi-select/multi-select.component';
 
 const COLOR_OPTIONS = ['info', 'warning', 'success', 'danger', 'accent', 'primary'] as const;
 
 @Component({
   selector: 'app-settings-task-statuses',
   standalone: true,
-  imports: [ReactiveFormsModule, HasPermissionDirective, FormModalShellComponent],
+  imports: [ReactiveFormsModule, HasPermissionDirective, FormModalShellComponent, MultiSelectComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="space-y-6">
@@ -222,19 +223,13 @@ const COLOR_OPTIONS = ['info', 'warning', 'success', 'danger', 'accent', 'primar
                 permisos para poder elegir encargados específicos.
               </p>
             } @else {
-              <div class="grid max-h-40 gap-1 overflow-y-auto">
-                @for (candidate of approvalCandidates(); track candidate.id) {
-                  <label class="flex items-center gap-2 text-sm text-text">
-                    <input
-                      type="checkbox"
-                      [checked]="selectedApproverIds().has(candidate.id)"
-                      (change)="toggleApprover(candidate.id)"
-                      class="h-4 w-4 rounded border-default"
-                    />
-                    {{ candidate.firstName }} {{ candidate.lastName }}
-                  </label>
-                }
-              </div>
+              <app-multi-select
+                [items]="approvalCandidateItems()"
+                [selectedIds]="selectedApproverIdsArray()"
+                placeholder="Buscar por nombre…"
+                emptyStateText="Ningún candidato coincide"
+                (selectionChange)="setApproverIds($event)"
+              />
             }
           </div>
         }
@@ -271,6 +266,18 @@ export class SettingsTaskStatusesComponent implements OnInit {
   readonly isLoadingCandidates = signal(false);
   readonly selectedApproverIds = signal<Set<string>>(new Set());
 
+  // BUG-06 etapa 2: MultiSelectComponent trabaja con MultiSelectItem[] y un
+  // array de ids seleccionados — estos computed traducen la fuente de verdad
+  // existente (Set<string>) sin cambiar el resto de la lógica (submit, carga
+  // de candidatos al editar un estado).
+  readonly approvalCandidateItems = computed<MultiSelectItem[]>(() =>
+    this.approvalCandidates().map((candidate) => ({
+      id: candidate.id,
+      label: `${candidate.firstName} ${candidate.lastName}`.trim(),
+    })),
+  );
+  readonly selectedApproverIdsArray = computed(() => Array.from(this.selectedApproverIds()));
+
   protected readonly colorOptions = COLOR_OPTIONS;
   protected readonly getCatalogBadgeClasses = getCatalogBadgeClasses;
 
@@ -304,16 +311,8 @@ export class SettingsTaskStatusesComponent implements OnInit {
     });
   }
 
-  toggleApprover(userId: string): void {
-    this.selectedApproverIds.update((current) => {
-      const next = new Set(current);
-      if (next.has(userId)) {
-        next.delete(userId);
-      } else {
-        next.add(userId);
-      }
-      return next;
-    });
+  setApproverIds(ids: string[]): void {
+    this.selectedApproverIds.set(new Set(ids));
   }
 
   loadStatuses(): void {

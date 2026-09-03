@@ -82,12 +82,29 @@ export class ProcessesPage {
     await this.page.goto('/procesos');
   }
 
-  // Checkbox de "Asesores responsables" dentro del modal — filtrado por el
-  // nombre visible (`advisor.user.firstName + lastName`, ver
-  // process-form.component.ts). Necesario porque un proceso ACTIVE exige al
-  // menos un asesor asignado (`legal-processes.service.ts`: "No se puede
-  // activar un proceso sin al menos un asesor asignado."), y un tenant recién
-  // registrado no tiene ningún Advisor por defecto.
+  // Buscador de "Asesores responsables" dentro del modal (MultiSelectComponent,
+  // ajuste 2026-09-03: la lista de opciones ya no está siempre visible, se
+  // abre al enfocar el input, igual que un <select>).
+  //
+  // getByRole en vez de getByPlaceholder: el `placeholder="Buscar asesor…"`
+  // que process-form.component.ts pasa como atributo estático a
+  // <app-multi-select> queda reflejado también en el custom element host
+  // (no solo en el <input> interno), así que getByPlaceholder resolvía a 2
+  // elementos ("strict mode violation"). role=combobox solo lo tiene el
+  // <input> real.
+  advisorSearchInput(): Locator {
+    return this.page
+      .locator('app-process-form')
+      .getByRole('combobox', { name: 'Asesores responsables' });
+  }
+
+  // Checkbox de un asesor dentro del listbox — filtrado por el nombre
+  // visible (`advisor.user.firstName + lastName`, ver process-form.component.ts).
+  // Necesario porque un proceso ACTIVE exige al menos un asesor asignado
+  // (`legal-processes.service.ts`: "No se puede activar un proceso sin al
+  // menos un asesor asignado."), y un tenant recién registrado no tiene
+  // ningún Advisor por defecto. Requiere que el listbox esté abierto (ver
+  // advisorSearchInput()) para ser visible/interactuable.
   advisorCheckbox(advisorFullName: string): Locator {
     return this.page
       .locator('app-process-form')
@@ -114,6 +131,10 @@ export class ProcessesPage {
     await this.stageSelect.selectOption({ label: data.stageLabel });
     await this.riskLevelSelect.selectOption({ label: data.riskLevelLabel });
     if (data.advisorFullName) {
+      // Abre el listbox del multi-select (ajuste 2026-09-03: cerrado por
+      // defecto, se abre al enfocar el buscador) antes de poder marcar el
+      // checkbox del asesor.
+      await this.advisorSearchInput().click();
       await this.advisorCheckbox(data.advisorFullName).check();
     }
     await this.saveProcessButton.click();

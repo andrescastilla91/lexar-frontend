@@ -123,14 +123,30 @@ describe('SettingsTaskStatusesComponent', () => {
     expect(component.statuses()).toEqual(statuses);
   });
 
-  it('toggleApprover agrega y quita ids del set de seleccionados', () => {
+  it('setApproverIds reemplaza el set de seleccionados (wiring del MultiSelectComponent)', () => {
     const component = createComponent();
 
-    component.toggleApprover('u1');
+    component.setApproverIds(['u1', 'u2']);
     expect(component.selectedApproverIds().has('u1')).toBe(true);
+    expect(component.selectedApproverIds().has('u2')).toBe(true);
 
-    component.toggleApprover('u1');
+    component.setApproverIds([]);
     expect(component.selectedApproverIds().has('u1')).toBe(false);
+  });
+
+  it('approvalCandidateItems traduce TaskApprovalCandidate a MultiSelectItem', () => {
+    const component = createComponent();
+
+    expect(component.approvalCandidateItems()).toEqual(
+      candidates.map((c) => ({ id: c.id, label: `${c.firstName} ${c.lastName}` })),
+    );
+  });
+
+  it('selectedApproverIdsArray refleja el set como array', () => {
+    const component = createComponent();
+
+    component.setApproverIds(['u1']);
+    expect(component.selectedApproverIdsArray()).toEqual(['u1']);
   });
 
   it('openCreateModal limpia el form, aprobadores y habilita el código', () => {
@@ -179,7 +195,7 @@ describe('SettingsTaskStatusesComponent', () => {
       requiresNote: false,
       position: statuses.length,
     });
-    component.toggleApprover('u1');
+    component.setApproverIds(['u1']);
 
     component.submit();
 
@@ -208,7 +224,7 @@ describe('SettingsTaskStatusesComponent', () => {
       requiresNote: false,
       position: statuses.length,
     });
-    component.toggleApprover('u1');
+    component.setApproverIds(['u1']);
 
     component.submit();
 

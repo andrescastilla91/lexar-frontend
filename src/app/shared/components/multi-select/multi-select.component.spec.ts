@@ -46,6 +46,8 @@ describe('MultiSelectComponent (BUG-06 etapa 1)', () => {
   it('sin coincidencias, filteredItems queda vacío (estado vacío)', () => {
     const { component, fixture } = createComponent();
 
+    // onSearchInput abre la lista como efecto secundario (ver describe
+    // "desplegable"), así que el estado vacío queda visible en el DOM.
     component.onSearchInput('no existe');
     fixture.detectChanges();
 
@@ -97,11 +99,14 @@ describe('MultiSelectComponent (BUG-06 etapa 1)', () => {
     expect(component.isSelected('a2')).toBe(true);
   });
 
-  describe('teclado', () => {
-    function key(type: string): KeyboardEvent {
-      return new KeyboardEvent('keydown', { key: type, cancelable: true });
-    }
+  // Elevado a scope de módulo (antes vivía solo dentro de 'teclado') porque
+  // el describe 'desplegable' agregado en el ajuste de UX del 2026-09-03
+  // también necesita simular Escape.
+  function key(type: string): KeyboardEvent {
+    return new KeyboardEvent('keydown', { key: type, cancelable: true });
+  }
 
+  describe('teclado', () => {
     it('ArrowDown/ArrowUp mueven el índice resaltado dentro de los límites', () => {
       const { component } = createComponent();
 
@@ -153,6 +158,108 @@ describe('MultiSelectComponent (BUG-06 etapa 1)', () => {
       component.onSearchKeydown(key('Backspace'));
 
       expect(component.isSelected('a1')).toBe(true);
+    });
+  });
+
+  // Ajuste 2026-09-03: la lista de opciones dejó de estar siempre visible —
+  // se comporta como un <select> nativo (cerrada por defecto, se abre al
+  // enfocar/hacer clic, se cierra afuera/Escape/al perder el foco).
+  describe('desplegable (comportamiento tipo select)', () => {
+    it('arranca cerrado: no renderiza el listbox aunque haya items', () => {
+      const { component, fixture } = createComponent();
+      fixture.detectChanges();
+
+      expect(component.isOpen()).toBe(false);
+      expect(fixture.nativeElement.querySelector('ul[role="listbox"]')).toBeNull();
+    });
+
+    it('open() despliega la lista y close() la oculta', () => {
+      const { component, fixture } = createComponent();
+
+      component.open();
+      fixture.detectChanges();
+      expect(component.isOpen()).toBe(true);
+      expect(fixture.nativeElement.querySelector('ul[role="listbox"]')).not.toBeNull();
+
+      component.close();
+      fixture.detectChanges();
+      expect(component.isOpen()).toBe(false);
+      expect(fixture.nativeElement.querySelector('ul[role="listbox"]')).toBeNull();
+    });
+
+    it('open() no hace nada si el componente está disabled', () => {
+      const { component, fixture } = createComponent();
+      fixture.componentRef.setInput('disabled', true);
+      fixture.detectChanges();
+
+      component.open();
+
+      expect(component.isOpen()).toBe(false);
+    });
+
+    it('onSearchInput abre la lista automáticamente (empezar a escribir despliega, como un select con búsqueda)', () => {
+      const { component } = createComponent();
+
+      component.onSearchInput('ana');
+
+      expect(component.isOpen()).toBe(true);
+    });
+
+    it('onDocumentClick cierra la lista si el clic fue fuera del componente', () => {
+      const { component, fixture } = createComponent();
+      component.open();
+      fixture.detectChanges();
+
+      const outsideElement = document.createElement('div');
+      component.onDocumentClick({ target: outsideElement } as unknown as MouseEvent);
+
+      expect(component.isOpen()).toBe(false);
+    });
+
+    it('onDocumentClick NO cierra la lista si el clic fue dentro del componente (ej. un checkbox de la lista)', () => {
+      const { component, fixture } = createComponent();
+      component.open();
+      fixture.detectChanges();
+
+      const insideElement: HTMLElement = fixture.nativeElement.querySelector('input[type="checkbox"]');
+      component.onDocumentClick({ target: insideElement } as unknown as MouseEvent);
+
+      expect(component.isOpen()).toBe(true);
+    });
+
+    it('onFocusOut cierra la lista si el nuevo foco sale del componente', () => {
+      const { component, fixture } = createComponent();
+      component.open();
+      fixture.detectChanges();
+
+      const outsideElement = document.createElement('div');
+      component.onFocusOut({ relatedTarget: outsideElement } as unknown as FocusEvent);
+
+      expect(component.isOpen()).toBe(false);
+    });
+
+    it('onFocusOut NO cierra la lista si el nuevo foco sigue dentro del componente', () => {
+      const { component, fixture } = createComponent();
+      component.open();
+      fixture.detectChanges();
+
+      const insideElement: HTMLElement = fixture.nativeElement.querySelector('input[type="checkbox"]');
+      component.onFocusOut({ relatedTarget: insideElement } as unknown as FocusEvent);
+
+      expect(component.isOpen()).toBe(true);
+    });
+
+    it('Escape cierra la lista cuando el filtro ya está vacío (una segunda vez, tras limpiar el término)', () => {
+      const { component } = createComponent();
+      component.onSearchInput('ana');
+      expect(component.isOpen()).toBe(true);
+
+      component.onSearchKeydown(key('Escape')); // 1a vez: limpia el término
+      expect(component.searchTerm()).toBe('');
+      expect(component.isOpen()).toBe(true);
+
+      component.onSearchKeydown(key('Escape')); // 2a vez: cierra la lista
+      expect(component.isOpen()).toBe(false);
     });
   });
 });

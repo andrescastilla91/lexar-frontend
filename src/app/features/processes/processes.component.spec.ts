@@ -657,15 +657,15 @@ describe('ProcessesComponent', () => {
     });
   });
 
-  describe('toggleAdvisor y generateCaseNumber', () => {
-    it('agrega el id si no está seleccionado y lo quita si ya estaba', async () => {
+  describe('setAdvisorIds y generateCaseNumber', () => {
+    it('escribe el array completo de ids recibido de MultiSelectComponent', async () => {
       await configure();
       const component = createComponent();
 
-      component.toggleAdvisor('adv1');
-      expect(component.processForm.value.advisorIds).toEqual(['adv1']);
+      component.setAdvisorIds(['adv1', 'adv2']);
+      expect(component.processForm.value.advisorIds).toEqual(['adv1', 'adv2']);
 
-      component.toggleAdvisor('adv1');
+      component.setAdvisorIds([]);
       expect(component.processForm.value.advisorIds).toEqual([]);
     });
 

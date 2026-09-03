@@ -193,7 +193,7 @@ import {
         [riskLevels]="riskLevels()"
         (close)="togglePanel()"
         (submit)="submitProcess()"
-        (toggleAdvisor)="toggleAdvisor($event)"
+        (advisorIdsChange)="setAdvisorIds($event)"
         (generateCaseNumber)="generateCaseNumber()"
       />
 
@@ -1270,21 +1270,11 @@ export class ProcessesComponent implements OnInit, OnDestroy {
     }
   }
 
-  toggleAdvisor(advisorId: string): void {
-    const currentIds = this.processForm.get('advisorIds')?.value || [];
-    const index = currentIds.indexOf(advisorId);
-
-    if (index > -1) {
-      // Remover el ID
-      this.processForm.patchValue({
-        advisorIds: currentIds.filter((id: string) => id !== advisorId),
-      });
-    } else {
-      // Agregar el ID
-      this.processForm.patchValue({
-        advisorIds: [...currentIds, advisorId],
-      });
-    }
+  // BUG-06 etapa 2: MultiSelectComponent (dentro de ProcessFormComponent)
+  // emite el array completo de ids seleccionados en cada cambio, en vez de
+  // un id a la vez — ya no hace falta calcular el toggle acá.
+  setAdvisorIds(advisorIds: string[]): void {
+    this.processForm.patchValue({ advisorIds });
   }
 
   generateCaseNumber(): void {

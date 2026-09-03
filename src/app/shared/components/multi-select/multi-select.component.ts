@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, effect, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, inject, input, output, signal } from '@angular/core';
 
 export interface MultiSelectItem {
   id: string;
@@ -22,11 +22,19 @@ function normalize(value: string): string {
 }
 
 /**
- * BUG-06 (etapa 1) — selector múltiple con búsqueda y chips, para listas
- * que crecen con el uso (asesores, aprobadores, usuarios…) donde una lista
- * plana de checkbox obliga a scroll ciego. Componente puramente aditivo:
- * en esta etapa no reemplaza ningún consumidor existente (ver ficha del
- * bug, "migración por etapas, no de golpe").
+ * BUG-06 — selector múltiple con búsqueda y chips, para listas que crecen
+ * con el uso (asesores, aprobadores, usuarios…) donde una lista plana de
+ * checkbox obliga a scroll ciego.
+ *
+ * Ajuste de UX (2026-09-03, feedback del propietario tras ver la etapa 2 ya
+ * migrada en el formulario de proceso): el listado de opciones dejó de estar
+ * siempre visible debajo del input — igual que un `<select>` nativo, solo se
+ * despliega cuando el usuario entra al control (foco/clic), y se cierra al
+ * hacer clic afuera, con Escape, o al perder el foco hacia otro elemento.
+ * Los chips de seleccionados siguen siempre visibles (ocupan una sola fila
+ * compacta, como el valor mostrado por un `<select>` cerrado) — lo que se
+ * evita es la lista completa de opciones permanentemente abierta, que era
+ * el uso real de espacio innecesario reportado.
  *
  * Funciona con listas ya cargadas en memoria. `loading` y `searchTermChange`
  * quedan reservados para una futura búsqueda contra el servidor sin tener
@@ -37,7 +45,7 @@ function normalize(value: string): string {
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="space-y-2">
+    <div class="space-y-2" (focusout)="onFocusOut($event)" (document:click)="onDocumentClick($event)">
       @if (label()) {
         <label [for]="inputId" class="text-xs font-semibold text-muted">{{ label() }}</label>
       }
@@ -66,13 +74,15 @@ function normalize(value: string): string {
           type="text"
           role="combobox"
           aria-autocomplete="list"
-          [attr.aria-expanded]="true"
+          [attr.aria-expanded]="isOpen()"
           [attr.aria-controls]="listId"
-          [attr.aria-activedescendant]="highlightedIndex() >= 0 ? listId + '-opt-' + highlightedIndex() : null"
+          [attr.aria-activedescendant]="isOpen() && highlightedIndex() >= 0 ? listId + '-opt-' + highlightedIndex() : null"
           [id]="inputId"
           [placeholder]="placeholder()"
           [disabled]="disabled()"
           [value]="searchTerm()"
+          (focus)="open()"
+          (click)="open()"
           (input)="onSearchInput($any($event.target).value)"
           (keydown)="onSearchKeydown($event)"
           class="min-h-[44px] w-full rounded-md border border-default px-3 py-2 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
@@ -82,45 +92,48 @@ function normalize(value: string): string {
           <p class="mt-1 text-xs text-subtle" aria-live="polite">Cargando…</p>
         }
 
-        <ul
-          [id]="listId"
-          role="listbox"
-          aria-multiselectable="true"
-          class="mt-2 max-h-56 overflow-y-auto rounded-md border border-default"
-        >
-          @if (filteredItems().length === 0) {
-            <li class="px-3 py-2 text-xs text-subtle">{{ emptyStateText() }}</li>
-          } @else {
-            @for (item of filteredItems(); track item.id; let i = $index) {
-              <li [id]="listId + '-opt-' + i" role="option" [attr.aria-selected]="isSelected(item.id)">
-                <label
-                  class="flex min-h-[44px] cursor-pointer items-center gap-2 px-3 py-2 text-sm transition"
-                  [class.bg-surface-muted]="i === highlightedIndex()"
-                >
-                  <input
-                    type="checkbox"
-                    [checked]="isSelected(item.id)"
-                    (change)="toggle(item.id)"
-                    [disabled]="disabled()"
-                    class="h-4 w-4 rounded border-strong text-navy-900 focus:ring-navy-900"
-                  />
-                  <span class="min-w-0 flex-1">
-                    <span class="block truncate font-medium text-text">{{ item.label }}</span>
-                    @if (item.description) {
-                      <span class="block truncate text-xs text-subtle">{{ item.description }}</span>
-                    }
-                  </span>
-                </label>
-              </li>
+        @if (isOpen()) {
+          <ul
+            [id]="listId"
+            role="listbox"
+            aria-multiselectable="true"
+            class="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-md border border-default bg-surface shadow-card"
+          >
+            @if (filteredItems().length === 0) {
+              <li class="px-3 py-2 text-xs text-subtle">{{ emptyStateText() }}</li>
+            } @else {
+              @for (item of filteredItems(); track item.id; let i = $index) {
+                <li [id]="listId + '-opt-' + i" role="option" [attr.aria-selected]="isSelected(item.id)">
+                  <label
+                    class="flex min-h-[44px] cursor-pointer items-center gap-2 px-3 py-2 text-sm transition"
+                    [class.bg-surface-muted]="i === highlightedIndex()"
+                  >
+                    <input
+                      type="checkbox"
+                      [checked]="isSelected(item.id)"
+                      (change)="toggle(item.id)"
+                      [disabled]="disabled()"
+                      class="h-4 w-4 rounded border-strong text-navy-900 focus:ring-navy-900"
+                    />
+                    <span class="min-w-0 flex-1">
+                      <span class="block truncate font-medium text-text">{{ item.label }}</span>
+                      @if (item.description) {
+                        <span class="block truncate text-xs text-subtle">{{ item.description }}</span>
+                      }
+                    </span>
+                  </label>
+                </li>
+              }
             }
-          }
-        </ul>
+          </ul>
+        }
       </div>
     </div>
   `,
 })
 export class MultiSelectComponent {
   private static nextInstanceId = 0;
+  private readonly elementRef = inject(ElementRef<HTMLElement>);
 
   items = input.required<MultiSelectItem[]>();
   selectedIds = input<string[]>([]);
@@ -140,6 +153,10 @@ export class MultiSelectComponent {
 
   readonly searchTerm = signal('');
   readonly highlightedIndex = signal(-1);
+  // Ajuste 2026-09-03: la lista de opciones ya no está siempre montada —
+  // isOpen() controla si se renderiza, igual que el desplegable de un
+  // `<select>` nativo.
+  readonly isOpen = signal(false);
   private readonly internalSelected = signal<string[]>([]);
 
   readonly selectedItems = computed(() => {
@@ -184,9 +201,41 @@ export class MultiSelectComponent {
     this.toggle(id);
   }
 
+  open(): void {
+    if (!this.disabled()) {
+      this.isOpen.set(true);
+    }
+  }
+
+  close(): void {
+    this.isOpen.set(false);
+    this.highlightedIndex.set(-1);
+  }
+
+  // Cierra al hacer clic fuera del control (input o listbox). Se escucha en
+  // el document en vez de en el input porque un clic en un checkbox de la
+  // lista no debe cerrarla — necesitamos saber si el destino del clic sigue
+  // dentro de elementRef, no si el input perdió el foco.
+  onDocumentClick(event: MouseEvent): void {
+    if (this.isOpen() && !this.elementRef.nativeElement.contains(event.target as Node)) {
+      this.close();
+    }
+  }
+
+  // Complementa a onDocumentClick para el caso de navegación por teclado
+  // (Tab hacia otro control): si el nuevo elemento enfocado ya no está
+  // dentro de este componente, se cierra la lista.
+  onFocusOut(event: FocusEvent): void {
+    const nextFocusTarget = event.relatedTarget as Node | null;
+    if (!nextFocusTarget || !this.elementRef.nativeElement.contains(nextFocusTarget)) {
+      this.close();
+    }
+  }
+
   onSearchInput(value: string): void {
     this.searchTerm.set(value);
     this.highlightedIndex.set(-1);
+    this.isOpen.set(true);
     this.searchTermChange.emit(value);
   }
 
@@ -196,12 +245,14 @@ export class MultiSelectComponent {
     switch (event.key) {
       case 'ArrowDown':
         event.preventDefault();
+        this.open();
         if (items.length > 0) {
           this.highlightedIndex.update((current) => Math.min(current + 1, items.length - 1));
         }
         break;
       case 'ArrowUp':
         event.preventDefault();
+        this.open();
         if (items.length > 0) {
           this.highlightedIndex.update((current) => Math.max(current - 1, 0));
         }
@@ -220,6 +271,10 @@ export class MultiSelectComponent {
           event.stopPropagation();
           this.searchTerm.set('');
           this.highlightedIndex.set(-1);
+        } else if (this.isOpen()) {
+          event.preventDefault();
+          event.stopPropagation();
+          this.close();
         }
         break;
       case 'Backspace': {
