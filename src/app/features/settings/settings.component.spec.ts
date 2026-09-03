@@ -236,8 +236,9 @@ describe('SettingsComponent', () => {
   // select de siempre (celular Y tablet, sin cambios de comportamiento en
   // ese rango); desde 1024px se muestra un sidebar real a la izquierda en
   // vez de una lista apilada arriba del contenido.
-  // F27: se agregó la pestaña "Portal del cliente" — pasa de 9 a 10 secciones.
-  it('el sidebar de escritorio está oculto por debajo de lg y visible desde lg, con las 10 secciones', () => {
+  // F32 PR3: se agregó la pestaña "Tablero" — pasa de 10 a 11 secciones
+  // (F27 ya había hecho el mismo ajuste de 9 a 10 al agregar "Portal del cliente").
+  it('el sidebar de escritorio está oculto por debajo de lg y visible desde lg, con las 11 secciones', () => {
     const fixture = TestBed.createComponent(SettingsComponent);
     fixture.detectChanges();
 
@@ -247,17 +248,17 @@ describe('SettingsComponent', () => {
     expect(nav?.className).toContain('hidden');
     expect(nav?.className).toContain('lg:flex');
     expect(nav?.className).toContain('lg:flex-col');
-    expect(buttons?.length).toBe(10);
+    expect(buttons?.length).toBe(11);
   });
 
-  it('el select cubre mobile y tablet (oculto solo desde lg), con las mismas 10 opciones', () => {
+  it('el select cubre mobile y tablet (oculto solo desde lg), con las mismas 11 opciones', () => {
     const fixture = TestBed.createComponent(SettingsComponent);
     fixture.detectChanges();
 
     const mobileWrapper = fixture.nativeElement.querySelector('.lg\\:hidden');
     const options = mobileWrapper?.querySelectorAll('option');
 
-    expect(options?.length).toBe(10);
+    expect(options?.length).toBe(11);
   });
 
   it('click en un ítem del sidebar cambia de tab directamente', () => {
