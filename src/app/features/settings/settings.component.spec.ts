@@ -9,6 +9,7 @@ import { PlanUpgradeService } from '../../core/services/plan-upgrade.service';
 import { SubscriptionService } from '../../core/services/subscription.service';
 import { Entitlements } from '../../core/models/subscription-backend.model';
 import { PortalVisibilityPolicyService } from '../../core/services/portal-visibility-policy.service';
+import { DashboardWidgetsService } from '../../core/services/dashboard-widgets.service';
 
 describe('SettingsComponent', () => {
   let companyServiceMock: {
@@ -28,6 +29,10 @@ describe('SettingsComponent', () => {
     isSimulationEnabled: jest.Mock;
   };
   let portalVisibilityPolicyServiceMock: { getAll: jest.Mock; update: jest.Mock };
+  // F32 PR3: al abrir la pestaña "Tablero" se renderiza el
+  // SettingsDashboardWidgetsComponent real — misma razón que
+  // portalVisibilityPolicyServiceMock (ver comentario arriba).
+  let dashboardWidgetsServiceMock: { getCompanySettings: jest.Mock; updateCompanySettings: jest.Mock };
   let queryParams: Record<string, string>;
 
   const baseEntitlements: Entitlements = {
@@ -94,6 +99,10 @@ describe('SettingsComponent', () => {
       getAll: jest.fn().mockReturnValue(of([])),
       update: jest.fn(),
     };
+    dashboardWidgetsServiceMock = {
+      getCompanySettings: jest.fn().mockReturnValue(of([])),
+      updateCompanySettings: jest.fn(),
+    };
     queryParams = initialQueryParams;
 
     TestBed.configureTestingModule({
@@ -104,6 +113,7 @@ describe('SettingsComponent', () => {
         { provide: PlanUpgradeService, useValue: planUpgradeMock },
         { provide: SubscriptionService, useValue: subscriptionServiceMock },
         { provide: PortalVisibilityPolicyService, useValue: portalVisibilityPolicyServiceMock },
+        { provide: DashboardWidgetsService, useValue: dashboardWidgetsServiceMock },
         {
           provide: ActivatedRoute,
           useValue: { snapshot: { queryParamMap: convertToParamMap(queryParams) } },
@@ -279,6 +289,24 @@ describe('SettingsComponent', () => {
 
     expect(component.activeTab()).toBe('portal-visibility');
     expect(portalVisibilityPolicyServiceMock.getAll).toHaveBeenCalled();
+  });
+
+  // F32 PR3: verifica que la nueva pestaña se pueda abrir y cargue el
+  // catálogo de widgets por empresa real.
+  it('click en "Tablero" cambia de tab y carga la configuración de widgets', () => {
+    const fixture = TestBed.createComponent(SettingsComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+
+    const nav = fixture.nativeElement.querySelector('nav[aria-label="Secciones de configuración"]');
+    const dashboardTabButton = Array.from(nav.querySelectorAll('button')).find((btn) =>
+      (btn as HTMLElement).textContent?.includes('Tablero'),
+    ) as HTMLElement;
+    dashboardTabButton.click();
+    fixture.detectChanges();
+
+    expect(component.activeTab()).toBe('dashboard-widgets');
+    expect(dashboardWidgetsServiceMock.getCompanySettings).toHaveBeenCalled();
   });
 
   // F7-R3: ?tab=&suggested= navegan directo a la pestaña de planes con el
