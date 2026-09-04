@@ -25,6 +25,10 @@ ARG SENTRY_DSN=""
 # NODE_ENV no sirve para distinguirlos, stg y prod lo comparten en Railway
 # (ver instrument.ts del backend). Vacío en docker-compose local -> "local".
 ARG RAILWAY_ENVIRONMENT_NAME=""
+# F29(b) — ajuste 2026-09-03: nombre de marca horneado igual que el resto de
+# valores de este stage — un rename no toca código, solo este ARG (y el
+# default local de environments/environment.ts).
+ARG BRAND_NAME="LexAr"
 
 # El environment de PRODUCCIÓN no existe en el repo: se genera aquí desde
 # los build ARGs (docker-compose local y Railway los proveen). El archivo
@@ -37,10 +41,19 @@ RUN printf '%s\n' \
   "  apiUrl: '${API_URL}'," \
   "  features: { chatbot: false }," \
   "  sentryDsn: '${SENTRY_DSN}'," \
+  "  brandName: '${BRAND_NAME}'," \
   "};" \
   > src/environments/environment.ts
 
 RUN npx ng build --configuration production
+
+# F29(b): el <title> estático de index.html es lo único que se ve ANTES de
+# que Angular hidrate y LexArTitleStrategy tome el control (primeros
+# milisegundos, o si JS está deshabilitado) — no puede leer environment.ts
+# porque es HTML puro servido por nginx, así que se hornea acá con el mismo
+# ARG en vez de dejarlo hardcodeado en el repo.
+RUN sed -i "s#<title>.*</title>#<title>${BRAND_NAME} — Gestión legal</title>#" \
+  dist/lex-ar-frontend/browser/index.html
 
 # ---------- Etapa 2: nginx ----------
 FROM nginx:1.27-alpine

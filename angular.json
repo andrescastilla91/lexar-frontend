@@ -66,7 +66,16 @@
                   "minify": true,
                   "inlineCritical": false
                 },
-                "fonts": true
+                // Desactivado: requiere que el build tenga salida a
+                // internet para descargar e inlinear el CSS de Google
+                // Fonts (fallaba con ECONNREFUSED en builds de Docker
+                // Desktop sin red saliente). Los <link> a
+                // fonts.googleapis.com en index.html siguen ahí — el
+                // navegador los resuelve en runtime como cualquier
+                // stylesheet externo, igual que antes de esta
+                // optimización. Sin impacto funcional, solo se pierde el
+                // inlining en build time.
+                "fonts": false
               }
             },
             "development": {
