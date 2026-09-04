@@ -10,7 +10,7 @@ import { AiChatMessage } from '../../core/models/ai-chat.model';
  * F20.1 — el componente ya no usa `MockDataService`: consume
  * `AiChatService` (`GET/POST /ai/chat`, `PATCH /ai/messages/:id/feedback`).
  * Este spec cubre: carga de historial, guardia de envío, actualización
- * optimista tras responder, feedback 👍/👎 y navegación de links.
+ * optimista tras responder, feedback (útil/no útil) y navegación de links.
  */
 describe('ChatbotComponent', () => {
   // jsdom no implementa scrollIntoView; el componente lo llama tras cargar
@@ -283,7 +283,7 @@ describe('ChatbotComponent', () => {
   });
 
   describe('feedback visualmente distinguible', () => {
-    it('el botón 👍 queda marcado aria-pressed=true cuando feedback es up', async () => {
+    it('el botón "Respuesta útil" queda marcado aria-pressed=true cuando feedback es up', async () => {
       await configure('with-messages');
       const fixture = TestBed.createComponent(ChatbotComponent);
       fixture.detectChanges();

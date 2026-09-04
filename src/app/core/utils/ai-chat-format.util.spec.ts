@@ -2,13 +2,13 @@ import { parseAiListAnswer } from './ai-chat-format.util';
 
 describe('parseAiListAnswer', () => {
   it('reconoce el formato intro + lista (separados por línea en blanco)', () => {
-    const content = 'Hoy puedo responderte sobre esto:\n\n📅 audiencias — «ej»\n⏰ plazos — «ej»';
+    const content = 'Hoy puedo responderte sobre esto:\n\naudiencias — «ej»\nplazos — «ej»';
 
     const result = parseAiListAnswer(content);
 
     expect(result).toEqual({
       intro: 'Hoy puedo responderte sobre esto:',
-      items: ['📅 audiencias — «ej»', '⏰ plazos — «ej»'],
+      items: ['audiencias — «ej»', 'plazos — «ej»'],
     });
   });
 
