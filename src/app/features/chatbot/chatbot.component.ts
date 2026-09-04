@@ -1,45 +1,42 @@
 import { CommonModule, DatePipe } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, ElementRef, OnInit, ViewChild, inject, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { startWith } from 'rxjs';
-import { MockDataService } from '../../core/services/mock-data.service';
-import { ChatMessage } from '../../core/models/chat-message.model';
-import { createId } from '../../core/utils/id.util';
+import { AiChatService } from '../../core/services/ai-chat.service';
+import { ToastService } from '../../core/services/toast.service';
+import { AI_CHAT_SUGGESTED_PROMPTS, AiChatFeedback, AiChatLink, AiChatMessage } from '../../core/models/ai-chat.model';
+import { parseAiListAnswer } from '../../core/utils/ai-chat-format.util';
 
+/**
+ * F20.1 — Asistente IA Nivel 0 (sin LLM). Conecta con `AiChatService`
+ * (`/api/ai/chat`, `/api/ai/messages/:id/feedback`); ya no usa
+ * `MockDataService`. El backend resuelve la intención con un router
+ * determinista y responde solo con datos del propio tenant — este
+ * componente únicamente renderiza el historial y envía mensajes.
+ */
 @Component({
   selector: 'app-chatbot',
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule, DatePipe],
   template: `
     <div class="flex flex-col gap-6 lg:flex-row">
-      <aside class="w-full rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:w-80">
-        <h2 class="text-lg font-semibold text-slate-800">Asistente LexAr</h2>
-        <p class="mt-2 text-sm text-slate-500">
-          Solicita resúmenes, identifica riesgos y genera recordatorios en tiempo real.
+      <aside class="w-full rounded-3xl border border-default bg-surface p-6 shadow-[var(--shadow-card)] lg:w-80">
+        <h2 class="text-lg font-semibold text-text">Asistente LexAr</h2>
+        <p class="mt-2 text-sm text-text-muted">
+          Pregunta por procesos, plazos, tareas, clientes o tu suscripción. El asistente solo responde con
+          información de tu propia empresa.
         </p>
 
-        <form class="mt-6 space-y-4" [formGroup]="filterForm">
-          <label class="flex flex-col gap-2 text-sm text-slate-600">
-            Filtrar por proceso
-            <select
-              formControlName="processId"
-              class="rounded-2xl border border-slate-200 px-4 py-2 text-sm text-text shadow-sm focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
-            >
-              <option value="todos">Todas las conversaciones</option>
-              @for (process of processes(); track process.id) {
-                <option [value]="process.id">{{ process.title }}</option>
-              }
-            </select>
-          </label>
-        </form>
+        <div class="mt-4 rounded-2xl border border-default bg-info-tint px-4 py-3 text-xs text-text-muted">
+          Este asistente no constituye asesoría legal. Verifica siempre la información antes de actuar.
+        </div>
 
-        <div class="mt-8 space-y-3 text-sm text-slate-500">
-          <h3 class="text-xs uppercase tracking-wide text-slate-400">Sugerencias rápidas</h3>
-          @for (suggestion of quickPrompts; track suggestion) {
+        <div class="mt-6 space-y-3 text-sm text-text-muted">
+          <h3 class="text-xs uppercase tracking-wide text-text-subtle">Preguntas sugeridas</h3>
+          @for (suggestion of suggestedPrompts; track suggestion) {
             <button
               type="button"
-              class="w-full rounded-2xl border border-slate-200 px-4 py-2 text-left text-sm text-slate-600 transition hover:border-navy-900/40 hover:bg-slate-50"
+              class="w-full rounded-2xl border border-default px-4 py-2 text-left text-sm text-text-muted transition hover:border-primary/40 hover:bg-surface-muted"
               (click)="usePrompt(suggestion)"
             >
               {{ suggestion }}
@@ -48,64 +45,147 @@ import { createId } from '../../core/utils/id.util';
         </div>
       </aside>
 
-      <section class="flex-1 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div class="flex h-[520px] flex-col">
-          <header class="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
+      <section class="flex-1 rounded-3xl border border-default bg-surface p-6 shadow-[var(--shadow-card)]">
+        <div class="flex h-[560px] flex-col">
+          <header class="flex items-center justify-between rounded-2xl bg-surface-muted px-4 py-3">
             <div>
-              <p class="text-sm font-semibold text-text">Historial de interacción</p>
-              <p class="text-xs text-slate-500">{{ filteredMessages().length }} mensajes registrados</p>
+              <p class="text-sm font-semibold text-text">Conversación</p>
+              <p class="text-xs text-text-subtle">{{ messages().length }} mensajes</p>
             </div>
-            <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">Operativo</span>
+            <span class="rounded-full bg-success-tint px-3 py-1 text-xs font-semibold text-success">Operativo</span>
           </header>
 
-          <div class="mt-4 flex-1 space-y-4 overflow-y-auto pr-1">
-            @for (message of filteredMessages(); track message.id) {
+          <div #scrollContainer class="mt-4 flex-1 space-y-4 overflow-y-auto pr-1">
+            @if (isLoadingHistory()) {
+              <p class="text-sm text-text-subtle">Cargando historial…</p>
+            }
+
+            @if (!isLoadingHistory() && messages().length === 0) {
+              <p class="text-sm text-text-subtle">
+                Aún no hay mensajes. Escribe una pregunta o usa una de las sugerencias.
+              </p>
+            }
+
+            @for (message of messages(); track message.id) {
               <article
                 class="max-w-xl rounded-3xl px-5 py-3 text-sm shadow-sm"
-                [ngClass]="message.author === 'usuario' ? 'ml-auto bg-navy-900 text-white' : 'bg-surface-muted text-text'"
+                [ngClass]="message.role === 'user' ? 'ml-auto bg-primary text-on-primary' : 'bg-surface-sunken text-text'"
               >
                 <header class="flex items-center justify-between gap-3 text-xs">
-                  <span class="font-semibold">{{ authorLabel(message.author) }}</span>
-                  <span class="text-slate-400">{{ message.timestamp | date: 'HH:mm dd/MM' }}</span>
-                </header>
-                <p class="mt-2 leading-relaxed">{{ message.content }}</p>
-                @if (message.relatedProcessId) {
-                  <p class="mt-3 rounded-2xl bg-white/20 px-3 py-2 text-xs" [ngClass]="message.author === 'usuario' ? 'text-white/80' : 'text-slate-500'">
-                    Proceso: {{ processName(message.relatedProcessId) }}
-                  </p>
-                }
-                @if (message.sentiment) {
-                  <span class="mt-2 inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold" [ngClass]="sentimentClasses(message.sentiment)">
-                    <span class="h-2.5 w-2.5 rounded-full" [ngClass]="sentimentDot(message.sentiment)"></span>
-                    Tonalidad {{ message.sentiment }}
+                  <span class="font-semibold">{{ message.role === 'user' ? 'Tú' : 'Asistente LexAr' }}</span>
+                  <span [ngClass]="message.role === 'user' ? 'text-on-primary/70' : 'text-text-subtle'">
+                    {{ message.createdAt | date: 'HH:mm dd/MM' }}
                   </span>
+                </header>
+
+                @if (parseAnswer(message.content); as parsed) {
+                  <p class="mt-2 leading-relaxed">{{ parsed.intro }}</p>
+                  <ul class="mt-2 space-y-1 leading-relaxed">
+                    @for (item of parsed.items; track item) {
+                      <li>{{ item }}</li>
+                    }
+                  </ul>
+                } @else {
+                  <p class="mt-2 whitespace-pre-line leading-relaxed">{{ message.content }}</p>
+                }
+
+                @if (message.links.length > 0) {
+                  <div class="mt-3 flex flex-wrap gap-2">
+                    @for (link of message.links; track link.path) {
+                      <button
+                        type="button"
+                        class="rounded-full px-3 py-1 text-xs font-medium underline-offset-2 hover:underline"
+                        [ngClass]="message.role === 'user' ? 'bg-white/20 text-on-primary' : 'bg-surface text-primary'"
+                        (click)="openLink(link)"
+                      >
+                        {{ link.label }}
+                      </button>
+                    }
+                  </div>
+                }
+
+                @if (message.role === 'assistant' && !message.understood) {
+                  <div class="mt-3 flex flex-wrap gap-2">
+                    @for (suggestion of suggestedPrompts; track suggestion) {
+                      <button
+                        type="button"
+                        class="rounded-full border border-default bg-surface px-3 py-1 text-xs text-primary transition hover:bg-surface-muted"
+                        (click)="usePrompt(suggestion)"
+                      >
+                        {{ suggestion }}
+                      </button>
+                    }
+                  </div>
+                }
+
+                @if (message.role === 'assistant') {
+                  <div class="mt-3 flex items-center gap-2">
+                    <button
+                      type="button"
+                      class="rounded-full px-2 py-1 text-xs transition"
+                      [ngClass]="
+                        message.feedback === 'up'
+                          ? 'border-2 border-success bg-success-tint text-success'
+                          : 'border border-default text-text-subtle opacity-60 hover:opacity-100 hover:bg-surface-muted'
+                      "
+                      (click)="rate(message, 'up')"
+                      aria-label="Respuesta útil"
+                      [attr.aria-pressed]="message.feedback === 'up'"
+                    >
+                      👍
+                    </button>
+                    <button
+                      type="button"
+                      class="rounded-full px-2 py-1 text-xs transition"
+                      [ngClass]="
+                        message.feedback === 'down'
+                          ? 'border-2 border-danger bg-danger-tint text-danger'
+                          : 'border border-default text-text-subtle opacity-60 hover:opacity-100 hover:bg-surface-muted'
+                      "
+                      (click)="rate(message, 'down')"
+                      aria-label="Respuesta no útil"
+                      [attr.aria-pressed]="message.feedback === 'down'"
+                    >
+                      👎
+                    </button>
+                    @if (message.feedback) {
+                      <!-- Texto distinto al toast ("Gracias por tu feedback") a propósito:
+                           el toast se auto-descarta, este indicador queda fijo junto a los
+                           botones. Mismo texto en ambos lugares rompía Playwright en modo
+                           estricto (2 elementos con el mismo accessible name). -->
+                      <span class="text-xs text-text-subtle">Feedback registrado</span>
+                    }
+                  </div>
                 }
               </article>
             }
+            <div #scrollAnchor></div>
           </div>
 
-          <form class="mt-4 rounded-3xl border border-slate-200 bg-slate-50 p-4" [formGroup]="messageForm" (ngSubmit)="sendMessage()">
-            <label class="flex flex-col gap-3 text-sm text-slate-600">
-              Escribe tu solicitud
+          <form class="mt-4 rounded-3xl border border-default bg-surface-muted p-4" [formGroup]="messageForm" (ngSubmit)="sendMessage()">
+            <label class="flex flex-col gap-3 text-sm text-text-muted">
+              Escribe tu pregunta
               <textarea
                 formControlName="message"
-                rows="3"
-                placeholder="Ej: Genera un resumen ejecutivo del proceso con mayor riesgo."
-                class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-800 shadow-sm focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
+                rows="2"
+                placeholder="Ej: ¿Qué plazos están por vencer? (Enter envía, Shift+Enter salto de línea)"
+                class="w-full rounded-2xl border border-default bg-surface px-4 py-3 text-sm text-text shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
+                (keydown)="onTextareaKeydown($event)"
               ></textarea>
             </label>
-            <div class="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <label class="flex items-center gap-2 text-xs text-slate-500">
-                <input type="checkbox" formControlName="includeSummary" class="h-4 w-4 rounded border-slate-300 text-navy-900" />
-                Solicitar resumen ejecutivo
-              </label>
+            <div class="mt-3 flex items-center justify-between">
+              @if (error()) {
+                <p class="text-xs text-danger">{{ error() }}</p>
+              } @else {
+                <span></span>
+              }
               <button
                 type="submit"
-                class="inline-flex items-center gap-2 rounded-2xl bg-navy-900 px-5 py-2 text-sm font-semibold text-white transition hover:bg-navy-950 disabled:cursor-not-allowed disabled:bg-strong"
-                [disabled]="messageForm.invalid || isProcessing()"
+                class="inline-flex items-center gap-2 rounded-2xl bg-primary px-5 py-2 text-sm font-semibold text-on-primary transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-strong"
+                [disabled]="messageForm.invalid || isSending()"
               >
                 Enviar
-                @if (isProcessing()) {
+                @if (isSending()) {
                   <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4l3.5-3.5L12 1v4a7 7 0 0 0-7 7h-1z"></path>
@@ -119,160 +199,113 @@ import { createId } from '../../core/utils/id.util';
     </div>
   `,
 })
-export class ChatbotComponent {
+export class ChatbotComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
-  private readonly dataService = inject(MockDataService);
+  private readonly aiChatService = inject(AiChatService);
+  private readonly toastService = inject(ToastService);
+  private readonly router = inject(Router);
 
-  readonly processes = this.dataService.processes;
-  readonly chatHistory = this.dataService.chatHistory;
+  @ViewChild('scrollAnchor') private scrollAnchorRef?: ElementRef<HTMLDivElement>;
 
-  readonly filterForm = this.fb.nonNullable.group({
-    processId: ['todos'],
-  });
+  readonly suggestedPrompts = AI_CHAT_SUGGESTED_PROMPTS;
+
+  readonly messages = signal<AiChatMessage[]>([]);
+  readonly isLoadingHistory = signal(false);
+  readonly isSending = signal(false);
+  readonly error = signal<string | null>(null);
+  private conversationId: string | undefined;
 
   readonly messageForm = this.fb.nonNullable.group({
-    message: ['', [Validators.required, Validators.minLength(5)]],
-    includeSummary: [false],
+    message: ['', [Validators.required, Validators.minLength(3)]],
   });
 
-  readonly isProcessing = signal(false);
-  private readonly filterValue = toSignal(
-    this.filterForm.valueChanges.pipe(startWith(this.filterForm.getRawValue())),
-    { initialValue: this.filterForm.getRawValue() }
-  );
+  ngOnInit(): void {
+    this.loadHistory();
+  }
 
-  readonly quickPrompts: string[] = [
-    '¿Qué procesos tienen audiencias esta semana?',
-    'Genera alertas de vencimiento para documentos pendientes.',
-    'Dame un resumen de riesgos por cliente.',
-  ];
-
-  readonly filteredMessages = computed(() => {
-    const filter = this.filterValue() ?? { processId: 'todos' };
-    return this.chatHistory().filter(
-      (message) => filter.processId === 'todos' || message.relatedProcessId === filter.processId
-    );
-  });
+  loadHistory(): void {
+    this.isLoadingHistory.set(true);
+    this.aiChatService.getHistory().subscribe({
+      next: (history) => {
+        this.conversationId = history.conversationId ?? undefined;
+        this.messages.set(history.messages);
+        this.isLoadingHistory.set(false);
+        this.scrollToBottom();
+      },
+      error: () => {
+        // El historial vacío no es un error bloqueante: el usuario puede
+        // simplemente empezar una conversación nueva.
+        this.isLoadingHistory.set(false);
+      },
+    });
+  }
 
   usePrompt(prompt: string): void {
     this.messageForm.patchValue({ message: prompt });
   }
 
+  /** Enter envía el mensaje (estándar en chats); Shift+Enter inserta un
+   * salto de línea, como cualquier otro chat. */
+  onTextareaKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      this.sendMessage();
+    }
+  }
+
   sendMessage(): void {
-    if (this.messageForm.invalid || this.isProcessing()) {
+    if (this.messageForm.invalid || this.isSending()) {
       return;
     }
 
-  const { message, includeSummary } = this.messageForm.getRawValue();
-  const processId = this.filterValue()?.processId ?? 'todos';
+    const { message } = this.messageForm.getRawValue();
+    this.error.set(null);
+    this.isSending.set(true);
 
-    const userMessage: ChatMessage = {
-      id: createId(),
-      author: 'usuario',
-      content: message,
-      timestamp: new Date().toISOString(),
-      relatedProcessId: processId === 'todos' ? undefined : processId,
-    };
-
-    this.dataService.addChatMessage(userMessage);
-    this.isProcessing.set(true);
-    this.messageForm.reset({ message: '', includeSummary: includeSummary });
-
-    setTimeout(() => {
-      const response: ChatMessage = {
-        id: createId(),
-        author: 'asistente',
-        content: this.generateResponse(message, includeSummary, processId),
-        timestamp: new Date().toISOString(),
-        relatedProcessId: processId === 'todos' ? undefined : processId,
-        sentiment: this.detectSentiment(message),
-      };
-
-      this.dataService.addChatMessage(response);
-      this.isProcessing.set(false);
-    }, 800);
+    this.aiChatService.sendMessage(message, this.conversationId).subscribe({
+      next: (response) => {
+        this.conversationId = response.conversationId;
+        this.messages.update((current) => [...current, response.userMessage, response.assistantMessage]);
+        this.messageForm.reset({ message: '' });
+        this.isSending.set(false);
+        this.scrollToBottom();
+      },
+      error: (err: Error) => {
+        this.error.set(err.message);
+        this.isSending.set(false);
+      },
+    });
   }
 
-  authorLabel(author: ChatMessage['author']): string {
-    return author === 'usuario' ? 'Tú' : 'Asistente LexAr';
-  }
-
-  sentimentClasses(sentiment: NonNullable<ChatMessage['sentiment']>): string {
-    switch (sentiment) {
-      case 'positivo':
-        return 'bg-emerald-100 text-emerald-700';
-      case 'alerta':
-        return 'bg-rose-100 text-rose-700';
-      default:
-        return 'bg-slate-200 text-slate-600';
+  rate(message: AiChatMessage, feedback: AiChatFeedback): void {
+    if (message.role !== 'assistant') {
+      return;
     }
-  }
 
-  sentimentDot(sentiment: NonNullable<ChatMessage['sentiment']>): string {
-    switch (sentiment) {
-      case 'positivo':
-        return 'bg-emerald-500';
-      case 'alerta':
-        return 'bg-rose-500';
-      default:
-        return 'bg-strong';
-    }
-  }
-
-  processName(processId: string): string {
-    return this.dataService.findProcessById(processId)?.title ?? 'Proceso no identificado';
-  }
-
-  private generateResponse(message: string, includeSummary: boolean, processId: string): string {
-    const base = includeSummary
-      ? 'He preparado un resumen ejecutivo considerando las últimas actualizaciones y métricas clave. '
-      : '';
-
-    if (processId !== 'todos') {
-      const process = this.dataService.findProcessById(processId);
-      if (process) {
-        return (
-          base +
-          `El proceso "${process.title}" se encuentra en etapa ${process.stage.toLowerCase()} con audiencia programada para ${new Date(
-            process.nextHearingDate
-          ).toLocaleDateString()}. Riesgo ${process.riskLevel.toLowerCase()} y responsable ${this.processOwnerName(
-            process.advisorId
-          )}.`
+    this.aiChatService.setFeedback(message.id, feedback).subscribe({
+      next: () => {
+        this.messages.update((current) =>
+          current.map((m) => (m.id === message.id ? { ...m, feedback } : m))
         );
-      }
-    }
-
-    if (message.toLowerCase().includes('riesgo')) {
-      return (
-        base +
-        'Actualmente hay ' +
-        this.dataService.dashboardSnapshot().highRiskProcesses.length +
-        ' procesos clasificados en riesgo alto. Recomiendo reuniones preventivas con los responsables asignados.'
-      );
-    }
-
-    if (message.toLowerCase().includes('audiencia')) {
-      const hearings = this.dataService.dashboardSnapshot().hearingsThisMonth.length;
-      return base + `Se registran ${hearings} audiencias programadas este mes. El detalle completo está disponible en el tablero.`;
-    }
-
-    return (
-      base +
-      'He actualizado el registro y notificaré al equipo correspondiente. ¿Deseas que programe un recordatorio o prepare un informe?' 
-    );
+        this.toastService.success('Gracias por tu feedback');
+      },
+      error: (err: Error) => {
+        this.toastService.error(err.message || 'No se pudo registrar el feedback');
+      },
+    });
   }
 
-  private detectSentiment(message: string): ChatMessage['sentiment'] {
-    if (message.toLowerCase().includes('riesgo') || message.toLowerCase().includes('alerta')) {
-      return 'alerta';
-    }
-    if (message.toLowerCase().includes('gracias') || message.toLowerCase().includes('excelente')) {
-      return 'positivo';
-    }
-    return 'neutral';
+  openLink(link: AiChatLink): void {
+    this.router.navigateByUrl(link.path);
   }
 
-  private processOwnerName(advisorId: string): string {
-    return this.dataService.findAdvisorById(advisorId)?.name ?? 'Equipo legal';
+  parseAnswer(content: string) {
+    return parseAiListAnswer(content);
+  }
+
+  private scrollToBottom(): void {
+    setTimeout(() => {
+      this.scrollAnchorRef?.nativeElement.scrollIntoView({ block: 'end' });
+    });
   }
 }

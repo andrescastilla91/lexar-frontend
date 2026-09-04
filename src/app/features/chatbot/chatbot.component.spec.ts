@@ -1,109 +1,78 @@
-import { WritableSignal, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { Router } from '@angular/router';
+import { of, throwError } from 'rxjs';
 import { ChatbotComponent } from './chatbot.component';
-import { MockDataService } from '../../core/services/mock-data.service';
-import { Advisor } from '../../core/models/advisor.model';
-import { ChatMessage } from '../../core/models/chat-message.model';
-import { LegalProcess } from '../../core/models/legal-process.model';
+import { AiChatService } from '../../core/services/ai-chat.service';
+import { ToastService } from '../../core/services/toast.service';
+import { AiChatMessage } from '../../core/models/ai-chat.model';
 
 /**
- * Este componente es 100% datos mock (`MockDataService`) — no está detrás
- * del `chatbotFeatureGuard` a nivel de componente, ese guard vive en
- * `core/guards/feature-flag.guard.ts` (routing) y ya tiene su propio spec
- * (`feature-flag.guard.spec.ts`). Aquí solo se prueba la lógica propia del
- * componente: filtrado de historial, envío de mensajes y generación de
- * respuestas simuladas.
+ * F20.1 — el componente ya no usa `MockDataService`: consume
+ * `AiChatService` (`GET/POST /ai/chat`, `PATCH /ai/messages/:id/feedback`).
+ * Este spec cubre: carga de historial, guardia de envío, actualización
+ * optimista tras responder, feedback 👍/👎 y navegación de links.
  */
 describe('ChatbotComponent', () => {
-  let mockDataServiceMock: {
-    processes: WritableSignal<LegalProcess[]>;
-    chatHistory: WritableSignal<ChatMessage[]>;
-    dashboardSnapshot: jest.Mock;
-    addChatMessage: jest.Mock;
-    findProcessById: jest.Mock;
-    findAdvisorById: jest.Mock;
+  // jsdom no implementa scrollIntoView; el componente lo llama tras cargar
+  // el historial y tras cada mensaje nuevo (autoscroll), así que se stubea
+  // para todo el archivo, no solo para el describe que lo asserta.
+  beforeAll(() => {
+    Element.prototype.scrollIntoView = jest.fn();
+  });
+
+  let aiChatServiceMock: {
+    getHistory: jest.Mock;
+    sendMessage: jest.Mock;
+    setFeedback: jest.Mock;
+  };
+  let toastServiceMock: { success: jest.Mock; error: jest.Mock };
+  let routerMock: { navigateByUrl: jest.Mock };
+
+  const userMessage: AiChatMessage = {
+    id: 'msg-1',
+    role: 'user',
+    content: '¿Cuántos procesos activos tengo?',
+    intentId: null,
+    understood: true,
+    feedback: null,
+    links: [],
+    createdAt: '2026-09-03T09:00:00Z',
   };
 
-  const processA: LegalProcess = {
-    id: 'proc-a',
-    title: 'Demanda civil por incumplimiento',
-    court: 'Juzgado 1 Civil',
-    clientId: 'client-a',
-    advisorId: 'adv-a',
-    status: 'En curso',
-    stage: 'Audiencia',
-    riskLevel: 'Alto',
-    nextHearingDate: '2026-09-10',
-    updatedAt: '2026-08-01',
+  const assistantMessage: AiChatMessage = {
+    id: 'msg-2',
+    role: 'assistant',
+    content: 'Tienes 3 procesos activos.',
+    intentId: 'procesos_activos',
+    understood: true,
+    feedback: null,
+    links: [{ label: 'Proceso 1', path: '/procesos?openId=p1' }],
+    createdAt: '2026-09-03T09:00:01Z',
   };
 
-  const processB: LegalProcess = {
-    id: 'proc-b',
-    title: 'Negociación colectiva',
-    court: 'Ministerio de Trabajo',
-    clientId: 'client-b',
-    advisorId: 'adv-b',
-    status: 'En curso',
-    stage: 'Notificación',
-    riskLevel: 'Bajo',
-    nextHearingDate: '2026-09-15',
-    updatedAt: '2026-08-02',
-  };
-
-  const advisor: Advisor = {
-    id: 'adv-a',
-    name: 'Laura Gómez',
-    email: 'laura@lexar.com',
-    phone: '+57 300 000 0000',
-    specialty: 'Derecho Corporativo',
-    status: 'Disponible',
-    rating: 4.9,
-    experienceYears: 10,
-  };
-
-  const messageFromA: ChatMessage = {
-    id: 'm1',
-    author: 'usuario',
-    content: 'Mensaje sobre el proceso A',
-    timestamp: '2026-08-19T09:00:00Z',
-    relatedProcessId: 'proc-a',
-  };
-
-  const messageFromB: ChatMessage = {
-    id: 'm2',
-    author: 'asistente',
-    content: 'Respuesta sobre el proceso B',
-    timestamp: '2026-08-19T09:01:00Z',
-    relatedProcessId: 'proc-b',
-    sentiment: 'neutral',
-  };
-
-  function configure(
-    options: {
-      chatHistory?: ChatMessage[];
-      processes?: LegalProcess[];
-      highRiskProcesses?: LegalProcess[];
-      hearingsThisMonth?: LegalProcess[];
-    } = {},
-  ) {
-    const chatHistorySignal = signal<ChatMessage[]>(options.chatHistory ?? [messageFromA, messageFromB]);
-    const processesSignal = signal<LegalProcess[]>(options.processes ?? [processA, processB]);
-
-    mockDataServiceMock = {
-      processes: processesSignal,
-      chatHistory: chatHistorySignal,
-      dashboardSnapshot: jest.fn().mockReturnValue({
-        highRiskProcesses: options.highRiskProcesses ?? [processA],
-        hearingsThisMonth: options.hearingsThisMonth ?? [processA, processB],
-      }),
-      addChatMessage: jest.fn((message: ChatMessage) => chatHistorySignal.update((list) => [...list, message])),
-      findProcessById: jest.fn((id: string) => processesSignal().find((p) => p.id === id)),
-      findAdvisorById: jest.fn((id: string) => (id === advisor.id ? advisor : undefined)),
+  function configure(historyResult: 'empty' | 'with-messages' | 'error' = 'empty') {
+    aiChatServiceMock = {
+      getHistory: jest.fn().mockReturnValue(
+        historyResult === 'error'
+          ? throwError(() => new Error('fallo'))
+          : of({
+              conversationId: historyResult === 'with-messages' ? 'conv-1' : null,
+              messages: historyResult === 'with-messages' ? [userMessage, assistantMessage] : [],
+            })
+      ),
+      sendMessage: jest.fn(),
+      setFeedback: jest.fn(),
     };
+    toastServiceMock = { success: jest.fn(), error: jest.fn() };
+    routerMock = { navigateByUrl: jest.fn() };
 
     return TestBed.configureTestingModule({
       imports: [ChatbotComponent],
-      providers: [{ provide: MockDataService, useValue: mockDataServiceMock }],
+      providers: [
+        { provide: AiChatService, useValue: aiChatServiceMock },
+        { provide: ToastService, useValue: toastServiceMock },
+        { provide: Router, useValue: routerMock },
+      ],
     }).compileComponents();
   }
 
@@ -113,176 +82,222 @@ describe('ChatbotComponent', () => {
     return fixture.componentInstance;
   }
 
-  afterEach(() => {
-    jest.useRealTimers();
-  });
-
-  it('por defecto (filtro "todos"), muestra el historial completo', async () => {
-    await configure();
+  it('al iniciar, carga el historial desde AiChatService', async () => {
+    await configure('with-messages');
     const component = createComponent();
 
-    expect(component.filteredMessages()).toEqual([messageFromA, messageFromB]);
+    expect(aiChatServiceMock.getHistory).toHaveBeenCalledTimes(1);
+    expect(component.messages()).toEqual([userMessage, assistantMessage]);
+    expect(component.isLoadingHistory()).toBe(false);
   });
 
-  it('al filtrar por un proceso puntual, solo muestra los mensajes relacionados', async () => {
-    await configure();
+  it('si el historial falla, no bloquea el componente (conversación nueva)', async () => {
+    await configure('error');
     const component = createComponent();
 
-    component.filterForm.patchValue({ processId: 'proc-a' });
-
-    expect(component.filteredMessages()).toEqual([messageFromA]);
+    expect(component.messages()).toEqual([]);
+    expect(component.isLoadingHistory()).toBe(false);
   });
 
   it('usePrompt coloca la sugerencia en el textarea del formulario', async () => {
     await configure();
     const component = createComponent();
 
-    component.usePrompt('¿Qué procesos tienen audiencias esta semana?');
+    component.usePrompt('¿Qué plazos están por vencer?');
 
-    expect(component.messageForm.value.message).toBe('¿Qué procesos tienen audiencias esta semana?');
+    expect(component.messageForm.value.message).toBe('¿Qué plazos están por vencer?');
   });
 
   it('sendMessage con formulario inválido, no hace nada', async () => {
     await configure();
     const component = createComponent();
-    component.messageForm.patchValue({ message: 'hi' }); // menor a 5 caracteres
+    component.messageForm.patchValue({ message: 'hi' }); // menor a 3 caracteres
 
     component.sendMessage();
 
-    expect(mockDataServiceMock.addChatMessage).not.toHaveBeenCalled();
+    expect(aiChatServiceMock.sendMessage).not.toHaveBeenCalled();
   });
 
   it('sendMessage mientras ya hay un envío en curso, no hace nada', async () => {
     await configure();
     const component = createComponent();
     component.messageForm.patchValue({ message: 'Mensaje válido' });
-    component.isProcessing.set(true);
+    component.isSending.set(true);
 
     component.sendMessage();
 
-    expect(mockDataServiceMock.addChatMessage).not.toHaveBeenCalled();
+    expect(aiChatServiceMock.sendMessage).not.toHaveBeenCalled();
   });
 
-  it('sendMessage agrega el mensaje del usuario de inmediato y, tras el delay, la respuesta del asistente', async () => {
-    jest.useFakeTimers();
+  it('sendMessage exitoso agrega el mensaje del usuario y la respuesta del asistente', async () => {
     await configure();
+    aiChatServiceMock.sendMessage.mockReturnValue(
+      of({ conversationId: 'conv-1', userMessage, assistantMessage })
+    );
     const component = createComponent();
-    component.messageForm.setValue({ message: 'Genera un resumen ejecutivo', includeSummary: true });
+    component.messageForm.setValue({ message: '¿Cuántos procesos activos tengo?' });
 
     component.sendMessage();
 
-    expect(mockDataServiceMock.addChatMessage).toHaveBeenCalledTimes(1);
-    const userMessage = mockDataServiceMock.addChatMessage.mock.calls[0][0] as ChatMessage;
-    expect(userMessage.author).toBe('usuario');
-    expect(userMessage.content).toBe('Genera un resumen ejecutivo');
-    expect(component.isProcessing()).toBe(true);
+    expect(aiChatServiceMock.sendMessage).toHaveBeenCalledWith('¿Cuántos procesos activos tengo?', undefined);
+    expect(component.messages()).toEqual([userMessage, assistantMessage]);
     expect(component.messageForm.value.message).toBe('');
-    expect(component.messageForm.value.includeSummary).toBe(true);
-
-    jest.advanceTimersByTime(800);
-
-    expect(mockDataServiceMock.addChatMessage).toHaveBeenCalledTimes(2);
-    const assistantMessage = mockDataServiceMock.addChatMessage.mock.calls[1][0] as ChatMessage;
-    expect(assistantMessage.author).toBe('asistente');
-    expect(component.isProcessing()).toBe(false);
+    expect(component.isSending()).toBe(false);
   });
 
-  it('sendMessage con un proceso filtrado, la respuesta describe ese proceso puntual', async () => {
-    jest.useFakeTimers();
+  it('sendMessage con error, muestra el mensaje y no limpia el formulario', async () => {
     await configure();
+    aiChatServiceMock.sendMessage.mockReturnValue(throwError(() => new Error('Error de red')));
     const component = createComponent();
-    component.filterForm.patchValue({ processId: 'proc-a' });
-    component.messageForm.setValue({ message: 'Cuéntame del estado', includeSummary: false });
+    component.messageForm.setValue({ message: '¿Cuántos procesos activos tengo?' });
 
     component.sendMessage();
-    jest.advanceTimersByTime(800);
 
-    const assistantMessage = mockDataServiceMock.addChatMessage.mock.calls[1][0] as ChatMessage;
-    expect(assistantMessage.content).toContain('Demanda civil por incumplimiento');
-    expect(assistantMessage.content).toContain('Laura Gómez');
-    expect(assistantMessage.relatedProcessId).toBe('proc-a');
+    expect(component.error()).toBe('Error de red');
+    expect(component.isSending()).toBe(false);
+    expect(component.messageForm.value.message).toBe('¿Cuántos procesos activos tengo?');
   });
 
-  it('sendMessage con la palabra "riesgo", responde con el conteo de procesos en riesgo alto', async () => {
-    jest.useFakeTimers();
-    await configure({ highRiskProcesses: [processA, processB] });
+  it('rate registra el feedback y actualiza el mensaje localmente', async () => {
+    await configure('with-messages');
+    aiChatServiceMock.setFeedback.mockReturnValue(of(undefined));
     const component = createComponent();
-    component.messageForm.setValue({ message: '¿Cuántos procesos hay en riesgo?', includeSummary: false });
 
-    component.sendMessage();
-    jest.advanceTimersByTime(800);
+    component.rate(assistantMessage, 'up');
 
-    const assistantMessage = mockDataServiceMock.addChatMessage.mock.calls[1][0] as ChatMessage;
-    expect(assistantMessage.content).toContain('2 procesos clasificados en riesgo alto');
-    expect(assistantMessage.sentiment).toBe('alerta');
+    expect(aiChatServiceMock.setFeedback).toHaveBeenCalledWith('msg-2', 'up');
+    expect(component.messages().find((m) => m.id === 'msg-2')?.feedback).toBe('up');
+    expect(toastServiceMock.success).toHaveBeenCalled();
   });
 
-  it('sendMessage con la palabra "audiencia", responde con el conteo de audiencias del mes', async () => {
-    jest.useFakeTimers();
-    await configure({ hearingsThisMonth: [processA] });
+  it('rate en error muestra un toast de error y no modifica el mensaje', async () => {
+    await configure('with-messages');
+    aiChatServiceMock.setFeedback.mockReturnValue(throwError(() => new Error('fallo')));
     const component = createComponent();
-    component.messageForm.setValue({ message: '¿Hay audiencias esta semana?', includeSummary: false });
 
-    component.sendMessage();
-    jest.advanceTimersByTime(800);
+    component.rate(assistantMessage, 'down');
 
-    const assistantMessage = mockDataServiceMock.addChatMessage.mock.calls[1][0] as ChatMessage;
-    expect(assistantMessage.content).toContain('1 audiencias programadas este mes');
+    expect(toastServiceMock.error).toHaveBeenCalled();
+    expect(component.messages().find((m) => m.id === 'msg-2')?.feedback).toBeNull();
   });
 
-  it('sendMessage sin coincidencias conocidas, responde con el mensaje genérico', async () => {
-    jest.useFakeTimers();
-    await configure();
+  it('rate ignora mensajes que no son del asistente', async () => {
+    await configure('with-messages');
     const component = createComponent();
-    component.messageForm.setValue({ message: 'Actualiza el expediente por favor', includeSummary: false });
 
-    component.sendMessage();
-    jest.advanceTimersByTime(800);
+    component.rate(userMessage, 'up');
 
-    const assistantMessage = mockDataServiceMock.addChatMessage.mock.calls[1][0] as ChatMessage;
-    expect(assistantMessage.content).toContain('He actualizado el registro');
-    expect(assistantMessage.sentiment).toBe('neutral');
+    expect(aiChatServiceMock.setFeedback).not.toHaveBeenCalled();
   });
 
-  it('sendMessage con "gracias", detecta sentimiento positivo', async () => {
-    jest.useFakeTimers();
-    await configure();
-    const component = createComponent();
-    component.messageForm.setValue({ message: 'Muchas gracias por la ayuda', includeSummary: false });
-
-    component.sendMessage();
-    jest.advanceTimersByTime(800);
-
-    const assistantMessage = mockDataServiceMock.addChatMessage.mock.calls[1][0] as ChatMessage;
-    expect(assistantMessage.sentiment).toBe('positivo');
-  });
-
-  it('authorLabel traduce el autor a una etiqueta legible', async () => {
+  it('openLink navega a la ruta del link', async () => {
     await configure();
     const component = createComponent();
 
-    expect(component.authorLabel('usuario')).toBe('Tú');
-    expect(component.authorLabel('asistente')).toBe('Asistente LexAr');
+    component.openLink({ label: 'Proceso 1', path: '/procesos?openId=p1' });
+
+    expect(routerMock.navigateByUrl).toHaveBeenCalledWith('/procesos?openId=p1');
   });
 
-  it('sentimentClasses y sentimentDot cubren los tres estados posibles', async () => {
+  it('parseAnswer delega en parseAiListAnswer (formato de lista del backend)', async () => {
     await configure();
     const component = createComponent();
 
-    expect(component.sentimentClasses('positivo')).toContain('emerald');
-    expect(component.sentimentClasses('alerta')).toContain('rose');
-    expect(component.sentimentClasses('neutral')).toContain('slate');
-
-    expect(component.sentimentDot('positivo')).toContain('emerald');
-    expect(component.sentimentDot('alerta')).toContain('rose');
-    expect(component.sentimentDot('neutral')).toBeTruthy();
+    expect(component.parseAnswer('Tienes 3 procesos activos.')).toBeNull();
+    expect(component.parseAnswer('intro\n\nitem1\nitem2')).toEqual({
+      intro: 'intro',
+      items: ['item1', 'item2'],
+    });
   });
 
-  it('processName resuelve el título del proceso o un texto por defecto si no existe', async () => {
-    await configure();
-    const component = createComponent();
+  describe('Enter para enviar (estándar de chat)', () => {
+    it('Enter sin Shift previene el salto de línea y envía el mensaje', async () => {
+      await configure();
+      const component = createComponent();
+      const sendSpy = jest.spyOn(component, 'sendMessage').mockImplementation(() => undefined);
+      const event = { key: 'Enter', shiftKey: false, preventDefault: jest.fn() } as unknown as KeyboardEvent;
 
-    expect(component.processName('proc-a')).toBe('Demanda civil por incumplimiento');
-    expect(component.processName('proc-inexistente')).toBe('Proceso no identificado');
+      component.onTextareaKeydown(event);
+
+      expect(event.preventDefault).toHaveBeenCalled();
+      expect(sendSpy).toHaveBeenCalled();
+    });
+
+    it('Shift+Enter no envía — permite salto de línea', async () => {
+      await configure();
+      const component = createComponent();
+      const sendSpy = jest.spyOn(component, 'sendMessage').mockImplementation(() => undefined);
+      const event = { key: 'Enter', shiftKey: true, preventDefault: jest.fn() } as unknown as KeyboardEvent;
+
+      component.onTextareaKeydown(event);
+
+      expect(event.preventDefault).not.toHaveBeenCalled();
+      expect(sendSpy).not.toHaveBeenCalled();
+    });
+
+    it('otras teclas no disparan envío', async () => {
+      await configure();
+      const component = createComponent();
+      const sendSpy = jest.spyOn(component, 'sendMessage').mockImplementation(() => undefined);
+      const event = { key: 'a', shiftKey: false, preventDefault: jest.fn() } as unknown as KeyboardEvent;
+
+      component.onTextareaKeydown(event);
+
+      expect(sendSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('autoscroll al final de la conversación', () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('al cargar el historial, hace scroll al final', async () => {
+      await configure('with-messages');
+      createComponent();
+
+      jest.runAllTimers();
+
+      expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ block: 'end' });
+    });
+
+    it('tras enviar un mensaje, hace scroll al final con la respuesta ya renderizada', async () => {
+      await configure();
+      aiChatServiceMock.sendMessage.mockReturnValue(
+        of({ conversationId: 'conv-1', userMessage, assistantMessage })
+      );
+      const component = createComponent();
+      jest.runAllTimers();
+      (Element.prototype.scrollIntoView as jest.Mock).mockClear();
+      component.messageForm.setValue({ message: '¿Cuántos procesos activos tengo?' });
+
+      component.sendMessage();
+      jest.runAllTimers();
+
+      expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ block: 'end' });
+    });
+  });
+
+  describe('feedback visualmente distinguible', () => {
+    it('el botón 👍 queda marcado aria-pressed=true cuando feedback es up', async () => {
+      await configure('with-messages');
+      const fixture = TestBed.createComponent(ChatbotComponent);
+      fixture.detectChanges();
+      const buttons = fixture.nativeElement.querySelectorAll('button[aria-label="Respuesta útil"]');
+
+      expect(buttons.length).toBeGreaterThan(0);
+      expect(buttons[0].getAttribute('aria-pressed')).toBe('false');
+
+      fixture.componentInstance.messages.update((current) =>
+        current.map((m) => (m.id === 'msg-2' ? { ...m, feedback: 'up' as const } : m))
+      );
+      fixture.detectChanges();
+
+      expect(buttons[0].getAttribute('aria-pressed')).toBe('true');
+    });
   });
 });
