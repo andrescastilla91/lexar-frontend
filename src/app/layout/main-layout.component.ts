@@ -23,6 +23,7 @@ import { CompanyService } from '../core/services/company.service';
 import { CompanyProfile } from '../core/models/company.model';
 import { SubscriptionService } from '../core/services/subscription.service';
 import { NotificationsService } from '../core/services/notifications.service';
+import { ChatWidgetComponent } from '../core/components/chat-widget.component';
 
 interface MenuItem {
   label: string;
@@ -45,6 +46,7 @@ interface MenuItem {
     NotificationBellComponent,
     GlobalSearchTriggerComponent,
     GlobalSearchOverlayComponent,
+    ChatWidgetComponent,
   ],
   template: `
     <div class="min-h-screen bg-surface-muted text-text">
@@ -286,6 +288,10 @@ interface MenuItem {
       <app-confirm-dialog />
       <app-toast />
       <app-global-search-overlay />
+      <!-- HU-F20-1-b: widget flotante global del asistente IA — se
+           gatea a sí mismo por el entitlement chatbot y se oculta en
+           /chatbot para no duplicar UI (ver ChatWidgetComponent). -->
+      <app-chat-widget />
     </div>
   `,
 })
