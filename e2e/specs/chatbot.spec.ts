@@ -25,6 +25,42 @@ async function loginAsAdmin(page: Page, tenant: TestTenant): Promise<void> {
   await expect(page).toHaveURL(/\/dashboard$/);
 }
 
+/**
+ * F20.2 activó el clasificador Nivel 1 (LLM) para fraseos que Nivel 0 no
+ * reconoce. Si el backend tiene `AI_PROVIDER` configurado (p. ej. tras las
+ * pruebas manuales de cupo en Docker local), la pregunta "fuera de
+ * catálogo" de abajo deja de ser determinista: el LLM puede clasificarla
+ * mal — es justo el caso "cuentame un chiste de abogados" que el benchmark
+ * de F20.2 ya documenta como el único fallo de ambos proveedores (94% de
+ * precisión, ver Decisión 5 en docs/05-features/F20-anexo-estrategia-ia.md).
+ * Este test verifica el contrato "sin LLM" de F20.1, así que se opta fuera
+ * del clasificador externo (T6) para este tenant — el resultado queda
+ * determinista sin importar el AI_PROVIDER del entorno donde corra.
+ */
+async function optOutExternalAi(tenant: TestTenant): Promise<void> {
+  const api = await request.newContext({ baseURL: E2E_API_ORIGIN });
+
+  const loginResponse = await api.post('/api/auth/login', {
+    data: { email: tenant.adminEmail, password: tenant.adminPassword },
+  });
+  if (!loginResponse.ok()) {
+    throw new Error(
+      `No se pudo iniciar sesión por API para desactivar el clasificador externo: ${loginResponse.status()} ${await loginResponse.text()}`,
+    );
+  }
+
+  const response = await api.patch('/api/company', {
+    data: { aiExternalOptOut: true },
+  });
+  if (!response.ok()) {
+    throw new Error(
+      `No se pudo desactivar el clasificador externo del tenant: ${response.status()} ${await response.text()}`,
+    );
+  }
+
+  await api.dispose();
+}
+
 async function createLegalProcessViaApi(tenant: TestTenant): Promise<{ processTitle: string }> {
   const api = await request.newContext({ baseURL: E2E_API_ORIGIN });
 
@@ -113,6 +149,7 @@ test.describe('Asistente IA — Nivel 0 sin LLM (F20.1)', () => {
     page,
     tenant,
   }) => {
+    await optOutExternalAi(tenant);
     await loginAsAdmin(page, tenant);
     const chatbot = new ChatbotPage(page);
     await chatbot.goto();
