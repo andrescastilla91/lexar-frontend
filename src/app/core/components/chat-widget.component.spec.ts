@@ -5,6 +5,7 @@ import { ChatWidgetComponent } from './chat-widget.component';
 import { SubscriptionService } from '../services/subscription.service';
 import { AiChatService } from '../services/ai-chat.service';
 import { ToastService } from '../services/toast.service';
+import { PlanUpgradeService } from '../services/plan-upgrade.service';
 import { Entitlements } from '../models/subscription-backend.model';
 
 /**
@@ -43,6 +44,14 @@ describe('ChatWidgetComponent', () => {
           },
         },
         { provide: ToastService, useValue: { success: jest.fn(), error: jest.fn() } },
+        // F7-R4: AiChatPanelComponent (embebido) inyecta PlanUpgradeService
+        // para el CTA de upgrade al agotar cupo. SubscriptionService/
+        // ToastService ya mockeados arriba lo dejarían construir igual,
+        // pero se mockea explícito por consistencia con el resto de specs.
+        {
+          provide: PlanUpgradeService,
+          useValue: { isPlanGateError: jest.fn().mockReturnValue(false), promptUpgrade: jest.fn() },
+        },
       ],
     }).compileComponents();
   }

@@ -19,6 +19,7 @@ describe('AiChatService', () => {
     content: 'Tienes 3 procesos activos.',
     intentId: 'procesos_activos',
     understood: true,
+    quotaExhausted: false,
     feedback: null,
     links: [{ label: 'Proceso 1', path: '/procesos?openId=p1' }],
     createdAt: '2026-09-03T09:00:00Z',
@@ -30,6 +31,7 @@ describe('AiChatService', () => {
     content: '¿Cuántos procesos activos tengo?',
     intentId: null,
     understood: true,
+    quotaExhausted: false,
     feedback: null,
     links: [],
     createdAt: '2026-09-03T09:00:00Z',
@@ -130,5 +132,31 @@ describe('AiChatService', () => {
       .flush({ message: 'Mensaje no encontrado' }, { status: 404, statusText: 'Not Found' });
 
     expect(error?.message).toBe('Mensaje no encontrado');
+  });
+
+  it('getUsage hace GET a /ai/usage y devuelve el resumen de consumo', () => {
+    const backendResponse = {
+      used: 7,
+      limit: 20,
+      periodStart: '2026-09-01',
+      periodEnd: '2026-10-01',
+    };
+    let result: typeof backendResponse | undefined;
+    service.getUsage().subscribe((r) => (result = r));
+
+    const req = httpMock.expectOne(`${apiUrl}/usage`);
+    expect(req.request.method).toBe('GET');
+    req.flush(backendResponse);
+
+    expect(result).toEqual(backendResponse);
+  });
+
+  it('getUsage en error propaga el mensaje del backend', () => {
+    let error: Error | undefined;
+    service.getUsage().subscribe({ error: (e) => (error = e) });
+
+    httpMock.expectOne(`${apiUrl}/usage`).flush('error', { status: 500, statusText: 'Server Error' });
+
+    expect(error?.message).toBe('Error interno del servidor');
   });
 });

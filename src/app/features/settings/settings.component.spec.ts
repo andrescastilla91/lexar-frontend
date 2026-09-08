@@ -10,6 +10,7 @@ import { SubscriptionService } from '../../core/services/subscription.service';
 import { Entitlements } from '../../core/models/subscription-backend.model';
 import { PortalVisibilityPolicyService } from '../../core/services/portal-visibility-policy.service';
 import { DashboardWidgetsService } from '../../core/services/dashboard-widgets.service';
+import { AiChatService } from '../../core/services/ai-chat.service';
 
 describe('SettingsComponent', () => {
   let companyServiceMock: {
@@ -33,6 +34,9 @@ describe('SettingsComponent', () => {
   // SettingsDashboardWidgetsComponent real — misma razón que
   // portalVisibilityPolicyServiceMock (ver comentario arriba).
   let dashboardWidgetsServiceMock: { getCompanySettings: jest.Mock; updateCompanySettings: jest.Mock };
+  // F7-R4 (#292): SettingsPlanComponent también inyecta AiChatService para la
+  // barra de consumo de IA — mismo motivo que subscriptionServiceMock arriba.
+  let aiChatServiceMock: { getUsage: jest.Mock };
   let queryParams: Record<string, string>;
 
   const baseEntitlements: Entitlements = {
@@ -103,6 +107,9 @@ describe('SettingsComponent', () => {
       getCompanySettings: jest.fn().mockReturnValue(of([])),
       updateCompanySettings: jest.fn(),
     };
+    aiChatServiceMock = {
+      getUsage: jest.fn().mockReturnValue(of({ used: 7, limit: 20, periodStart: '2026-09-01', periodEnd: '2026-10-01' })),
+    };
     queryParams = initialQueryParams;
 
     TestBed.configureTestingModule({
@@ -114,6 +121,7 @@ describe('SettingsComponent', () => {
         { provide: SubscriptionService, useValue: subscriptionServiceMock },
         { provide: PortalVisibilityPolicyService, useValue: portalVisibilityPolicyServiceMock },
         { provide: DashboardWidgetsService, useValue: dashboardWidgetsServiceMock },
+        { provide: AiChatService, useValue: aiChatServiceMock },
         {
           provide: ActivatedRoute,
           useValue: { snapshot: { queryParamMap: convertToParamMap(queryParams) } },

@@ -18,9 +18,22 @@ export interface AiChatMessage {
   content: string;
   intentId: string | null;
   understood: boolean;
+  /** F7-R4: true cuando el "no entendido" fue causado por agotar el cupo
+   * de IA del plan (límite comercial), no por un hueco de catálogo. Dispara
+   * el CTA de upgrade (PlanUpgradeService) — `understood` por sí solo no
+   * alcanza para distinguir ambos casos. */
+  quotaExhausted: boolean;
   feedback: AiChatFeedback | null;
   links: AiChatLink[];
   createdAt: string;
+}
+
+/** F7-R4: consumo del mes vigente del cupo de IA (GET /ai/usage). */
+export interface AiUsageSummary {
+  used: number;
+  limit: number;
+  periodStart: string;
+  periodEnd: string;
 }
 
 export interface AiChatResponse {

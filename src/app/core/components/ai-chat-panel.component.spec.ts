@@ -1,9 +1,10 @@
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { of, throwError, Subject } from 'rxjs';
 import { AiChatPanelComponent } from './ai-chat-panel.component';
 import { AiChatService } from '../services/ai-chat.service';
 import { ToastService } from '../services/toast.service';
+import { PlanUpgradeService } from '../services/plan-upgrade.service';
 import { AiChatMessage } from '../models/ai-chat.model';
 
 /**
@@ -28,6 +29,7 @@ describe('AiChatPanelComponent', () => {
   };
   let toastServiceMock: { success: jest.Mock; error: jest.Mock };
   let routerMock: { navigateByUrl: jest.Mock };
+  let planUpgradeServiceMock: { promptUpgrade: jest.Mock };
 
   const userMessage: AiChatMessage = {
     id: 'msg-1',
@@ -35,6 +37,7 @@ describe('AiChatPanelComponent', () => {
     content: '¿Cuántos procesos activos tengo?',
     intentId: null,
     understood: true,
+    quotaExhausted: false,
     feedback: null,
     links: [],
     createdAt: '2026-09-03T09:00:00Z',
@@ -46,6 +49,7 @@ describe('AiChatPanelComponent', () => {
     content: 'Tienes 3 procesos activos.',
     intentId: 'procesos_activos',
     understood: true,
+    quotaExhausted: false,
     feedback: null,
     links: [{ label: 'Proceso 1', path: '/procesos?openId=p1' }],
     createdAt: '2026-09-03T09:00:01Z',
@@ -66,6 +70,7 @@ describe('AiChatPanelComponent', () => {
     };
     toastServiceMock = { success: jest.fn(), error: jest.fn() };
     routerMock = { navigateByUrl: jest.fn() };
+    planUpgradeServiceMock = { promptUpgrade: jest.fn() };
 
     return TestBed.configureTestingModule({
       imports: [AiChatPanelComponent],
@@ -73,6 +78,7 @@ describe('AiChatPanelComponent', () => {
         { provide: AiChatService, useValue: aiChatServiceMock },
         { provide: ToastService, useValue: toastServiceMock },
         { provide: Router, useValue: routerMock },
+        { provide: PlanUpgradeService, useValue: planUpgradeServiceMock },
       ],
     }).compileComponents();
   }
@@ -146,6 +152,45 @@ describe('AiChatPanelComponent', () => {
     expect(component.isSending()).toBe(false);
   });
 
+  it('F7-R4: sendMessage con quotaExhausted=true dispara el CTA de upgrade (PlanUpgradeService)', async () => {
+    await configure();
+    const quotaExhaustedMessage: AiChatMessage = {
+      ...assistantMessage,
+      id: 'msg-3',
+      content: 'Se agotó el cupo de respuestas avanzadas de tu plan para este mes.',
+      understood: false,
+      quotaExhausted: true,
+    };
+    aiChatServiceMock.sendMessage.mockReturnValue(
+      of({ conversationId: 'conv-1', userMessage, assistantMessage: quotaExhaustedMessage })
+    );
+    const component = createComponent();
+    component.messageForm.setValue({ message: 'cuéntame un chiste' });
+
+    component.sendMessage();
+
+    expect(planUpgradeServiceMock.promptUpgrade).toHaveBeenCalledWith({
+      error: {
+        message: quotaExhaustedMessage.content,
+        code: 'LIMIT_REACHED',
+        limit: 'aiCreditsMonth',
+      },
+    });
+  });
+
+  it('sendMessage con quotaExhausted=false NO dispara el CTA de upgrade', async () => {
+    await configure();
+    aiChatServiceMock.sendMessage.mockReturnValue(
+      of({ conversationId: 'conv-1', userMessage, assistantMessage })
+    );
+    const component = createComponent();
+    component.messageForm.setValue({ message: '¿Cuántos procesos activos tengo?' });
+
+    component.sendMessage();
+
+    expect(planUpgradeServiceMock.promptUpgrade).not.toHaveBeenCalled();
+  });
+
   it('sendMessage con error, muestra el mensaje y no limpia el formulario', async () => {
     await configure();
     aiChatServiceMock.sendMessage.mockReturnValue(throwError(() => new Error('Error de red')));
@@ -157,6 +202,75 @@ describe('AiChatPanelComponent', () => {
     expect(component.error()).toBe('Error de red');
     expect(component.isSending()).toBe(false);
     expect(component.messageForm.value.message).toBe('¿Cuántos procesos activos tengo?');
+  });
+
+  describe('BUG-IA-3 (2026-09-07): mensaje optimista y burbuja "escribiendo"', () => {
+    it('agrega el mensaje optimista y limpia el textarea de inmediato, antes de que la respuesta llegue', async () => {
+      await configure();
+      const responseSubject = new Subject<{
+        conversationId: string;
+        userMessage: AiChatMessage;
+        assistantMessage: AiChatMessage;
+      }>();
+      aiChatServiceMock.sendMessage.mockReturnValue(responseSubject.asObservable());
+      const component = createComponent();
+      component.messageForm.setValue({ message: '¿Cuántos procesos activos tengo?' });
+
+      component.sendMessage();
+
+      // Estado intermedio: la respuesta real aún no llegó.
+      expect(component.isSending()).toBe(true);
+      expect(component.messageForm.value.message).toBe('');
+      const optimisticMessages = component.messages().filter((m) => m.role === 'user');
+      expect(optimisticMessages).toHaveLength(1);
+      expect(optimisticMessages[0].content).toBe('¿Cuántos procesos activos tengo?');
+      expect(optimisticMessages[0].id).toMatch(/^optimistic-/);
+
+      responseSubject.next({ conversationId: 'conv-1', userMessage, assistantMessage });
+      responseSubject.complete();
+
+      // Tras la respuesta real, el mensaje optimista se reemplaza — no queda
+      // ningún id temporal en el hilo.
+      expect(component.messages()).toEqual([userMessage, assistantMessage]);
+      expect(component.messages().some((m) => m.id.startsWith('optimistic-'))).toBe(false);
+      expect(component.isSending()).toBe(false);
+    });
+
+    it('la burbuja "escribiendo" se muestra en el hilo mientras isSending es true y desaparece al resolver', async () => {
+      await configure();
+      const responseSubject = new Subject<{
+        conversationId: string;
+        userMessage: AiChatMessage;
+        assistantMessage: AiChatMessage;
+      }>();
+      aiChatServiceMock.sendMessage.mockReturnValue(responseSubject.asObservable());
+      const fixture = TestBed.createComponent(AiChatPanelComponent);
+      fixture.detectChanges();
+      const component = fixture.componentInstance;
+      component.messageForm.setValue({ message: '¿Cuántos procesos activos tengo?' });
+
+      component.sendMessage();
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).toContain('Escribiendo');
+
+      responseSubject.next({ conversationId: 'conv-1', userMessage, assistantMessage });
+      responseSubject.complete();
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).not.toContain('Escribiendo');
+    });
+
+    it('en error, no queda ningún mensaje optimista en el hilo', async () => {
+      await configure();
+      aiChatServiceMock.sendMessage.mockReturnValue(throwError(() => new Error('Error de red')));
+      const component = createComponent();
+      component.messageForm.setValue({ message: '¿Cuántos procesos activos tengo?' });
+
+      component.sendMessage();
+
+      expect(component.messages()).toEqual([]);
+    });
   });
 
   it('rate registra el feedback y actualiza el mensaje localmente', async () => {

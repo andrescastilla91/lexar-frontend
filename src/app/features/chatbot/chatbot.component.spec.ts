@@ -4,6 +4,7 @@ import { of } from 'rxjs';
 import { ChatbotComponent } from './chatbot.component';
 import { AiChatService } from '../../core/services/ai-chat.service';
 import { ToastService } from '../../core/services/toast.service';
+import { PlanUpgradeService } from '../../core/services/plan-upgrade.service';
 
 /**
  * F20.1-b — desde que la lógica de conversación se extrajo a
@@ -34,6 +35,14 @@ describe('ChatbotComponent', () => {
         },
         { provide: ToastService, useValue: { success: jest.fn(), error: jest.fn() } },
         { provide: Router, useValue: { navigateByUrl: jest.fn() } },
+        // F7-R4: AiChatPanelComponent (embebido) inyecta PlanUpgradeService
+        // para el CTA de upgrade al agotar cupo — este spec no ejercita ese
+        // flujo, pero sin el mock Angular intentaría construir la instancia
+        // real (→ SubscriptionService → HttpClient, no provisto aquí).
+        {
+          provide: PlanUpgradeService,
+          useValue: { isPlanGateError: jest.fn().mockReturnValue(false), promptUpgrade: jest.fn() },
+        },
       ],
     }).compileComponents();
   }

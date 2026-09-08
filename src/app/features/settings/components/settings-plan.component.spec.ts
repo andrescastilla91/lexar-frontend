@@ -4,7 +4,9 @@ import { SettingsPlanComponent } from './settings-plan.component';
 import { SubscriptionService } from '../../../core/services/subscription.service';
 import { ConfirmDialogService } from '../../../core/services/confirm-dialog.service';
 import { ToastService } from '../../../core/services/toast.service';
+import { AiChatService } from '../../../core/services/ai-chat.service';
 import { Entitlements, PlanCatalogEntry, SaasInvoice } from '../../../core/models/subscription-backend.model';
+import { AiUsageSummary } from '../../../core/models/ai-chat.model';
 
 describe('SettingsPlanComponent', () => {
   let subscriptionServiceMock: {
@@ -19,6 +21,9 @@ describe('SettingsPlanComponent', () => {
   };
   let confirmDialogMock: { confirm: jest.Mock };
   let toastServiceMock: { success: jest.Mock; error: jest.Mock };
+  let aiChatServiceMock: { getUsage: jest.Mock };
+
+  const aiUsage: AiUsageSummary = { used: 7, limit: 20, periodStart: '2026-09-01', periodEnd: '2026-10-01' };
 
   const entitlements: Entitlements = {
     planCode: 'TRIAL',
@@ -125,6 +130,7 @@ describe('SettingsPlanComponent', () => {
     };
     confirmDialogMock = { confirm: jest.fn().mockResolvedValue(true) };
     toastServiceMock = { success: jest.fn(), error: jest.fn() };
+    aiChatServiceMock = { getUsage: jest.fn().mockReturnValue(of(aiUsage)) };
 
     TestBed.configureTestingModule({
       imports: [SettingsPlanComponent],
@@ -132,6 +138,7 @@ describe('SettingsPlanComponent', () => {
         { provide: SubscriptionService, useValue: subscriptionServiceMock },
         { provide: ConfirmDialogService, useValue: confirmDialogMock },
         { provide: ToastService, useValue: toastServiceMock },
+        { provide: AiChatService, useValue: aiChatServiceMock },
       ],
     });
   }
@@ -159,6 +166,32 @@ describe('SettingsPlanComponent', () => {
     expect(component.invoices()).toEqual([invoice]);
     expect(component.simulationEnabled()).toBe(true);
     expect(component.isLoading()).toBe(false);
+  });
+
+  it('F7-R4: agrega la barra de cupo de IA cuando el resumen llega con limit > 0', () => {
+    const component = createComponent();
+
+    expect(aiChatServiceMock.getUsage).toHaveBeenCalled();
+    expect(component.aiUsage()).toEqual(aiUsage);
+    const bar = component.usageBars().find((b) => b.label === 'Cupo de IA (mensual)');
+    expect(bar).toEqual({ label: 'Cupo de IA (mensual)', current: 7, max: 20, percent: 35 });
+  });
+
+  it('F7-R4: no agrega la barra de cupo de IA si el resumen falla', () => {
+    aiChatServiceMock.getUsage.mockReturnValue(throwError(() => new Error('fail')));
+    const component = createComponent();
+
+    expect(component.aiUsage()).toBeNull();
+    expect(component.usageBars().find((b) => b.label === 'Cupo de IA (mensual)')).toBeUndefined();
+  });
+
+  it('F7-R4: no agrega la barra de cupo de IA si el plan no tiene cupo (limit <= 0)', () => {
+    aiChatServiceMock.getUsage.mockReturnValue(
+      of({ used: 0, limit: 0, periodStart: '2026-09-01', periodEnd: '2026-10-01' }),
+    );
+    const component = createComponent();
+
+    expect(component.usageBars().find((b) => b.label === 'Cupo de IA (mensual)')).toBeUndefined();
   });
 
   it('si falla la carga de entitlements, muestra un mensaje de error', () => {

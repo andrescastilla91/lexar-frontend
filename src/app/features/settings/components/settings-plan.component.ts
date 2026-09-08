@@ -3,7 +3,9 @@ import { DatePipe } from '@angular/common';
 import { SubscriptionService } from '../../../core/services/subscription.service';
 import { ConfirmDialogService } from '../../../core/services/confirm-dialog.service';
 import { ToastService } from '../../../core/services/toast.service';
+import { AiChatService } from '../../../core/services/ai-chat.service';
 import { Entitlements, PlanCatalogEntry, SaasInvoice } from '../../../core/models/subscription-backend.model';
+import { AiUsageSummary } from '../../../core/models/ai-chat.model';
 import { PlanComparisonTableComponent } from './plan-comparison-table.component';
 
 interface UsageBar {
@@ -172,6 +174,7 @@ export class SettingsPlanComponent implements OnInit {
   private readonly subscriptionService = inject(SubscriptionService);
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly toast = inject(ToastService);
+  private readonly aiChatService = inject(AiChatService);
 
   /** F7-R3: plan a resaltar cuando se llega vía el CTA de upgrade de otra pantalla. */
   readonly suggestedPlanCode = input<string | null>(null);
@@ -183,6 +186,9 @@ export class SettingsPlanComponent implements OnInit {
   readonly plans = signal<PlanCatalogEntry[]>([]);
   readonly invoices = signal<SaasInvoice[]>([]);
   readonly simulationEnabled = signal(false);
+  /** F7-R4: consumo del cupo mensual de IA — informativo, no bloquea la
+   * pantalla si falla (ver comentario en AiChatService.getUsage). */
+  readonly aiUsage = signal<AiUsageSummary | null>(null);
 
   readonly trialDaysLeft = computed(() => {
     const ent = this.entitlements();
@@ -201,7 +207,7 @@ export class SettingsPlanComponent implements OnInit {
     const toPercent = (current: number, max: number | null): number =>
       max === null || max === 0 ? Math.min(100, current > 0 ? 15 : 0) : Math.min(100, Math.round((current / max) * 100));
 
-    return [
+    const bars: UsageBar[] = [
       { label: 'Usuarios', current: ent.usage.users, max: ent.limits.maxUsers, percent: toPercent(ent.usage.users, ent.limits.maxUsers) },
       {
         label: 'Procesos activos',
@@ -216,6 +222,22 @@ export class SettingsPlanComponent implements OnInit {
         percent: toPercent(ent.usage.storageMb, ent.limits.maxStorageMb),
       },
     ];
+
+    // F7-R4: se agrega solo si ya llegó el resumen y el plan realmente
+    // incluye cupo de IA (limit <= 0 en AiUsageService.hasQuota significa
+    // "sin cupo" — mostrar la barra en ese caso confundiría más de lo que
+    // informa, igual que un plan sin ese feature).
+    const usage = this.aiUsage();
+    if (usage && usage.limit > 0) {
+      bars.push({
+        label: 'Cupo de IA (mensual)',
+        current: usage.used,
+        max: usage.limit,
+        percent: toPercent(usage.used, usage.limit),
+      });
+    }
+
+    return bars;
   });
 
   ngOnInit(): void {
@@ -242,6 +264,11 @@ export class SettingsPlanComponent implements OnInit {
 
     this.subscriptionService.isSimulationEnabled().subscribe({
       next: (enabled) => this.simulationEnabled.set(enabled),
+      error: () => {},
+    });
+
+    this.aiChatService.getUsage().subscribe({
+      next: (usage) => this.aiUsage.set(usage),
       error: () => {},
     });
   }

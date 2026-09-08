@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, catchError, throwError } from 'rxjs';
 import { environment } from '../../../environments/environment';
-import { AiChatFeedback, AiChatHistory, AiChatResponse } from '../models/ai-chat.model';
+import { AiChatFeedback, AiChatHistory, AiChatResponse, AiUsageSummary } from '../models/ai-chat.model';
 
 /**
  * F20.1 — cliente del asistente IA Nivel 0 (sin LLM). Sigue el mismo
@@ -33,6 +33,19 @@ export class AiChatService {
           return throwError(() => new Error(error.message || 'Error al enviar el mensaje'));
         })
       );
+  }
+
+  /** F7-R4: consumo del mes vigente del cupo de IA — usado en el resumen de
+   * "Plan y facturación". Falla en silencio con un valor "vacío" en el
+   * consumidor (ver SettingsPlanComponent) en vez de bloquear la pantalla:
+   * es informativo, no crítico. */
+  getUsage(): Observable<AiUsageSummary> {
+    return this.http.get<AiUsageSummary>(`${this.apiUrl}/ai/usage`).pipe(
+      catchError((error) => {
+        console.error('Error al obtener el consumo de IA:', error);
+        return throwError(() => new Error(error.message || 'Error al obtener el consumo de IA'));
+      })
+    );
   }
 
   setFeedback(messageId: string, feedback: AiChatFeedback): Observable<void> {

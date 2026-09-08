@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AiChatService } from '../services/ai-chat.service';
 import { ToastService } from '../services/toast.service';
+import { PlanUpgradeService } from '../services/plan-upgrade.service';
 import { AI_CHAT_SUGGESTED_PROMPTS, AiChatFeedback, AiChatLink, AiChatMessage } from '../models/ai-chat.model';
 import { parseAiListAnswer } from '../utils/ai-chat-format.util';
 
@@ -168,6 +169,25 @@ import { parseAiListAnswer } from '../utils/ai-chat-format.util';
             }
           </article>
         }
+
+        @if (isSending()) {
+          <!-- BUG-IA-3: indicador de espera en el propio hilo (no en el
+               botón) — el usuario ya ve su pregunta enviada arriba mientras
+               esta burbuja confirma que el asistente sigue "pensando". -->
+          <article class="max-w-xl rounded-3xl bg-surface-sunken px-5 py-3 text-sm text-text shadow-sm" aria-live="polite">
+            <header class="flex items-center gap-3 text-xs">
+              <span class="font-semibold">Asistente LexAr</span>
+            </header>
+            <p class="mt-2 flex items-center gap-1.5 text-text-subtle">
+              <span>Escribiendo</span>
+              <span class="inline-flex items-center gap-0.5">
+                <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-text-subtle [animation-delay:-0.3s]"></span>
+                <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-text-subtle [animation-delay:-0.15s]"></span>
+                <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-text-subtle"></span>
+              </span>
+            </p>
+          </article>
+        }
         <div #scrollAnchor></div>
       </div>
 
@@ -194,12 +214,6 @@ import { parseAiListAnswer } from '../utils/ai-chat-format.util';
             [disabled]="messageForm.invalid || isSending()"
           >
             Enviar
-            @if (isSending()) {
-              <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4l3.5-3.5L12 1v4a7 7 0 0 0-7 7h-1z"></path>
-              </svg>
-            }
           </button>
         </div>
       </form>
@@ -210,6 +224,7 @@ export class AiChatPanelComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly aiChatService = inject(AiChatService);
   private readonly toastService = inject(ToastService);
+  private readonly planUpgradeService = inject(PlanUpgradeService);
   private readonly router = inject(Router);
 
   /** El widget flotante muestra el botón de cerrar en el header; la
@@ -265,6 +280,16 @@ export class AiChatPanelComponent implements OnInit {
     }
   }
 
+  /** BUG-IA-3 (2026-09-07): antes, el mensaje del usuario solo se agregaba
+   * al hilo (y el textarea solo se limpiaba) dentro del callback `next` —
+   * mientras el Nivel 1 tardaba su ~1s de latencia real, el usuario veía
+   * su pregunta "congelada" en el textarea sin ninguna confirmación de que
+   * ya se había enviado, con el único indicador de carga escondido en el
+   * botón. Patrón estándar de chat: el mensaje se agrega optimista de
+   * inmediato, el textarea se limpia en el acto, y una burbuja
+   * "escribiendo" en el propio hilo (no el botón) indica la espera. Si la
+   * request falla, se revierte: se quita el mensaje optimista y se
+   * devuelve el texto al textarea (no se pierde lo escrito). */
   sendMessage(): void {
     if (this.messageForm.invalid || this.isSending()) {
       return;
@@ -274,15 +299,50 @@ export class AiChatPanelComponent implements OnInit {
     this.error.set(null);
     this.isSending.set(true);
 
+    const optimisticId = `optimistic-${Date.now()}`;
+    const optimisticMessage: AiChatMessage = {
+      id: optimisticId,
+      role: 'user',
+      content: message,
+      intentId: null,
+      understood: true,
+      quotaExhausted: false,
+      feedback: null,
+      links: [],
+      createdAt: new Date().toISOString(),
+    };
+    this.messages.update((current) => [...current, optimisticMessage]);
+    this.messageForm.reset({ message: '' });
+    this.scrollToBottom();
+
     this.aiChatService.sendMessage(message, this.conversationId).subscribe({
       next: (response) => {
         this.conversationId = response.conversationId;
-        this.messages.update((current) => [...current, response.userMessage, response.assistantMessage]);
-        this.messageForm.reset({ message: '' });
+        this.messages.update((current) => [
+          ...current.filter((m) => m.id !== optimisticId),
+          response.userMessage,
+          response.assistantMessage,
+        ]);
         this.isSending.set(false);
         this.scrollToBottom();
+
+        // F7-R4: cupo de IA agotado — mismo CTA de upgrade que cualquier
+        // otro gate de plan (F7-R3), aunque esto no llega como error HTTP
+        // (el asistente sigue respondiendo en Nivel 0), así que se dispara
+        // desde el flag de la respuesta, no desde error.interceptor.ts.
+        if (response.assistantMessage.quotaExhausted) {
+          this.planUpgradeService.promptUpgrade({
+            error: {
+              message: response.assistantMessage.content,
+              code: 'LIMIT_REACHED',
+              limit: 'aiCreditsMonth',
+            },
+          });
+        }
       },
       error: (err: Error) => {
+        this.messages.update((current) => current.filter((m) => m.id !== optimisticId));
+        this.messageForm.setValue({ message });
         this.error.set(err.message);
         this.isSending.set(false);
       },
