@@ -70,13 +70,26 @@ import { parseAiListAnswer } from '../utils/ai-chat-format.util';
             [ngClass]="message.role === 'user' ? 'ml-auto bg-primary text-on-primary' : 'bg-surface-sunken text-text'"
           >
             <header class="flex items-center justify-between gap-3 text-xs">
-              <span class="font-semibold">{{ message.role === 'user' ? 'Tú' : 'Asistente LexAr' }}</span>
+              <span class="font-semibold">{{ message.role === 'user' ? 'Tú' : 'Lexi' }}</span>
               <span [ngClass]="message.role === 'user' ? 'text-on-primary/70' : 'text-text-subtle'">
                 {{ message.createdAt | date: 'HH:mm dd/MM' }}
               </span>
             </header>
 
-            @if (parseAnswer(message.content); as parsed) {
+            @if (message.synthesizing && !message.content) {
+              <!-- F20.3: redacción Nivel 2 en curso — mismo indicador visual
+                   de puntos que la burbuja "Escribiendo" de BUG-IA-3, pero
+                   dentro del propio mensaje (ya insertado en el hilo con
+                   content:'' mientras hace streaming). -->
+              <p class="mt-2 flex items-center gap-1.5 text-text-subtle">
+                <span>Redactando</span>
+                <span class="inline-flex items-center gap-0.5">
+                  <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-text-subtle [animation-delay:-0.3s]"></span>
+                  <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-text-subtle [animation-delay:-0.15s]"></span>
+                  <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-text-subtle"></span>
+                </span>
+              </p>
+            } @else if (parseAnswer(message.content); as parsed) {
               <p class="mt-2 leading-relaxed">{{ parsed.intro }}</p>
               <ul class="mt-2 space-y-1 leading-relaxed">
                 @for (item of parsed.items; track item) {
@@ -87,7 +100,7 @@ import { parseAiListAnswer } from '../utils/ai-chat-format.util';
               <p class="mt-2 whitespace-pre-line leading-relaxed">{{ message.content }}</p>
             }
 
-            @if (message.links.length > 0) {
+            @if (!message.synthesizing && message.links.length > 0) {
               <div class="mt-3 flex flex-wrap gap-2">
                 @for (link of message.links; track link.path) {
                   <button
@@ -116,7 +129,7 @@ import { parseAiListAnswer } from '../utils/ai-chat-format.util';
               </div>
             }
 
-            @if (message.role === 'assistant') {
+            @if (message.role === 'assistant' && !message.synthesizing) {
               <div class="mt-3 flex items-center gap-2">
                 <button
                   type="button"
@@ -176,7 +189,7 @@ import { parseAiListAnswer } from '../utils/ai-chat-format.util';
                esta burbuja confirma que el asistente sigue "pensando". -->
           <article class="max-w-xl rounded-3xl bg-surface-sunken px-5 py-3 text-sm text-text shadow-sm" aria-live="polite">
             <header class="flex items-center gap-3 text-xs">
-              <span class="font-semibold">Asistente LexAr</span>
+              <span class="font-semibold">Lexi</span>
             </header>
             <p class="mt-2 flex items-center gap-1.5 text-text-subtle">
               <span>Escribiendo</span>
@@ -307,6 +320,7 @@ export class AiChatPanelComponent implements OnInit {
       intentId: null,
       understood: true,
       quotaExhausted: false,
+      synthesizing: false,
       feedback: null,
       links: [],
       createdAt: new Date().toISOString(),
@@ -325,6 +339,12 @@ export class AiChatPanelComponent implements OnInit {
         ]);
         this.isSending.set(false);
         this.scrollToBottom();
+
+        // F20.3: la redacción Nivel 2 llega con content:'' — el texto se
+        // arma en vivo por streaming SSE (ver AiChatService.streamSynthesis).
+        if (response.assistantMessage.synthesizing) {
+          this.streamSynthesis(response.assistantMessage.id);
+        }
 
         // F7-R4: cupo de IA agotado — mismo CTA de upgrade que cualquier
         // otro gate de plan (F7-R3), aunque esto no llega como error HTTP
@@ -345,6 +365,38 @@ export class AiChatPanelComponent implements OnInit {
         this.messageForm.setValue({ message });
         this.error.set(err.message);
         this.isSending.set(false);
+      },
+    });
+  }
+
+  /** F20.3 — consume el stream SSE de la redacción Nivel 2 y va agregando
+   * cada fragmento al mensaje ya insertado en el hilo (id fijo desde el
+   * `POST /ai/chat` inicial, `content` empieza vacío). Los deltas llegan
+   * sueltos (no acumulados) — se acumulan localmente y se aplican de forma
+   * inmutable por id, igual que el resto de updates de `messages`. */
+  private streamSynthesis(messageId: string): void {
+    let accumulated = '';
+    this.aiChatService.streamSynthesis(messageId).subscribe({
+      next: (event) => {
+        if (event.delta) {
+          accumulated += event.delta;
+          this.messages.update((current) =>
+            current.map((m) => (m.id === messageId ? { ...m, content: accumulated } : m))
+          );
+          this.scrollToBottom();
+        }
+      },
+      complete: () => {
+        // El contrato SSE solo transmite `delta`/`done` (ver
+        // AiSynthesisChunkEvent en el backend) — ni los links finales ni el
+        // contenido definitivo viajan por el stream. `complete()` se
+        // dispara tanto al terminar bien (evento `done`) como ante un
+        // error de conexión (degradación silenciosa en
+        // AiChatService.streamSynthesis), y en ambos casos el backend ya
+        // dejó el mensaje persistido (síntesis exitosa o plantilla de
+        // degradación) — se recarga el historial para obtener la versión
+        // final completa. Los ids no cambian, así que @for no parpadea.
+        this.loadHistory();
       },
     });
   }

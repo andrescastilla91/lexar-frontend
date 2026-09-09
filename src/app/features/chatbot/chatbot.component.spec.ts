@@ -57,7 +57,7 @@ describe('ChatbotComponent', () => {
     await configure();
     const { fixture } = createComponent();
 
-    expect(fixture.nativeElement.textContent).toContain('Asistente LexAr');
+    expect(fixture.nativeElement.textContent).toContain('Lexi');
     expect(fixture.nativeElement.textContent).toContain('no constituye asesoría legal');
     expect(fixture.nativeElement.querySelector('app-ai-chat-panel')).not.toBeNull();
   });

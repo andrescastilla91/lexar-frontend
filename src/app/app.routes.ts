@@ -223,7 +223,7 @@ export const routes: Routes = [
 			},
 			{
 				path: 'chatbot',
-				title: 'Asistente',
+				title: 'Lexi',
 				canActivate: [chatbotFeatureGuard],
 				loadComponent: () => import('./features/chatbot/chatbot.component').then((m) => m.ChatbotComponent),
 			},

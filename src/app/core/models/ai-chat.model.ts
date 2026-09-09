@@ -23,9 +23,23 @@ export interface AiChatMessage {
    * el CTA de upgrade (PlanUpgradeService) — `understood` por sí solo no
    * alcanza para distinguir ambos casos. */
   quotaExhausted: boolean;
+  /** F20.3 — `true` mientras la redacción Nivel 2 sigue transmitiéndose por
+   * streaming (`content` vacío hasta que termina). El panel abre
+   * `AiChatService.streamSynthesis(id)` cuando ve este flag en `true`. */
+  synthesizing: boolean;
   feedback: AiChatFeedback | null;
   links: AiChatLink[];
   createdAt: string;
+}
+
+/** F20.3 — un evento del stream SSE `GET /ai/messages/:id/stream`. Solo dos
+ * formas posibles: un fragmento de texto (`delta`) o el fin del stream
+ * (`done`) — nunca ambos a la vez. Los `ping` de heartbeat del backend
+ * (F12) no necesitan modelo propio: se ignoran en el listener de
+ * `AiChatService.streamSynthesis`, nunca llegan hasta el consumidor. */
+export interface AiSynthesisStreamEvent {
+  delta?: string;
+  done?: boolean;
 }
 
 /** F7-R4: consumo del mes vigente del cupo de IA (GET /ai/usage). */

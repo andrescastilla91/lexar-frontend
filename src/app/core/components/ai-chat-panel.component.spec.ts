@@ -26,6 +26,7 @@ describe('AiChatPanelComponent', () => {
     getHistory: jest.Mock;
     sendMessage: jest.Mock;
     setFeedback: jest.Mock;
+    streamSynthesis: jest.Mock;
   };
   let toastServiceMock: { success: jest.Mock; error: jest.Mock };
   let routerMock: { navigateByUrl: jest.Mock };
@@ -38,6 +39,7 @@ describe('AiChatPanelComponent', () => {
     intentId: null,
     understood: true,
     quotaExhausted: false,
+    synthesizing: false,
     feedback: null,
     links: [],
     createdAt: '2026-09-03T09:00:00Z',
@@ -50,6 +52,7 @@ describe('AiChatPanelComponent', () => {
     intentId: 'procesos_activos',
     understood: true,
     quotaExhausted: false,
+    synthesizing: false,
     feedback: null,
     links: [{ label: 'Proceso 1', path: '/procesos?openId=p1' }],
     createdAt: '2026-09-03T09:00:01Z',
@@ -67,6 +70,11 @@ describe('AiChatPanelComponent', () => {
       ),
       sendMessage: jest.fn(),
       setFeedback: jest.fn(),
+      // F20.3 — ninguna prueba fuera del describe dedicado dispara
+      // synthesizing:true, así que por defecto un Subject nunca emitido
+      // basta (si algún test lo llamara sin querer, no rompe nada, solo
+      // queda una suscripción viva sin efecto).
+      streamSynthesis: jest.fn().mockReturnValue(new Subject().asObservable()),
     };
     toastServiceMock = { success: jest.fn(), error: jest.fn() };
     routerMock = { navigateByUrl: jest.fn() };
@@ -413,6 +421,148 @@ describe('AiChatPanelComponent', () => {
       fixture.detectChanges();
 
       expect(buttons[0].getAttribute('aria-pressed')).toBe('true');
+    });
+  });
+
+  describe('F20.3: streaming de la redacción Nivel 2 (Lexi)', () => {
+    function synthesizingResponse(overrides: Partial<AiChatMessage> = {}) {
+      const synthesizingMessage: AiChatMessage = {
+        ...assistantMessage,
+        id: 'msg-synth',
+        content: '',
+        synthesizing: true,
+        links: [],
+        ...overrides,
+      };
+      return { conversationId: 'conv-1', userMessage, assistantMessage: synthesizingMessage };
+    }
+
+    it('cuando la respuesta llega con synthesizing=true, abre streamSynthesis(id) y el mensaje entra al hilo con content vacío', async () => {
+      await configure();
+      aiChatServiceMock.sendMessage.mockReturnValue(of(synthesizingResponse()));
+      const streamSubject = new Subject<{ delta?: string; done?: boolean }>();
+      aiChatServiceMock.streamSynthesis.mockReturnValue(streamSubject.asObservable());
+      const component = createComponent();
+      component.messageForm.setValue({ message: '¿cómo va el proceso 2026-CV-001?' });
+
+      component.sendMessage();
+
+      expect(aiChatServiceMock.streamSynthesis).toHaveBeenCalledWith('msg-synth');
+      expect(component.messages().find((m) => m.id === 'msg-synth')?.content).toBe('');
+    });
+
+    it('va acumulando cada delta en el contenido del mensaje, de forma inmutable por id', async () => {
+      await configure();
+      aiChatServiceMock.sendMessage.mockReturnValue(of(synthesizingResponse()));
+      const streamSubject = new Subject<{ delta?: string; done?: boolean }>();
+      aiChatServiceMock.streamSynthesis.mockReturnValue(streamSubject.asObservable());
+      const component = createComponent();
+      component.messageForm.setValue({ message: '¿cómo va el proceso 2026-CV-001?' });
+      component.sendMessage();
+      const before = component.messages();
+
+      streamSubject.next({ delta: 'El proceso ' });
+      streamSubject.next({ delta: 'va en etapa de investigación.' });
+
+      expect(component.messages().find((m) => m.id === 'msg-synth')?.content).toBe(
+        'El proceso va en etapa de investigación.'
+      );
+      // Inmutabilidad: el array de mensajes es una referencia nueva en cada
+      // delta (requisito de detección de cambios con signals), no una
+      // mutación in-place del array anterior.
+      expect(component.messages()).not.toBe(before);
+    });
+
+    it('al completar el stream (evento done), recarga el historial para traer el contenido y los links definitivos', async () => {
+      await configure();
+      aiChatServiceMock.sendMessage.mockReturnValue(of(synthesizingResponse()));
+      const streamSubject = new Subject<{ delta?: string; done?: boolean }>();
+      aiChatServiceMock.streamSynthesis.mockReturnValue(streamSubject.asObservable());
+      const component = createComponent();
+      aiChatServiceMock.getHistory.mockClear(); // descarta la llamada de ngOnInit
+      component.messageForm.setValue({ message: '¿cómo va el proceso 2026-CV-001?' });
+      component.sendMessage();
+
+      streamSubject.next({ delta: 'texto final' });
+      streamSubject.next({ done: true });
+      streamSubject.complete();
+
+      expect(aiChatServiceMock.getHistory).toHaveBeenCalledTimes(1);
+    });
+
+    it('si el stream se corta por un error de conexión (complete sin done previo), igual recarga el historial — no deja el indicador colgado', async () => {
+      await configure();
+      aiChatServiceMock.sendMessage.mockReturnValue(of(synthesizingResponse()));
+      const streamSubject = new Subject<{ delta?: string; done?: boolean }>();
+      aiChatServiceMock.streamSynthesis.mockReturnValue(streamSubject.asObservable());
+      const component = createComponent();
+      aiChatServiceMock.getHistory.mockClear();
+      component.messageForm.setValue({ message: '¿cómo va el proceso 2026-CV-001?' });
+      component.sendMessage();
+
+      // El servicio degrada un error de EventSource a un `complete()` sin
+      // `next({done:true})` previo (ver ai-chat.service.ts) — el componente
+      // no distingue ambos casos, siempre recarga el historial al completar.
+      streamSubject.complete();
+
+      expect(aiChatServiceMock.getHistory).toHaveBeenCalledTimes(1);
+    });
+
+    it('cuando la respuesta NO viene synthesizing, nunca abre el stream', async () => {
+      await configure();
+      aiChatServiceMock.sendMessage.mockReturnValue(
+        of({ conversationId: 'conv-1', userMessage, assistantMessage })
+      );
+      const component = createComponent();
+      component.messageForm.setValue({ message: '¿Cuántos procesos activos tengo?' });
+
+      component.sendMessage();
+
+      expect(aiChatServiceMock.streamSynthesis).not.toHaveBeenCalled();
+    });
+
+    it('muestra el indicador "Redactando" mientras synthesizing es true y content vacío, y lo reemplaza cuando llegan deltas', async () => {
+      await configure();
+      aiChatServiceMock.sendMessage.mockReturnValue(of(synthesizingResponse()));
+      const streamSubject = new Subject<{ delta?: string; done?: boolean }>();
+      aiChatServiceMock.streamSynthesis.mockReturnValue(streamSubject.asObservable());
+      const fixture = TestBed.createComponent(AiChatPanelComponent);
+      fixture.detectChanges();
+      const component = fixture.componentInstance;
+      component.messageForm.setValue({ message: '¿cómo va el proceso 2026-CV-001?' });
+
+      component.sendMessage();
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).toContain('Redactando');
+
+      streamSubject.next({ delta: 'El proceso va bien.' });
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).not.toContain('Redactando');
+      expect(fixture.nativeElement.textContent).toContain('El proceso va bien.');
+    });
+
+    it('oculta los botones de feedback y los links mientras el mensaje sigue synthesizing', async () => {
+      await configure();
+      aiChatServiceMock.sendMessage.mockReturnValue(
+        of(
+          synthesizingResponse({
+            links: [{ label: 'Proceso 1', path: '/procesos?openId=p1' }],
+          })
+        )
+      );
+      aiChatServiceMock.streamSynthesis.mockReturnValue(new Subject().asObservable());
+      const fixture = TestBed.createComponent(AiChatPanelComponent);
+      fixture.detectChanges();
+      const component = fixture.componentInstance;
+      component.messageForm.setValue({ message: '¿cómo va el proceso 2026-CV-001?' });
+
+      component.sendMessage();
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.querySelector('button[aria-label="Respuesta útil"]')).toBeNull();
+      expect(fixture.nativeElement.textContent).not.toContain('Proceso 1');
     });
   });
 

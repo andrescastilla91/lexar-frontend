@@ -18,9 +18,10 @@ import { AiChatPanelComponent } from '../../core/components/ai-chat-panel.compon
   template: `
     <div class="flex flex-col gap-6 lg:flex-row">
       <aside class="w-full rounded-3xl border border-default bg-surface p-6 shadow-[var(--shadow-card)] lg:w-80">
-        <h2 class="text-lg font-semibold text-text">Asistente LexAr</h2>
+        <h2 class="text-lg font-semibold text-text">Lexi</h2>
+        <p class="mt-1 text-xs text-text-subtle">Tu asistente de IA en LexAr</p>
         <p class="mt-2 text-sm text-text-muted">
-          Pregunta por procesos, plazos, tareas, clientes o tu suscripción. El asistente solo responde con
+          Pregunta por procesos, plazos, tareas, clientes o tu suscripción. Lexi solo responde con
           información de tu propia empresa.
         </p>
 

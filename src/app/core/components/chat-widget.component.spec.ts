@@ -73,7 +73,7 @@ describe('ChatWidgetComponent', () => {
     await configure(true);
     const { fixture } = createComponent();
 
-    expect(fixture.nativeElement.querySelector('button[aria-label="Abrir asistente LexAr"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('button[aria-label="Abrir a Lexi"]')).not.toBeNull();
   });
 
   it('se oculta en /chatbot para no duplicar la UI del asistente', async () => {
@@ -96,7 +96,7 @@ describe('ChatWidgetComponent', () => {
     expect(component.isOpen()).toBe(false);
     expect(fixture.nativeElement.querySelector('app-ai-chat-panel')).toBeNull();
 
-    fixture.nativeElement.querySelector('button[aria-label="Abrir asistente LexAr"]').click();
+    fixture.nativeElement.querySelector('button[aria-label="Abrir a Lexi"]').click();
     fixture.detectChanges();
 
     expect(component.isOpen()).toBe(true);

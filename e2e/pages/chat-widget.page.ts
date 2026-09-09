@@ -5,7 +5,7 @@ import { Locator, Page } from '@playwright/test';
  * Selectores por rol/texto visible, igual que el resto de page objects
  * de este proyecto (sin test-ids). El botón flotante y el botón de
  * cerrar del panel usan accessible names distintos a propósito
- * ("Minimizar asistente" vs "Cerrar asistente") para no repetir el bug
+ * ("Minimizar a Lexi" vs "Cerrar asistente") para no repetir el bug
  * de texto duplicado en modo estricto ya visto en chatbot.spec.ts
  * ("Gracias por tu feedback").
  */
@@ -20,8 +20,10 @@ export class ChatWidgetPage {
   readonly messages: Locator;
 
   constructor(private readonly page: Page) {
-    this.openButton = page.getByRole('button', { name: 'Abrir asistente LexAr' });
-    this.minimizeButton = page.getByRole('button', { name: 'Minimizar asistente' });
+    // F20.3: el botón flotante se renombró a "Lexi" — mismo botón alterna
+    // entre "Abrir a Lexi" (cerrado) y "Minimizar a Lexi" (abierto).
+    this.openButton = page.getByRole('button', { name: 'Abrir a Lexi' });
+    this.minimizeButton = page.getByRole('button', { name: 'Minimizar a Lexi' });
     this.closeButton = page.getByRole('button', { name: 'Cerrar asistente' });
     this.textarea = page.locator('textarea[formcontrolname="message"]');
     this.sendButton = page.getByRole('button', { name: 'Enviar' });

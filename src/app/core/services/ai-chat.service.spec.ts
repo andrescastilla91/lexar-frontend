@@ -2,7 +2,12 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { AiChatService } from './ai-chat.service';
-import { AiChatHistory, AiChatMessage, AiChatResponse } from '../models/ai-chat.model';
+import {
+  AiChatHistory,
+  AiChatMessage,
+  AiChatResponse,
+  AiSynthesisStreamEvent,
+} from '../models/ai-chat.model';
 import { environment } from '../../../environments/environment';
 
 import { errorInterceptor } from '../interceptors/error.interceptor';
@@ -20,6 +25,7 @@ describe('AiChatService', () => {
     intentId: 'procesos_activos',
     understood: true,
     quotaExhausted: false,
+    synthesizing: false,
     feedback: null,
     links: [{ label: 'Proceso 1', path: '/procesos?openId=p1' }],
     createdAt: '2026-09-03T09:00:00Z',
@@ -32,6 +38,7 @@ describe('AiChatService', () => {
     intentId: null,
     understood: true,
     quotaExhausted: false,
+    synthesizing: false,
     feedback: null,
     links: [],
     createdAt: '2026-09-03T09:00:00Z',
@@ -158,5 +165,102 @@ describe('AiChatService', () => {
     httpMock.expectOne(`${apiUrl}/usage`).flush('error', { status: 500, statusText: 'Server Error' });
 
     expect(error?.message).toBe('Error interno del servidor');
+  });
+
+  describe('streamSynthesis (F20.3 — streaming SSE de la redacción Nivel 2)', () => {
+    // Mismo patrón que NotificationsService.spec.ts (F12): un EventSource
+    // falso registrado en `global` para no depender de que jsdom lo
+    // implemente ni de una conexión real.
+    class FakeEventSource {
+      static instances: FakeEventSource[] = [];
+      onerror: (() => void) | null = null;
+      private readonly listeners: Record<string, ((event: MessageEvent<string>) => void)[]> = {};
+      closed = false;
+
+      constructor(
+        public readonly url: string,
+        public readonly options?: { withCredentials?: boolean }
+      ) {
+        FakeEventSource.instances.push(this);
+      }
+
+      addEventListener(type: string, cb: (event: MessageEvent<string>) => void): void {
+        this.listeners[type] = this.listeners[type] ?? [];
+        this.listeners[type].push(cb);
+      }
+
+      close(): void {
+        this.closed = true;
+      }
+
+      emit(type: string, event: MessageEvent<string>): void {
+        (this.listeners[type] ?? []).forEach((cb) => cb(event));
+      }
+    }
+
+    beforeEach(() => {
+      FakeEventSource.instances = [];
+      (global as unknown as { EventSource: typeof FakeEventSource }).EventSource = FakeEventSource;
+    });
+
+    it('abre un EventSource hacia /ai/messages/:id/stream con credenciales', () => {
+      service.streamSynthesis('msg-1').subscribe();
+
+      expect(FakeEventSource.instances).toHaveLength(1);
+      expect(FakeEventSource.instances[0].url).toBe(`${apiUrl}/messages/msg-1/stream`);
+      expect(FakeEventSource.instances[0].options).toEqual({ withCredentials: true });
+    });
+
+    it('un evento "delta" emite { delta } al observable', () => {
+      const events: AiSynthesisStreamEvent[] = [];
+      service.streamSynthesis('msg-1').subscribe((e) => events.push(e));
+      const instance = FakeEventSource.instances[0];
+
+      instance.emit('delta', { data: 'Hola' } as MessageEvent<string>);
+      instance.emit('delta', { data: ' mundo' } as MessageEvent<string>);
+
+      expect(events).toEqual([{ delta: 'Hola' }, { delta: ' mundo' }]);
+    });
+
+    it('un evento "done" emite { done: true }, completa el observable y cierra el EventSource', () => {
+      const events: AiSynthesisStreamEvent[] = [];
+      let completed = false;
+      service.streamSynthesis('msg-1').subscribe({
+        next: (e) => events.push(e),
+        complete: () => (completed = true),
+      });
+      const instance = FakeEventSource.instances[0];
+
+      instance.emit('done', {} as MessageEvent<string>);
+
+      expect(events).toEqual([{ done: true }]);
+      expect(completed).toBe(true);
+      expect(instance.closed).toBe(true);
+    });
+
+    it('un error de conexión completa el observable en silencio (degradación) y cierra el EventSource — nunca propaga error()', () => {
+      let completed = false;
+      let errored = false;
+      service.streamSynthesis('msg-1').subscribe({
+        complete: () => (completed = true),
+        error: () => (errored = true),
+      });
+      const instance = FakeEventSource.instances[0];
+
+      instance.onerror?.();
+
+      expect(completed).toBe(true);
+      expect(errored).toBe(false);
+      expect(instance.closed).toBe(true);
+    });
+
+    it('al desuscribirse antes de terminar, cierra el EventSource (teardown)', () => {
+      const subscription = service.streamSynthesis('msg-1').subscribe();
+      const instance = FakeEventSource.instances[0];
+
+      subscription.unsubscribe();
+
+      expect(instance.closed).toBe(true);
+    });
   });
 });
