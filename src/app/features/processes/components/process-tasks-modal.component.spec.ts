@@ -255,6 +255,42 @@ describe('ProcessTasksModalComponent', () => {
     expect(spy).toHaveBeenCalledWith(updatedTask);
   });
 
+  // F28
+  it('el botón "Editar tarea" abre el modal de edición con la tarea', async () => {
+    await configure();
+    const fixture = createComponent();
+    const task = buildTask();
+    fixture.componentRef.setInput('form', buildForm());
+    fixture.componentRef.setInput('isOpen', true);
+    fixture.componentRef.setInput('tasks', [task]);
+    fixture.componentRef.setInput('statuses', [status]);
+    fixture.detectChanges();
+
+    fixture.nativeElement.querySelector('button[title="Editar tarea"]').click();
+
+    expect(fixture.componentInstance.editingTask()).toEqual(task);
+    expect(fixture.componentInstance.editModalOpen()).toBe(true);
+  });
+
+  it('propaga taskUpdated cuando el modal de edición emite updated', async () => {
+    await configure();
+    const fixture = createComponent();
+    const task = buildTask();
+    fixture.componentRef.setInput('form', buildForm());
+    fixture.componentRef.setInput('isOpen', true);
+    fixture.componentRef.setInput('tasks', [task]);
+    fixture.componentRef.setInput('statuses', [status]);
+    fixture.detectChanges();
+
+    const spy = jest.fn();
+    fixture.componentInstance.taskUpdated.subscribe(spy);
+
+    const edited = buildTask({ title: 'Editada' });
+    fixture.componentInstance.onTaskEdited(edited);
+
+    expect(spy).toHaveBeenCalledWith(edited);
+  });
+
   it('emite close al hacer clic en cerrar', async () => {
     await configure();
     const fixture = createComponent();

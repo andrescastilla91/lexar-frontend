@@ -17,6 +17,16 @@ export class TasksPage {
   readonly listViewButton: Locator;
   readonly boardViewButton: Locator;
   readonly approvalsInboxToggle: Locator;
+  readonly editButton: Locator;
+  /** F28 — modal de `TaskEditModalComponent`: usa `FormModalShellComponent`,
+   * cuyo `<h3>` de título vive FUERA del `<form>` proyectado (a diferencia
+   * del modal de creación, que es un `<form>` propio con el heading
+   * adentro) — por eso se escopa por el contenedor `fixed inset-0`
+   * completo, no por `form`. El detalle se cierra antes de abrir este modal
+   * (tasks.component.ts: `openEditModal`), así que solo hay un overlay
+   * `fixed inset-0` visible a la vez. */
+  readonly editModal: Locator;
+  readonly editSaveButton: Locator;
 
   constructor(private readonly page: Page) {
     this.newTaskButton = page.getByRole('button', { name: 'Nueva tarea' });
@@ -30,6 +40,11 @@ export class TasksPage {
     // pendientes 2") — match parcial por defecto de getByRole cubre ambos
     // casos (con y sin badge).
     this.approvalsInboxToggle = page.getByRole('button', { name: 'Aprobaciones pendientes' });
+    this.editButton = page.getByRole('button', { name: 'Editar', exact: true });
+    this.editModal = page
+      .locator('div.fixed.inset-0')
+      .filter({ has: page.getByRole('heading', { name: 'Editar tarea' }) });
+    this.editSaveButton = this.editModal.getByRole('button', { name: 'Guardar cambios' });
   }
 
   async goto(): Promise<void> {
@@ -110,6 +125,39 @@ export class TasksPage {
 
   async openApprovalsInbox(): Promise<void> {
     await this.approvalsInboxToggle.click();
+  }
+
+  /** Abre el panel de detalle desde la vista de lista (mismo botón que
+   * `listTaskRow`, dispara `openDetail(task)` en tasks.component.ts). */
+  async openDetailFromList(title: string): Promise<void> {
+    await this.listTaskRow(title).click();
+  }
+
+  async openEditModal(): Promise<void> {
+    await this.editButton.click();
+  }
+
+  /** F28 — llena el formulario del modal de edición. Los campos vacíos se
+   * dejan tal cual (no se limpian) para no depender de cuáles quiere tocar
+   * cada test. */
+  async fillEditForm(options: {
+    title?: string;
+    description?: string;
+    priority?: 'LOW' | 'NORMAL' | 'HIGH';
+  }): Promise<void> {
+    if (options.title !== undefined) {
+      await this.editModal.locator('input[formcontrolname="title"]').fill(options.title);
+    }
+    if (options.description !== undefined) {
+      await this.editModal.locator('textarea[formcontrolname="description"]').fill(options.description);
+    }
+    if (options.priority !== undefined) {
+      await this.editModal.locator('select[formcontrolname="priority"]').selectOption(options.priority);
+    }
+  }
+
+  async submitEdit(): Promise<void> {
+    await this.editSaveButton.click();
   }
 
   approvalItem(taskTitle: string): Locator {

@@ -6,6 +6,7 @@ import { CatalogsService } from '../../../core/services/catalogs.service';
 import { ConfirmDialogService } from '../../../core/services/confirm-dialog.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { PermissionsService } from '../../../core/services/permissions.service';
+import { PlanUpgradeService } from '../../../core/services/plan-upgrade.service';
 import { CatalogItem } from '../../../core/models/catalog-backend.model';
 
 describe('SettingsCatalogsComponent', () => {
@@ -17,6 +18,7 @@ describe('SettingsCatalogsComponent', () => {
   };
   let confirmDialogMock: { confirm: jest.Mock };
   let toastServiceMock: { success: jest.Mock; error: jest.Mock };
+  let planUpgradeMock: { isPlanGateError: jest.Mock; promptUpgrade: jest.Mock };
 
   const items: CatalogItem[] = [
     { id: '1', catalogType: 'document_type', code: 'CONTRATO', label: 'Contrato', color: 'primary', sortOrder: 0, isActive: true, isSystem: true, usageCount: 3 },
@@ -32,6 +34,7 @@ describe('SettingsCatalogsComponent', () => {
     };
     confirmDialogMock = { confirm: jest.fn().mockResolvedValue(true) };
     toastServiceMock = { success: jest.fn(), error: jest.fn() };
+    planUpgradeMock = { isPlanGateError: jest.fn().mockReturnValue(false), promptUpgrade: jest.fn() };
 
     TestBed.configureTestingModule({
       imports: [SettingsCatalogsComponent],
@@ -39,6 +42,7 @@ describe('SettingsCatalogsComponent', () => {
         { provide: CatalogsService, useValue: catalogsServiceMock },
         { provide: ConfirmDialogService, useValue: confirmDialogMock },
         { provide: ToastService, useValue: toastServiceMock },
+        { provide: PlanUpgradeService, useValue: planUpgradeMock },
         {
           provide: PermissionsService,
           useValue: {
@@ -247,5 +251,48 @@ describe('SettingsCatalogsComponent', () => {
     await component.deleteItem(items[1]);
 
     expect(toastServiceMock.error).toHaveBeenCalledWith('No se pudo eliminar');
+  });
+
+  // F7-R3: customCatalogs está gateado por plan (create/update/delete). El
+  // toast+CTA de upgrade lo dispara error.interceptor.ts de forma
+  // centralizada (ver error.interceptor.spec.ts) — el componente solo hace
+  // su limpieza local y evita mostrar el error genérico encima.
+  it('submitItem en gate de plan: cierra el modal, no muestra el error genérico ni dispara el CTA él mismo', () => {
+    const gateError = { error: { code: 'FEATURE_NOT_IN_PLAN', message: 'Tu plan no incluye catálogos personalizables' } };
+    planUpgradeMock.isPlanGateError.mockReturnValue(true);
+    catalogsServiceMock.createItem.mockReturnValue(throwError(() => gateError));
+    const component = createComponent();
+    component.openCreateModal();
+    component.itemForm.setValue({ code: 'URGENTE', label: 'Urgente', color: '' });
+
+    component.submitItem();
+
+    expect(planUpgradeMock.promptUpgrade).not.toHaveBeenCalled();
+    expect(component.modalOpen()).toBe(false);
+    expect(component.formError()).toBeNull();
+  });
+
+  it('toggleActive en gate de plan: no muestra el toast genérico ni dispara el CTA él mismo', () => {
+    const gateError = { error: { code: 'FEATURE_NOT_IN_PLAN', message: 'Tu plan no incluye catálogos personalizables' } };
+    planUpgradeMock.isPlanGateError.mockReturnValue(true);
+    catalogsServiceMock.updateItem.mockReturnValue(throwError(() => gateError));
+    const component = createComponent();
+
+    component.toggleActive(items[0]);
+
+    expect(planUpgradeMock.promptUpgrade).not.toHaveBeenCalled();
+    expect(toastServiceMock.error).not.toHaveBeenCalled();
+  });
+
+  it('deleteItem en gate de plan: no muestra el toast genérico ni dispara el CTA él mismo', async () => {
+    const gateError = { error: { code: 'FEATURE_NOT_IN_PLAN', message: 'Tu plan no incluye catálogos personalizables' } };
+    planUpgradeMock.isPlanGateError.mockReturnValue(true);
+    catalogsServiceMock.deleteItem.mockReturnValue(throwError(() => gateError));
+    const component = createComponent();
+
+    await component.deleteItem(items[1]);
+
+    expect(planUpgradeMock.promptUpgrade).not.toHaveBeenCalled();
+    expect(toastServiceMock.error).not.toHaveBeenCalled();
   });
 });

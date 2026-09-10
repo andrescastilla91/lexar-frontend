@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ClientPortalInvitationsService } from '../services/client-portal-invitations.service';
 import { SubscriptionService } from '../services/subscription.service';
+import { PlanUpgradeService } from '../services/plan-upgrade.service';
 import { ClientPortalInvitationSummary } from '../models/portal.model';
 import { HasPermissionDirective } from '../directives/has-permission.directive';
 import { ToastService } from '../services/toast.service';
@@ -24,7 +25,13 @@ import { ToastService } from '../services/toast.service';
       } @else if (!hasClientPortalFeature()) {
         <div class="rounded-md border border-default bg-surface-muted p-3 text-xs text-subtle">
           El portal del cliente no está incluido en tu plan actual.
-          <a routerLink="/configuracion" class="font-semibold text-info hover:underline">Actualizar plan</a>
+          <a
+            routerLink="/configuracion"
+            [queryParams]="{ tab: 'plan' }"
+            class="font-semibold text-info hover:underline"
+          >
+            Actualizar plan
+          </a>
         </div>
       } @else {
         @if (isLoadingList()) {
@@ -92,6 +99,7 @@ export class ClientPortalInvitationsComponent implements OnInit {
 
   private readonly portalInvitationsService = inject(ClientPortalInvitationsService);
   private readonly subscriptionService = inject(SubscriptionService);
+  private readonly planUpgrade = inject(PlanUpgradeService);
   private readonly toastService = inject(ToastService);
 
   readonly invitations = signal<ClientPortalInvitationSummary[]>([]);
@@ -148,8 +156,19 @@ export class ClientPortalInvitationsComponent implements OnInit {
         this.loadInvitations();
       },
       error: (error) => {
-        this.errorMessage.set(error.error?.message || 'Error al invitar al cliente');
         this.isInviting.set(false);
+        // F7-R3: el toast+CTA de upgrade ya lo dispara error.interceptor.ts
+        // de forma centralizada — aquí no hay nada local que limpiar.
+        if (this.planUpgrade.isPlanGateError(error)) {
+          return;
+        }
+        // BUG-20 ola 1: error.message ya es el mensaje real y seguro que
+        // calculó error.interceptor.ts (BUG-19) — error.error?.message lee
+        // el body crudo, sin sus reglas de seguridad. Además faltaba el
+        // toast (solo se mostraba inline).
+        const message = error.message || 'Error al invitar al cliente';
+        this.errorMessage.set(message);
+        this.toastService.error(message);
       },
     });
   }
@@ -166,7 +185,9 @@ export class ClientPortalInvitationsComponent implements OnInit {
       },
       error: (error) => {
         this.resendingId.set(null);
-        this.toastService.error(error.error?.message || 'Error al reenviar la invitación');
+        // BUG-20 ola 1: ver comentario en invite() — error.message, no
+        // error.error?.message.
+        this.toastService.error(error.message || 'Error al reenviar la invitación');
       },
     });
   }

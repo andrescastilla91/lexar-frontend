@@ -5,6 +5,7 @@ import { RolesComponent } from './roles.component';
 import { RolesService } from '../../core/services/roles.service';
 import { ConfirmDialogService } from '../../core/services/confirm-dialog.service';
 import { PermissionsService } from '../../core/services/permissions.service';
+import { ToastService } from '../../core/services/toast.service';
 import { Role, RolesListResponse, PermissionsListResponse } from '../../core/models/role-backend.model';
 
 function buildRole(overrides: Partial<Role> = {}): Role {
@@ -29,11 +30,21 @@ describe('RolesComponent', () => {
     assignPermissions: jest.Mock;
   };
   let confirmDialogMock: { confirm: jest.Mock };
-  let alertSpy: jest.SpyInstance;
+  let toastMock: { error: jest.Mock; success: jest.Mock };
 
   const rolesResponse: RolesListResponse = { roles: [buildRole()], total: 1 };
   const permissionsResponse: PermissionsListResponse = {
-    permissions: [{ id: 'p1', code: 'clients.view', description: 'Ver clientes' }],
+    permissions: [
+      {
+        id: 'p1',
+        code: 'clients.view',
+        description: 'Ver clientes',
+        label: 'Ver detalle de cliente',
+        groupCode: 'clients',
+        groupLabel: 'Clientes',
+        groupDescription: null,
+      },
+    ],
     total: 1,
   };
 
@@ -48,13 +59,14 @@ describe('RolesComponent', () => {
       assignPermissions: jest.fn(),
     };
     confirmDialogMock = { confirm: jest.fn().mockResolvedValue(true) };
-    alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {});
+    toastMock = { error: jest.fn(), success: jest.fn() };
 
     TestBed.configureTestingModule({
       imports: [RolesComponent],
       providers: [
         { provide: RolesService, useValue: rolesServiceMock },
         { provide: ConfirmDialogService, useValue: confirmDialogMock },
+        { provide: ToastService, useValue: toastMock },
         {
           provide: PermissionsService,
           useValue: {
@@ -66,10 +78,6 @@ describe('RolesComponent', () => {
       ],
     });
   }
-
-  afterEach(() => {
-    alertSpy.mockRestore();
-  });
 
   function createComponent() {
     const fixture = TestBed.createComponent(RolesComponent);
@@ -106,13 +114,32 @@ describe('RolesComponent', () => {
     expect(component.customRolesCount()).toBe(1);
   });
 
-  it('permissionCatalogItems agrupa por el prefijo del código de permiso', () => {
+  // F31: label/group ya vienen traducidos del backend (permission.mapper.ts
+  // nunca los deja vacíos) — el componente ya no reconstruye nada a partir
+  // del code, solo pasa label/groupLabel tal cual llegaron.
+  it('permissionCatalogItems usa label/groupLabel del backend, nunca el code crudo', () => {
     configure();
     rolesServiceMock.getAllPermissions.mockReturnValue(
       of({
         permissions: [
-          { id: 'p1', code: 'clients.view' },
-          { id: 'p2', code: 'general-permission' },
+          {
+            id: 'p1',
+            code: 'clients.view',
+            description: 'Ver detalle de cliente',
+            label: 'Ver detalle de cliente',
+            groupCode: 'clients',
+            groupLabel: 'Clientes',
+            groupDescription: 'Gestión de la cartera de clientes',
+          },
+          {
+            id: 'p2',
+            code: 'audit.view',
+            description: 'Ver auditoría',
+            label: 'Ver auditoría',
+            groupCode: 'general',
+            groupLabel: 'General',
+            groupDescription: null,
+          },
         ],
         total: 2,
       }),
@@ -120,8 +147,8 @@ describe('RolesComponent', () => {
     const { component } = createComponent();
 
     expect(component.permissionCatalogItems()).toEqual([
-      { id: 'p1', label: 'clients.view', description: undefined, group: 'clients' },
-      { id: 'p2', label: 'general-permission', description: undefined, group: 'General' },
+      { id: 'p1', label: 'Ver detalle de cliente', description: 'Ver detalle de cliente', group: 'Clientes' },
+      { id: 'p2', label: 'Ver auditoría', description: 'Ver auditoría', group: 'General' },
     ]);
   });
 
@@ -196,6 +223,31 @@ describe('RolesComponent', () => {
     expect(component.isSubmitting()).toBe(false);
   });
 
+  // BUG-19: el bug real vivía en error.interceptor.ts (pisaba el mensaje con
+  // el genérico "No tienes permisos..." para todo 403, ver
+  // error.interceptor.spec.ts) — createRole ya leía error.message
+  // correctamente, solo recibía el valor equivocado. Este caso deja
+  // constancia de que, con un error que trae `code` (la forma real que ya
+  // manda el interceptor corregido para un gate de plan o de permisos),
+  // el componente sigue mostrando el mensaje real sin genericizarlo por su
+  // cuenta.
+  it('submitRole en un 403 con mensaje real (code SUBSCRIPTION_SUSPENDED) expone ese mensaje, no un genérico', () => {
+    configure();
+    rolesServiceMock.createRole.mockReturnValue(
+      throwError(() => ({
+        message: 'Tu suscripción está suspendida. Actualiza tu plan para seguir editando.',
+        statusCode: 403,
+        error: { code: 'SUBSCRIPTION_SUSPENDED' },
+      })),
+    );
+    const { component } = createComponent();
+
+    component.roleForm.setValue({ name: 'Coordinador Legal', description: '' });
+    component.submitRole();
+
+    expect(component.errorMessage()).toBe('Tu suscripción está suspendida. Actualiza tu plan para seguir editando.');
+  });
+
   it('submitRole actualiza un rol existente', () => {
     configure();
     const editing = buildRole({ id: 'r9' });
@@ -231,14 +283,14 @@ describe('RolesComponent', () => {
     expect(rolesServiceMock.deleteRole).not.toHaveBeenCalled();
   });
 
-  it('deleteRole en error muestra un alert con el mensaje del backend', async () => {
+  it('deleteRole en error, muestra un toast con el mensaje real (BUG-20: ya no usa alert nativo)', async () => {
     configure();
     rolesServiceMock.deleteRole.mockReturnValue(throwError(() => ({ message: 'No se puede eliminar un rol en uso' })));
     const { component } = createComponent();
 
     await component.deleteRole(buildRole());
 
-    expect(alertSpy).toHaveBeenCalledWith('No se puede eliminar un rol en uso');
+    expect(toastMock.error).toHaveBeenCalledWith('No se puede eliminar un rol en uso');
   });
 
   it('managePermissions abre el modal con los permisos actuales del rol', () => {
@@ -254,14 +306,14 @@ describe('RolesComponent', () => {
     expect(component.showPermissionsModal()).toBe(true);
   });
 
-  it('managePermissions en error muestra un alert', () => {
+  it('managePermissions en error, muestra un toast (BUG-20: ya no usa alert nativo)', () => {
     configure();
     rolesServiceMock.getRolePermissions.mockReturnValue(throwError(() => ({ message: 'No se pudieron cargar los permisos' })));
     const { component } = createComponent();
 
     component.managePermissions(buildRole());
 
-    expect(alertSpy).toHaveBeenCalledWith('No se pudieron cargar los permisos');
+    expect(toastMock.error).toHaveBeenCalledWith('No se pudieron cargar los permisos');
     expect(component.showPermissionsModal()).toBe(false);
   });
 
@@ -300,7 +352,7 @@ describe('RolesComponent', () => {
     expect(rolesServiceMock.assignPermissions).not.toHaveBeenCalled();
   });
 
-  it('savePermissions en error muestra un alert y detiene isSubmitting', () => {
+  it('savePermissions en error, muestra un toast y detiene isSubmitting (BUG-20: ya no usa alert nativo)', () => {
     configure();
     rolesServiceMock.getRolePermissions.mockReturnValue(of({ permissions: [], total: 0 }));
     rolesServiceMock.assignPermissions.mockReturnValue(throwError(() => ({ message: 'Permiso inválido' })));
@@ -309,7 +361,7 @@ describe('RolesComponent', () => {
 
     component.savePermissions(['p1']);
 
-    expect(alertSpy).toHaveBeenCalledWith('Permiso inválido');
+    expect(toastMock.error).toHaveBeenCalledWith('Permiso inválido');
     expect(component.isSubmitting()).toBe(false);
   });
 });

@@ -1,5 +1,5 @@
 import { ApplicationConfig, ErrorHandler, provideZoneChangeDetection, provideAppInitializer, inject } from '@angular/core';
-import { provideRouter } from '@angular/router';
+import { provideRouter, TitleStrategy } from '@angular/router';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import * as Sentry from '@sentry/angular';
 import { routes } from './app.routes';
@@ -9,12 +9,17 @@ import { portalAuthInterceptor } from './core/interceptors/portal-auth.intercept
 import { AuthService } from './core/services/auth.service';
 import { PlatformAdminService } from './core/services/platform-admin.service';
 import { PortalAuthService } from './core/services/portal-auth.service';
+import { LexArTitleStrategy } from './core/services/lexar-title-strategy';
 import { catchError, of } from 'rxjs';
 
 export const appConfig: ApplicationConfig = {
   providers: [
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideRouter(routes),
+    // F29(b): reemplaza el DefaultTitleStrategy para concatenar
+    // "Sección · Sufijo" desde environment.brandName en un solo lugar —
+    // ver core/services/lexar-title-strategy.ts.
+    { provide: TitleStrategy, useClass: LexArTitleStrategy },
     provideHttpClient(
       withInterceptors([authInterceptor, portalAuthInterceptor, errorInterceptor])
     ),

@@ -43,6 +43,35 @@ jobs:
             exit 1
           fi
 
+      # BUG-20 ola 4: guardia contra el patrón error.error?.message (se salta
+      # las reglas por status de error.interceptor.ts, BUG-19) y contra
+      # alert() nativo (debe usarse ToastService, ver docs/06-bugs/BUG-20-*).
+      # Dos excepciones documentadas:
+      # - legal-processes.service.ts: territorio de BUG-10, fuera de BUG-20.
+      # - líneas marcadas con "// bug20-401-ok": endpoints de login/2FA
+      #   (auth, platform-admin, portal-auth) donde el fallo esperado es 401
+      #   y error.interceptor.ts ignora ese status a propósito (ver el
+      #   comentario dentro de auth.service.ts login()).
+      - name: BUG-20 — sin error.error?.message ni alert() nativo
+        run: |
+          PATTERN_HITS=$(grep -rnE '\.error\?\.message' src/app --include='*.ts' \
+            | grep -v '/legal-processes.service.ts' \
+            | grep -v 'bug20-401-ok' \
+            | grep -vE ':[0-9]+:[[:space:]]*(//|\*)' || true)
+          if [ -n "$PATTERN_HITS" ]; then
+            echo "::error::Encontrado error.error?.message fuera de legal-processes.service.ts. Usa error.message (ver error.interceptor.ts, BUG-19/BUG-20)."
+            echo "$PATTERN_HITS"
+            exit 1
+          fi
+
+          ALERT_HITS=$(grep -rnE '\balert\(' src/app --include='*.ts' \
+            | grep -vE ':[0-9]+:[[:space:]]*(//|\*)' || true)
+          if [ -n "$ALERT_HITS" ]; then
+            echo "::error::Encontrado alert() nativo. Usa ToastService (ver BUG-20)."
+            echo "$ALERT_HITS"
+            exit 1
+          fi
+
       - name: Build producción
         run: npx ng build --configuration production
 

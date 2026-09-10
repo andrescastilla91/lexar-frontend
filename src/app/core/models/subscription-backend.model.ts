@@ -6,6 +6,13 @@ export interface PlanFeatures {
   chatbot: boolean;
   clientPortal: boolean;
   advancedReports: boolean;
+  // F7-R1 (re-empaquetado de planes): capacidades nuevas del anexo 2026-08-19.
+  taskApprovals: boolean;
+  customCatalogs: boolean;
+  mandatory2faPolicy: boolean;
+  exportableReports: boolean;
+  exportableAudit: boolean;
+  earlyAccess: boolean;
 }
 
 export type SubscriptionStatus = 'trialing' | 'active' | 'past_due' | 'suspended' | 'canceled';
@@ -14,6 +21,9 @@ export interface EntitlementsLimits {
   maxUsers: number | null;
   maxActiveProcesses: number | null;
   maxStorageMb: number | null;
+  // F7-R1: cupo IA niveles 1-2 y tope de clientes del portal (null = sin límite).
+  aiCreditsMonth: number;
+  portalClientsMax: number | null;
 }
 
 export interface EntitlementsUsage {
@@ -49,6 +59,8 @@ export interface PlanCatalogEntry {
   maxUsers: number | null;
   maxActiveProcesses: number | null;
   maxStorageMb: number | null;
+  aiCreditsMonth: number;
+  portalClientsMax: number | null;
   features: PlanFeatures;
   sortOrder: number;
 }

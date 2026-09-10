@@ -1,9 +1,12 @@
 import { TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ClientsService } from './clients.service';
 import { ClientResponse } from '../models/client-backend.model';
 import { environment } from '../../../environments/environment';
+
+import { errorInterceptor } from '../interceptors/error.interceptor';
+import { PlanUpgradeService } from './plan-upgrade.service';
 
 describe('ClientsService', () => {
   let service: ClientsService;
@@ -28,7 +31,11 @@ describe('ClientsService', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideHttpClient(withInterceptors([errorInterceptor])),
+        provideHttpClientTesting(),
+        { provide: PlanUpgradeService, useValue: { isPlanGateError: () => false, promptUpgrade: () => {} } },
+      ],
     });
 
     service = TestBed.inject(ClientsService);
@@ -67,7 +74,7 @@ describe('ClientsService', () => {
 
     httpMock.expectOne(() => true).flush('error', { status: 500, statusText: 'Server Error' });
 
-    expect(error?.message).toBe('Error al cargar clientes');
+    expect(error?.message).toBe('Error interno del servidor');
   });
 
   it('getClient hace GET a /clients/:id y extrae el cliente', () => {
@@ -128,7 +135,7 @@ describe('ClientsService', () => {
 
     httpMock.expectOne(`${apiUrl}/client-1`).flush('error', { status: 500, statusText: 'Server Error' });
 
-    expect(error?.message).toBe('Error al actualizar cliente');
+    expect(error?.message).toBe('Error interno del servidor');
   });
 
   it('toggleActive hace PATCH a /toggle-active y extrae el cliente', () => {
@@ -148,6 +155,6 @@ describe('ClientsService', () => {
 
     httpMock.expectOne(`${apiUrl}/client-1/toggle-active`).flush('error', { status: 500, statusText: 'Server Error' });
 
-    expect(error?.message).toBe('Error al cambiar estado del cliente');
+    expect(error?.message).toBe('Error interno del servidor');
   });
 });

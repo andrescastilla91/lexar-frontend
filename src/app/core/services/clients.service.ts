@@ -21,6 +21,8 @@ interface ClientItemResponse {
   client: ClientResponse;
 }
 
+// BUG-20 ola 2: lee error.message — no error.error?.message — ver el
+// comentario en deadlines.service.ts.
 @Injectable({ providedIn: 'root' })
 export class ClientsService {
   private readonly http = inject(HttpClient);
@@ -35,7 +37,7 @@ export class ClientsService {
     }).pipe(
       catchError((error) => {
         console.error('Error al obtener clientes:', error);
-        return throwError(() => new Error(error.error?.message || 'Error al cargar clientes'));
+        return throwError(() => new Error(error.message || 'Error al cargar clientes'));
       })
     );
   }
@@ -48,7 +50,7 @@ export class ClientsService {
       map(response => response.client),
       catchError((error) => {
         console.error('Error al obtener cliente:', error);
-        return throwError(() => new Error(error.error?.message || 'Error al cargar cliente'));
+        return throwError(() => new Error(error.message || 'Error al cargar cliente'));
       })
     );
   }
@@ -61,7 +63,7 @@ export class ClientsService {
       map(response => response.client),
       catchError((error) => {
         console.error('Error al crear cliente:', error);
-        return throwError(() => new Error(error.error?.message || 'Error al crear cliente'));
+        return throwError(() => new Error(error.message || 'Error al crear cliente'));
       })
     );
   }
@@ -74,7 +76,7 @@ export class ClientsService {
       map(response => response.client),
       catchError((error) => {
         console.error('Error al actualizar cliente:', error);
-        return throwError(() => new Error(error.error?.message || 'Error al actualizar cliente'));
+        return throwError(() => new Error(error.message || 'Error al actualizar cliente'));
       })
     );
   }
@@ -87,7 +89,7 @@ export class ClientsService {
       map(response => response.client),
       catchError((error) => {
         console.error('Error al cambiar estado del cliente:', error);
-        return throwError(() => new Error(error.error?.message || 'Error al cambiar estado del cliente'));
+        return throwError(() => new Error(error.message || 'Error al cambiar estado del cliente'));
       })
     );
   }

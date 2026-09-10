@@ -7,6 +7,7 @@ import { LegalProcessesService } from '../../core/services/legal-processes.servi
 import { ClientsService } from '../../core/services/clients.service';
 import { ConfirmDialogService } from '../../core/services/confirm-dialog.service';
 import { PermissionsService } from '../../core/services/permissions.service';
+import { ToastService } from '../../core/services/toast.service';
 import { FileModel } from '../../core/models/file.model';
 
 function buildFile(overrides: Partial<FileModel> = {}): FileModel {
@@ -44,7 +45,7 @@ describe('DocumentsComponent', () => {
   let processesServiceMock: { getLegalProcesses: jest.Mock };
   let clientsServiceMock: { getClients: jest.Mock };
   let confirmDialogMock: { confirm: jest.Mock };
-  let alertSpy: jest.SpyInstance;
+  let toastMock: { error: jest.Mock; success: jest.Mock };
   let consoleErrorSpy: jest.SpyInstance;
 
   function configure(): void {
@@ -68,6 +69,7 @@ describe('DocumentsComponent', () => {
       ),
     };
     confirmDialogMock = { confirm: jest.fn().mockResolvedValue(true) };
+    toastMock = { error: jest.fn(), success: jest.fn() };
 
     TestBed.configureTestingModule({
       imports: [DocumentsComponent],
@@ -76,6 +78,7 @@ describe('DocumentsComponent', () => {
         { provide: LegalProcessesService, useValue: processesServiceMock },
         { provide: ClientsService, useValue: clientsServiceMock },
         { provide: ConfirmDialogService, useValue: confirmDialogMock },
+        { provide: ToastService, useValue: toastMock },
         {
           provide: PermissionsService,
           useValue: {
@@ -87,7 +90,6 @@ describe('DocumentsComponent', () => {
       ],
     });
 
-    alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {});
     consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
   }
 
@@ -98,7 +100,6 @@ describe('DocumentsComponent', () => {
   }
 
   afterEach(() => {
-    alertSpy?.mockRestore();
     consoleErrorSpy?.mockRestore();
   });
 
@@ -175,6 +176,63 @@ describe('DocumentsComponent', () => {
     expect(filesServiceMock.listFiles).toHaveBeenLastCalledWith({ entityType: 'client' });
   });
 
+  it('onOnlyMineChange actualiza el filtro y recarga con onlyMine:true', () => {
+    configure();
+    const { component } = createComponent();
+
+    component.onOnlyMineChange(true);
+
+    expect(component.onlyMine()).toBe(true);
+    expect(filesServiceMock.listFiles).toHaveBeenLastCalledWith({ onlyMine: true });
+  });
+
+  it('onOnlyMineChange(false) recarga sin el parámetro onlyMine', () => {
+    configure();
+    const { component } = createComponent();
+
+    component.onOnlyMineChange(true);
+    component.onOnlyMineChange(false);
+
+    expect(component.onlyMine()).toBe(false);
+    expect(filesServiceMock.listFiles).toHaveBeenLastCalledWith({});
+  });
+
+  it('hasFullDocumentAccess refleja el permiso files.view.all del usuario', () => {
+    filesServiceMock = {
+      listFiles: jest.fn().mockReturnValue(of({ data: [], total: 0, page: 1, limit: 10 })),
+      uploadFile: jest.fn(),
+      previewFile: jest.fn(),
+      downloadFile: jest.fn(),
+      deleteFile: jest.fn(),
+      formatFileSize: jest.fn().mockReturnValue('1 KB'),
+      getFileIcon: jest.fn().mockReturnValue('M0 0'),
+    };
+    processesServiceMock = { getLegalProcesses: jest.fn().mockReturnValue(of({ message: '', legalProcesses: [], total: 0, page: 1, limit: 100 })) };
+    clientsServiceMock = { getClients: jest.fn().mockReturnValue(of({ message: '', clients: [], total: 0, page: 1, limit: 100 })) };
+    confirmDialogMock = { confirm: jest.fn() };
+
+    TestBed.configureTestingModule({
+      imports: [DocumentsComponent],
+      providers: [
+        { provide: FilesService, useValue: filesServiceMock },
+        { provide: LegalProcessesService, useValue: processesServiceMock },
+        { provide: ClientsService, useValue: clientsServiceMock },
+        { provide: ConfirmDialogService, useValue: confirmDialogMock },
+        {
+          provide: PermissionsService,
+          useValue: {
+            hasAnyPermission: jest.fn((perms: string[]) => perms.includes('files.view')),
+            hasPermission: jest.fn((perm: string) => perm === 'files.view'),
+            userPermissions: signal(['files.view']),
+          },
+        },
+      ],
+    });
+
+    const { component } = createComponent();
+    expect(component.hasFullDocumentAccess()).toBe(false);
+  });
+
   it('toggleUploadPanel abre y cierra el panel, limpiando el archivo y el error al cerrar', () => {
     configure();
     const { component } = createComponent();
@@ -244,9 +302,12 @@ describe('DocumentsComponent', () => {
     expect(filesServiceMock.listFiles).toHaveBeenCalledTimes(2);
   });
 
-  it('handleUpload en error, expone el mensaje de error', () => {
+  it('handleUpload en error, expone el mensaje real en el form y en un toast', () => {
     configure();
-    filesServiceMock.uploadFile.mockReturnValue(throwError(() => ({ error: { message: 'Archivo inválido' } })));
+    // BUG-20 ola 1: FilesService no envuelve sus errores — el componente
+    // recibe directo el objeto que arma error.interceptor.ts, con .message
+    // ya resuelto (no anidado bajo .error).
+    filesServiceMock.uploadFile.mockReturnValue(throwError(() => ({ message: 'Archivo inválido' })));
     const { component } = createComponent();
 
     component.uploadForm.patchValue({ entityId: 'p1' });
@@ -256,6 +317,7 @@ describe('DocumentsComponent', () => {
 
     expect(component.uploadError()).toBe('Archivo inválido');
     expect(component.isUploading()).toBe(false);
+    expect(toastMock.error).toHaveBeenCalledWith('Archivo inválido');
   });
 
   it('previewFile en éxito setea la URL y el archivo previsualizado', () => {
@@ -293,14 +355,24 @@ describe('DocumentsComponent', () => {
     expect(component.previewingFile()).toBeNull();
   });
 
-  it('downloadFile en error muestra una alerta', () => {
+  it('downloadFile en error, muestra un toast con el mensaje real', () => {
     configure();
-    filesServiceMock.downloadFile.mockReturnValue(throwError(() => new Error('fail')));
+    filesServiceMock.downloadFile.mockReturnValue(throwError(() => ({ message: 'No se pudo generar el enlace' })));
     const { component } = createComponent();
 
     component.downloadFile(buildFile());
 
-    expect(alertSpy).toHaveBeenCalledWith('Error al descargar el archivo');
+    expect(toastMock.error).toHaveBeenCalledWith('No se pudo generar el enlace');
+  });
+
+  it('downloadFile en error sin mensaje, usa el texto de respaldo', () => {
+    configure();
+    filesServiceMock.downloadFile.mockReturnValue(throwError(() => ({})));
+    const { component } = createComponent();
+
+    component.downloadFile(buildFile());
+
+    expect(toastMock.error).toHaveBeenCalledWith('Error al descargar el archivo');
   });
 
   it('downloadFile en éxito no lanza errores', () => {
@@ -309,7 +381,7 @@ describe('DocumentsComponent', () => {
     const { component } = createComponent();
 
     expect(() => component.downloadFile(buildFile())).not.toThrow();
-    expect(alertSpy).not.toHaveBeenCalled();
+    expect(toastMock.error).not.toHaveBeenCalled();
   });
 
   it('deleteFile no llama al servicio si el usuario cancela la confirmación', async () => {
@@ -333,13 +405,13 @@ describe('DocumentsComponent', () => {
     expect(filesServiceMock.listFiles).toHaveBeenCalledTimes(2);
   });
 
-  it('deleteFile en error muestra una alerta con el mensaje del backend', async () => {
+  it('deleteFile en error, muestra un toast con el mensaje real del backend', async () => {
     configure();
-    filesServiceMock.deleteFile.mockReturnValue(throwError(() => ({ error: { message: 'No se pudo eliminar' } })));
+    filesServiceMock.deleteFile.mockReturnValue(throwError(() => ({ message: 'No se pudo eliminar' })));
     const { component } = createComponent();
 
     await component.deleteFile(buildFile());
 
-    expect(alertSpy).toHaveBeenCalledWith('Error al eliminar: No se pudo eliminar');
+    expect(toastMock.error).toHaveBeenCalledWith('No se pudo eliminar');
   });
 });

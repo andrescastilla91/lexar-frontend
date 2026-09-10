@@ -10,6 +10,7 @@ describe('AdminPlansComponent', () => {
   let platformAdminServiceMock: {
     listPlans: jest.Mock;
     createPlan: jest.Mock;
+    updatePlan: jest.Mock;
     deactivatePlan: jest.Mock;
   };
   let confirmDialogMock: { confirm: jest.Mock };
@@ -25,7 +26,19 @@ describe('AdminPlansComponent', () => {
     maxUsers: 1,
     maxActiveProcesses: 10,
     maxStorageMb: 1024,
-    features: { chatbot: false, clientPortal: false, advancedReports: false },
+    aiCreditsMonth: 20,
+    portalClientsMax: 5,
+    features: {
+      chatbot: false,
+      clientPortal: false,
+      advancedReports: false,
+      taskApprovals: false,
+      customCatalogs: false,
+      mandatory2faPolicy: false,
+      exportableReports: false,
+      exportableAudit: false,
+      earlyAccess: false,
+    },
     isActive: true,
     sortOrder: 0,
   };
@@ -34,6 +47,7 @@ describe('AdminPlansComponent', () => {
     platformAdminServiceMock = {
       listPlans: jest.fn().mockReturnValue(of([plan])),
       createPlan: jest.fn(),
+      updatePlan: jest.fn(),
       deactivatePlan: jest.fn(),
     };
     confirmDialogMock = { confirm: jest.fn().mockResolvedValue(true) };
@@ -107,9 +121,17 @@ describe('AdminPlansComponent', () => {
       maxUsers: 5,
       maxActiveProcesses: 50,
       maxStorageMb: 2048,
+      aiCreditsMonth: 30,
+      portalClientsMax: 8,
       chatbot: true,
       clientPortal: false,
       advancedReports: false,
+      taskApprovals: true,
+      customCatalogs: false,
+      mandatory2faPolicy: false,
+      exportableReports: false,
+      exportableAudit: false,
+      earlyAccess: false,
     });
 
     component.onCreate();
@@ -123,8 +145,20 @@ describe('AdminPlansComponent', () => {
       maxUsers: 5,
       maxActiveProcesses: 50,
       maxStorageMb: 2048,
+      aiCreditsMonth: 30,
+      portalClientsMax: 8,
       sortOrder: 1,
-      features: { chatbot: true, clientPortal: false, advancedReports: false },
+      features: {
+        chatbot: true,
+        clientPortal: false,
+        advancedReports: false,
+        taskApprovals: true,
+        customCatalogs: false,
+        mandatory2faPolicy: false,
+        exportableReports: false,
+        exportableAudit: false,
+        earlyAccess: false,
+      },
     });
     expect(toastServiceMock.success).toHaveBeenCalledWith('Plan creado correctamente.');
     expect(component.showCreateForm()).toBe(false);
@@ -143,9 +177,17 @@ describe('AdminPlansComponent', () => {
       maxUsers: null,
       maxActiveProcesses: null,
       maxStorageMb: null,
+      aiCreditsMonth: 0,
+      portalClientsMax: null,
       chatbot: false,
       clientPortal: false,
       advancedReports: false,
+      taskApprovals: false,
+      customCatalogs: false,
+      mandatory2faPolicy: false,
+      exportableReports: false,
+      exportableAudit: false,
+      earlyAccess: false,
     });
 
     component.onCreate();
@@ -153,6 +195,110 @@ describe('AdminPlansComponent', () => {
     expect(toastServiceMock.error).toHaveBeenCalledWith('No se pudo crear el plan');
     expect(component.showCreateForm()).toBe(true);
     expect(component.isSaving()).toBe(false);
+  });
+
+  it('startEdit precarga el editForm con los valores del plan y cierra el formulario de creación', () => {
+    const component = createComponent();
+    component.showCreateForm.set(true);
+
+    component.startEdit(plan);
+
+    expect(component.showCreateForm()).toBe(false);
+    expect(component.editingPlanId()).toBe('plan-1');
+    expect(component.editingPlanCode()).toBe('INDEPENDIENTE');
+    expect(component.editForm.getRawValue()).toEqual({
+      name: 'Independiente',
+      priceMonthly: 50000,
+      priceYearly: 500000,
+      maxUsers: 1,
+      maxActiveProcesses: 10,
+      maxStorageMb: 1024,
+      aiCreditsMonth: 20,
+      portalClientsMax: 5,
+      chatbot: false,
+      clientPortal: false,
+      advancedReports: false,
+      taskApprovals: false,
+      customCatalogs: false,
+      mandatory2faPolicy: false,
+      exportableReports: false,
+      exportableAudit: false,
+      earlyAccess: false,
+    });
+  });
+
+  it('cancelEdit limpia el plan en edición', () => {
+    const component = createComponent();
+    component.startEdit(plan);
+
+    component.cancelEdit();
+
+    expect(component.editingPlanId()).toBeNull();
+    expect(component.editingPlanCode()).toBeNull();
+  });
+
+  it('onUpdate no envía si no hay plan en edición', () => {
+    const component = createComponent();
+
+    component.onUpdate();
+
+    expect(platformAdminServiceMock.updatePlan).not.toHaveBeenCalled();
+  });
+
+  it('onUpdate en éxito actualiza el plan, recarga el listado y cierra la edición', () => {
+    platformAdminServiceMock.updatePlan.mockReturnValue(of({ ...plan, aiCreditsMonth: 0 }));
+    const component = createComponent();
+    component.startEdit(plan);
+    component.editForm.patchValue({ aiCreditsMonth: 0 });
+
+    component.onUpdate();
+
+    expect(platformAdminServiceMock.updatePlan).toHaveBeenCalledWith('plan-1', {
+      name: 'Independiente',
+      priceMonthly: 50000,
+      priceYearly: 500000,
+      maxUsers: 1,
+      maxActiveProcesses: 10,
+      maxStorageMb: 1024,
+      aiCreditsMonth: 0,
+      portalClientsMax: 5,
+      features: {
+        chatbot: false,
+        clientPortal: false,
+        advancedReports: false,
+        taskApprovals: false,
+        customCatalogs: false,
+        mandatory2faPolicy: false,
+        exportableReports: false,
+        exportableAudit: false,
+        earlyAccess: false,
+      },
+    });
+    expect(toastServiceMock.success).toHaveBeenCalledWith('Plan actualizado correctamente.');
+    expect(component.editingPlanId()).toBeNull();
+    expect(component.isSaving()).toBe(false);
+  });
+
+  it('onUpdate en error notifica y deja la edición abierta', () => {
+    platformAdminServiceMock.updatePlan.mockReturnValue(throwError(() => new Error('No se pudo actualizar el plan')));
+    const component = createComponent();
+    component.startEdit(plan);
+
+    component.onUpdate();
+
+    expect(toastServiceMock.error).toHaveBeenCalledWith('No se pudo actualizar el plan');
+    expect(component.editingPlanId()).toBe('plan-1');
+    expect(component.isSaving()).toBe(false);
+  });
+
+  it('toggleCreateForm alterna el formulario de creación y cierra cualquier edición en curso', () => {
+    const component = createComponent();
+    component.startEdit(plan);
+
+    component.toggleCreateForm();
+
+    expect(component.showCreateForm()).toBe(true);
+    expect(component.editingPlanId()).toBeNull();
   });
 
   it('deactivate pide confirmación y, al aceptar, desactiva y recarga', async () => {

@@ -8,6 +8,7 @@ import { UsersService } from '../../core/services/users.service';
 import { CatalogsService } from '../../core/services/catalogs.service';
 import { ConfirmDialogService } from '../../core/services/confirm-dialog.service';
 import { PermissionsService } from '../../core/services/permissions.service';
+import { ToastService } from '../../core/services/toast.service';
 import { AdvisorResponse, AdvisorStatus } from '../../core/models/advisor-backend.model';
 import { UserBackend } from '../../core/models/user-backend.model';
 import { CatalogItem } from '../../core/models/catalog-backend.model';
@@ -56,8 +57,8 @@ describe('AdvisorsComponent', () => {
   let usersServiceMock: { getUsers: jest.Mock };
   let catalogsServiceMock: { getActiveCatalog: jest.Mock };
   let confirmDialogMock: { confirm: jest.Mock };
+  let toastMock: { error: jest.Mock; success: jest.Mock };
   let navigateSpy: jest.SpyInstance;
-  let alertSpy: jest.SpyInstance;
 
   const specialties: CatalogItem[] = [
     { id: 's1', catalogType: 'advisor_specialty', code: 'CIVIL', label: 'Civil', color: null, sortOrder: 0, isActive: true, isSystem: true },
@@ -78,6 +79,7 @@ describe('AdvisorsComponent', () => {
       getActiveCatalog: jest.fn().mockReturnValue(of(specialties)),
     };
     confirmDialogMock = { confirm: jest.fn().mockResolvedValue(true) };
+    toastMock = { error: jest.fn(), success: jest.fn() };
 
     const activatedRouteMock = {
       snapshot: { queryParamMap: { get: () => openId } },
@@ -91,6 +93,7 @@ describe('AdvisorsComponent', () => {
         { provide: UsersService, useValue: usersServiceMock },
         { provide: CatalogsService, useValue: catalogsServiceMock },
         { provide: ConfirmDialogService, useValue: confirmDialogMock },
+        { provide: ToastService, useValue: toastMock },
         { provide: ActivatedRoute, useValue: activatedRouteMock },
         {
           provide: PermissionsService,
@@ -105,7 +108,6 @@ describe('AdvisorsComponent', () => {
 
     const router = TestBed.inject(Router);
     navigateSpy = jest.spyOn(router, 'navigate').mockResolvedValue(true);
-    alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {});
   }
 
   async function createComponent() {
@@ -115,10 +117,6 @@ describe('AdvisorsComponent', () => {
     fixture.detectChanges();
     return { fixture, component: fixture.componentInstance };
   }
-
-  afterEach(() => {
-    alertSpy?.mockRestore();
-  });
 
   it('al iniciar carga asesores, usuarios y especialidades', async () => {
     configure();
@@ -132,14 +130,17 @@ describe('AdvisorsComponent', () => {
     expect(component.specialties()).toEqual(specialties);
   });
 
-  it('en error al cargar asesores, expone el mensaje y limpia la lista', async () => {
+  it('en error al cargar asesores, expone el mensaje real y lo muestra en un toast', async () => {
     configure();
-    advisorsServiceMock.getAdvisors.mockReturnValue(throwError(() => ({ error: { message: 'Error al cargar asesores' } })));
+    // BUG-20 ola 1: advisorsService ya envuelve el error del backend en un
+    // Error nativo (error.message), no en { error: { message } }.
+    advisorsServiceMock.getAdvisors.mockReturnValue(throwError(() => new Error('Error al cargar asesores')));
     const { component } = await createComponent();
 
     expect(component.errorMessage()).toBe('Error al cargar asesores');
     expect(component.advisors()).toEqual([]);
     expect(component.isLoading()).toBe(false);
+    expect(toastMock.error).toHaveBeenCalledWith('Error al cargar asesores');
   });
 
   it('en error al cargar usuarios, deja la lista de usuarios vacía', async () => {
@@ -231,9 +232,9 @@ describe('AdvisorsComponent', () => {
     expect(advisorsServiceMock.getAdvisors).toHaveBeenCalledTimes(2);
   });
 
-  it('submitAdvisor en error de creación, expone el mensaje', async () => {
+  it('submitAdvisor en error de creación, expone el mensaje real y lo muestra en un toast', async () => {
     configure();
-    advisorsServiceMock.createAdvisor.mockReturnValue(throwError(() => ({ error: { message: 'Error al crear asesor' } })));
+    advisorsServiceMock.createAdvisor.mockReturnValue(throwError(() => new Error('Error al crear asesor')));
     const { component } = await createComponent();
 
     component.advisorForm.setValue({
@@ -249,6 +250,7 @@ describe('AdvisorsComponent', () => {
 
     expect(component.errorMessage()).toBe('Error al crear asesor');
     expect(component.isSubmitting()).toBe(false);
+    expect(toastMock.error).toHaveBeenCalledWith('Error al crear asesor');
   });
 
   it('submitAdvisor actualiza un asesor existente en éxito', async () => {
@@ -266,10 +268,10 @@ describe('AdvisorsComponent', () => {
     expect(component.panelOpen()).toBe(false);
   });
 
-  it('submitAdvisor en error de actualización, expone el mensaje', async () => {
+  it('submitAdvisor en error de actualización, expone el mensaje real y lo muestra en un toast', async () => {
     configure();
     const advisor = buildAdvisor();
-    advisorsServiceMock.updateAdvisor.mockReturnValue(throwError(() => ({ error: { message: 'Error al actualizar asesor' } })));
+    advisorsServiceMock.updateAdvisor.mockReturnValue(throwError(() => new Error('Error al actualizar asesor')));
     const { component } = await createComponent();
 
     component.editAdvisor(advisor);
@@ -277,6 +279,7 @@ describe('AdvisorsComponent', () => {
 
     expect(component.errorMessage()).toBe('Error al actualizar asesor');
     expect(component.isSubmitting()).toBe(false);
+    expect(toastMock.error).toHaveBeenCalledWith('Error al actualizar asesor');
   });
 
   it('nextPage y previousPage respetan los límites de paginación', async () => {
@@ -318,14 +321,14 @@ describe('AdvisorsComponent', () => {
     expect(component.advisors().find((a) => a.id === advisor.id)?.isActive).toBe(false);
   });
 
-  it('toggleAdvisorStatus en error muestra una alerta', async () => {
+  it('toggleAdvisorStatus en error, muestra un toast (BUG-20: ya no usa alert nativo)', async () => {
     configure();
-    advisorsServiceMock.toggleActive.mockReturnValue(throwError(() => ({ message: 'Error al desactivar asesor' })));
+    advisorsServiceMock.toggleActive.mockReturnValue(throwError(() => new Error('Error al desactivar asesor')));
     const { component } = await createComponent();
 
     await component.toggleAdvisorStatus(buildAdvisor());
 
-    expect(alertSpy).toHaveBeenCalledWith('Error al desactivar asesor');
+    expect(toastMock.error).toHaveBeenCalledWith('Error al desactivar asesor');
   });
 
   it('filteredAdvisors filtra por término de búsqueda y estado', async () => {

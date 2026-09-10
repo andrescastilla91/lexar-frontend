@@ -1,9 +1,12 @@
 import { TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { SubscriptionService } from './subscription.service';
 import { Entitlements } from '../models/subscription-backend.model';
 import { environment } from '../../../environments/environment';
+
+import { errorInterceptor } from '../interceptors/error.interceptor';
+import { PlanUpgradeService } from './plan-upgrade.service';
 
 describe('SubscriptionService', () => {
   let service: SubscriptionService;
@@ -11,21 +14,41 @@ describe('SubscriptionService', () => {
   const apiUrl = `${environment.apiUrl}/subscription`;
 
   const entitlements: Entitlements = {
-    planCode: 'PROFESIONAL',
-    planName: 'Profesional',
+    planCode: 'ESTUDIO',
+    planName: 'Estudio',
     status: 'active',
     isReadOnly: false,
     trialEndsAt: null,
     currentPeriodEnd: new Date().toISOString(),
     cancelAtPeriodEnd: false,
-    features: { chatbot: true, clientPortal: true, advancedReports: false },
-    limits: { maxUsers: 10, maxActiveProcesses: 100, maxStorageMb: 10240 },
+    features: {
+      chatbot: true,
+      clientPortal: true,
+      advancedReports: false,
+      taskApprovals: true,
+      customCatalogs: true,
+      mandatory2faPolicy: true,
+      exportableReports: false,
+      exportableAudit: false,
+      earlyAccess: false,
+    },
+    limits: {
+      maxUsers: 10,
+      maxActiveProcesses: 100,
+      maxStorageMb: 10240,
+      aiCreditsMonth: 100,
+      portalClientsMax: null,
+    },
     usage: { users: 3, activeProcesses: 5, storageMb: 120 },
   };
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideHttpClient(withInterceptors([errorInterceptor])),
+        provideHttpClientTesting(),
+        { provide: PlanUpgradeService, useValue: { isPlanGateError: () => false, promptUpgrade: () => {} } },
+      ],
     });
 
     service = TestBed.inject(SubscriptionService);
@@ -96,7 +119,7 @@ describe('SubscriptionService', () => {
 
   it('simulateSubscription encadena checkout y simulate con la referencia obtenida', () => {
     let result: { message: string } | undefined;
-    service.simulateSubscription('PROFESIONAL').subscribe((r) => (result = r));
+    service.simulateSubscription('ESTUDIO').subscribe((r) => (result = r));
 
     const checkoutReq = httpMock.expectOne(`${apiUrl}/checkout`);
     checkoutReq.flush({ checkout: { url: 'https://checkout.wompi.co/p/?x=1', reference: 'ref-sim-1' } });

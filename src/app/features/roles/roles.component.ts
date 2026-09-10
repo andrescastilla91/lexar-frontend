@@ -4,6 +4,7 @@ import { RolesService } from '../../core/services/roles.service';
 import { Role, Permission, CreateRoleRequest, UpdateRoleRequest } from '../../core/models/role-backend.model';
 import { HasPermissionDirective } from '../../core/directives/has-permission.directive';
 import { ConfirmDialogService } from '../../core/services/confirm-dialog.service';
+import { ToastService } from '../../core/services/toast.service';
 import { CatalogAssignModalComponent, CatalogAssignItem } from '../../core/components/catalog-assign-modal.component';
 import { RoleFormComponent } from './components/role-form.component';
 import { RolesTableComponent } from './components/roles-table.component';
@@ -75,6 +76,7 @@ import { RolesTableComponent } from './components/roles-table.component';
         [selectedIds]="selectedPermissionIds()"
         [isOpen]="showPermissionsModal()"
         [isSubmitting]="isSubmitting()"
+        [searchable]="true"
         submitLabel="Guardar permisos"
         (cancel)="closePermissionsModal()"
         (save)="savePermissions($event)"
@@ -86,6 +88,7 @@ export class RolesComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly rolesService = inject(RolesService);
   private readonly confirmDialog = inject(ConfirmDialogService);
+  private readonly toast = inject(ToastService);
 
   readonly roles = signal<Role[]>([]);
   readonly allPermissions = signal<Permission[]>([]);
@@ -106,17 +109,16 @@ export class RolesComponent implements OnInit {
   readonly systemRolesCount = computed(() => this.roles().filter((r) => r.isSystem).length);
   readonly customRolesCount = computed(() => this.roles().filter((r) => !r.isSystem).length);
 
+  // F31: label/group ya vienen traducidos y sin el code técnico desde el
+  // backend (permission.mapper.ts nunca los deja vacíos) — el frontend solo
+  // los usa tal cual, sin reconstruir nada a partir del code.
   readonly permissionCatalogItems = computed<CatalogAssignItem[]>(() =>
-    this.allPermissions().map((permission) => {
-      const parts = permission.code.split('.');
-      const module = parts.length > 1 ? parts[0] : 'General';
-      return {
-        id: permission.id,
-        label: permission.code,
-        description: permission.description,
-        group: module,
-      };
-    })
+    this.allPermissions().map((permission) => ({
+      id: permission.id,
+      label: permission.label,
+      description: permission.description,
+      group: permission.groupLabel,
+    }))
   );
 
   ngOnInit(): void {
@@ -239,7 +241,8 @@ export class RolesComponent implements OnInit {
         this.loadRoles();
       },
       error: (error) => {
-        alert(error.message || 'Error al eliminar rol');
+        // BUG-20 ola 1: alert() nativo reemplazado por ToastService.
+        this.toast.error(error.message || 'Error al eliminar rol');
       },
     });
   }
@@ -253,7 +256,8 @@ export class RolesComponent implements OnInit {
         this.showPermissionsModal.set(true);
       },
       error: (error) => {
-        alert(error.message || 'Error al cargar permisos del rol');
+        // BUG-20 ola 1: alert() nativo reemplazado por ToastService.
+        this.toast.error(error.message || 'Error al cargar permisos del rol');
       },
     });
   }
@@ -281,7 +285,8 @@ export class RolesComponent implements OnInit {
         this.isSubmitting.set(false);
       },
       error: (error) => {
-        alert(error.message || 'Error al asignar permisos');
+        // BUG-20 ola 1: alert() nativo reemplazado por ToastService.
+        this.toast.error(error.message || 'Error al asignar permisos');
         this.isSubmitting.set(false);
       },
     });

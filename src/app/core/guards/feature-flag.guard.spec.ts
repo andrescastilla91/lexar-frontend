@@ -7,15 +7,31 @@ import { Entitlements } from '../models/subscription-backend.model';
 
 function makeEntitlements(chatbot: boolean): Entitlements {
   return {
-    planCode: 'PROFESIONAL',
-    planName: 'Profesional',
+    planCode: 'ESTUDIO',
+    planName: 'Estudio',
     status: 'active',
     isReadOnly: false,
     trialEndsAt: null,
     currentPeriodEnd: new Date().toISOString(),
     cancelAtPeriodEnd: false,
-    features: { chatbot, clientPortal: false, advancedReports: false },
-    limits: { maxUsers: null, maxActiveProcesses: null, maxStorageMb: null },
+    features: {
+      chatbot,
+      clientPortal: false,
+      advancedReports: false,
+      taskApprovals: false,
+      customCatalogs: false,
+      mandatory2faPolicy: false,
+      exportableReports: false,
+      exportableAudit: false,
+      earlyAccess: false,
+    },
+    limits: {
+      maxUsers: null,
+      maxActiveProcesses: null,
+      maxStorageMb: null,
+      aiCreditsMonth: 0,
+      portalClientsMax: null,
+    },
     usage: { users: 1, activeProcesses: 0, storageMb: 0 },
   };
 }

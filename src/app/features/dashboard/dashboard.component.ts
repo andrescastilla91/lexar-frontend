@@ -1,41 +1,130 @@
-import { CommonModule, DatePipe } from '@angular/common';
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { CommonModule, NgComponentOutlet } from '@angular/common';
+import { Component, OnInit, Type, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { DashboardService } from '../../core/services/dashboard.service';
+import { DashboardWidgetsService } from '../../core/services/dashboard-widgets.service';
 import { AuthService } from '../../core/services/auth.service';
 import { DeadlinesService } from '../../core/services/deadlines.service';
 import { TasksService } from '../../core/services/tasks.service';
+import { ToastService } from '../../core/services/toast.service';
 import { DashboardSummary, OnboardingChecklist } from '../../core/models/dashboard.model';
 import { DeadlineResponse } from '../../core/models/deadline.model';
 import { TaskResponse } from '../../core/models/task.model';
-import { getCatalogBadgeClasses } from '../../core/utils/catalog-badge.util';
-import { getDeadlineStatusClasses, getDeadlineStatusLabel } from '../../core/utils/deadline-format.util';
-import {
-  getTaskPriorityClasses,
-  getTaskPriorityLabel,
-  getTaskStatusClasses,
-  getTaskStatusLabel,
-} from '../../core/utils/task-format.util';
+import { DashboardWidgetCatalogItem } from '../../core/models/dashboard-widgets.model';
+import { DashboardStatsWidgetComponent } from './widgets/dashboard-stats-widget.component';
+import { DashboardTodayDeadlinesWidgetComponent } from './widgets/dashboard-today-deadlines-widget.component';
+import { DashboardTodayTasksWidgetComponent } from './widgets/dashboard-today-tasks-widget.component';
+import { DashboardHighRiskProcessesWidgetComponent } from './widgets/dashboard-high-risk-processes-widget.component';
+import { DashboardUpcomingHearingsWidgetComponent } from './widgets/dashboard-upcoming-hearings-widget.component';
+import { DashboardRecentDocumentsWidgetComponent } from './widgets/dashboard-recent-documents-widget.component';
+import { DashboardTopAdvisorsWidgetComponent } from './widgets/dashboard-top-advisors-widget.component';
 
 interface ChecklistItemView {
   label: string;
   done: boolean;
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  DRAFT: 'Borrador',
-  ACTIVE: 'Activo',
-  UNDER_REVIEW: 'En revisión',
-  SUSPENDED: 'Suspendido',
-  COMPLETED: 'Completado',
-  CANCELLED: 'Cancelado',
-  ARCHIVED: 'Archivado',
+// F32 PR2: si GET /dashboard/widgets falla, el dashboard no debe quedar en
+// blanco — cae a este orden fijo (idéntico al defaultOrder del catálogo en
+// el backend, ver dashboard-widgets.catalog.ts) en vez de un layout vacío.
+const FALLBACK_WIDGET_ORDER = [
+  'stats',
+  'today-deadlines',
+  'today-tasks',
+  'high-risk-processes',
+  'upcoming-hearings',
+  'recent-documents',
+  'top-advisors',
+];
+
+/**
+ * F32 PR2 (ajuste 2026-09-03, feedback del propietario): registro
+ * key → { componente, inputs } en vez de un `@switch` en la plantilla.
+ * `inputs` recibe la instancia del contenedor y devuelve el objeto que se
+ * pasa a `[ngComponentOutletInputs]` — un widget nuevo solo agrega una
+ * entrada aquí (componente + de dónde saca sus datos); la plantilla y el
+ * `@for` no cambian. Es, además, el mismo mecanismo que necesitará la
+ * pantalla de configuración de PR3 para listar "todo lo disponible" sin
+ * acoplarse a un template fijo.
+ */
+interface DashboardWidgetRegistryEntry {
+  component: Type<unknown>;
+  /** F32 PR3: ancho fijo por widget (no configurable por el usuario, ver
+   * ficha §Alcance — "el ancho lo sigue definiendo el widget"). 'full' ocupa
+   * las 2 columnas del grid, 'half' ocupa 1. Puramente visual: no afecta el
+   * orden, que sigue siendo la única dimensión que el usuario controla. */
+  span: 'full' | 'half';
+  inputs: (host: DashboardComponent) => Record<string, unknown>;
+}
+
+const WIDGET_REGISTRY: Record<string, DashboardWidgetRegistryEntry> = {
+  stats: {
+    component: DashboardStatsWidgetComponent,
+    span: 'full',
+    inputs: (host) => ({ summary: host.summary(), isLoading: host.isLoading() }),
+  },
+  'today-deadlines': {
+    component: DashboardTodayDeadlinesWidgetComponent,
+    span: 'half',
+    inputs: (host) => ({ deadlines: host.todayDeadlines(), isLoading: host.isLoadingToday() }),
+  },
+  'today-tasks': {
+    component: DashboardTodayTasksWidgetComponent,
+    span: 'half',
+    inputs: (host) => ({ tasks: host.todayTasks(), isLoading: host.isLoadingTodayTasks() }),
+  },
+  'high-risk-processes': {
+    component: DashboardHighRiskProcessesWidgetComponent,
+    span: 'half',
+    inputs: (host) => ({ summary: host.summary(), isLoading: host.isLoading() }),
+  },
+  'upcoming-hearings': {
+    component: DashboardUpcomingHearingsWidgetComponent,
+    span: 'half',
+    inputs: (host) => ({ summary: host.summary(), isLoading: host.isLoading() }),
+  },
+  'recent-documents': {
+    component: DashboardRecentDocumentsWidgetComponent,
+    span: 'half',
+    inputs: (host) => ({ summary: host.summary(), isLoading: host.isLoading() }),
+  },
+  'top-advisors': {
+    component: DashboardTopAdvisorsWidgetComponent,
+    span: 'half',
+    inputs: (host) => ({ summary: host.summary(), isLoading: host.isLoading() }),
+  },
 };
 
+/**
+ * F32 PR1 (2026-09-03) — refactor puro: el contenido de cada tarjeta pasó a
+ * su propio componente de widget en `widgets/` (patrón contenedor/
+ * presentacional). El hero y el bloque de onboarding quedan **fijos, fuera
+ * del sistema de widgets** (decisión del propietario, ver
+ * docs/05-features/F32-dashboard-widgets-configurable.md).
+ *
+ * F32 PR2 (2026-09-03) — el orden de los widgets ya no es fijo en la
+ * plantilla: se resuelve en `GET /dashboard/widgets` (catálogo de 3 capas
+ * plataforma/empresa/usuario) y se renderiza dinámicamente con
+ * `NgComponentOutlet` + `WIDGET_REGISTRY` (ver más abajo) — un widget nuevo
+ * agrega una entrada al registro, no una rama nueva en la plantilla.
+ *
+ * F32 PR3 (2026-09-03) — pantalla de personalización con drag & drop.
+ * Modo vivo: los widgets se renderizan en un grid responsive de hasta 2
+ * columnas (`span` de `WIDGET_REGISTRY` decide si uno ocupa ambas), en el
+ * orden de `layout()`. Modo edición (`isEditingLayout()`): reemplaza el
+ * grid por dos listas — activos (reordenables por arrastre nativo HTML5,
+ * igual que el patrón de F28 en `settings-task-statuses.component.ts`, más
+ * botones subir/bajar operables por teclado, requisito no negociable del
+ * Design System capítulo 06) y disponibles (agregar). Guardado explícito:
+ * `draftLayout` es una copia de trabajo que no toca `layout()` hasta que
+ * el usuario confirma — si cancela, se descarta sin llamar al backend.
+ */
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, DatePipe, RouterLink],
+  // Los componentes de widget NO van aquí: se instancian en runtime vía
+  // NgComponentOutlet (WIDGET_REGISTRY), no se declaran en la plantilla.
+  imports: [CommonModule, RouterLink, NgComponentOutlet],
   template: `
     <div class="space-y-10">
       @if (showChecklist()) {
@@ -74,7 +163,7 @@ const STATUS_LABELS: Record<string, string> = {
         <div class="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div class="min-w-0">
             <p class="text-sm uppercase tracking-[0.3em] text-white/70">Tablero ejecutivo</p>
-            <h2 class="mt-4 break-words text-2xl font-semibold sm:text-3xl">Hola {{ firstName() }}, listo para tu jornada legal.</h2>
+            <h2 class="mt-4 break-words text-2xl font-semibold sm:text-3xl">{{ heroGreeting() }}</h2>
             <p class="mt-3 max-w-xl text-sm text-white/70">
               Revisa el estado general de tu operación, audiencias próximas y los procesos que requieren atención prioritaria.
             </p>
@@ -123,343 +212,166 @@ const STATUS_LABELS: Record<string, string> = {
         </div>
       }
 
-      <!-- Hoy: plazos y audiencias del día -->
-      <section class="rounded-lg border border-default bg-surface p-6 shadow-card">
-        <header class="mb-4 flex items-center justify-between gap-3">
-          <div>
-            <h3 class="text-lg font-semibold text-text">Hoy</h3>
-            <p class="text-sm text-subtle">Plazos y audiencias con vencimiento el día de hoy.</p>
-          </div>
-          <div class="flex flex-shrink-0 items-center gap-3">
-            @if (!isLoadingToday()) {
-              <span class="rounded-full bg-surface-muted px-3 py-1 text-xs font-semibold text-muted tabular-data">
-                {{ todayDeadlines().length }} {{ todayDeadlines().length === 1 ? 'evento' : 'eventos' }}
-              </span>
-            }
-            <a routerLink="/calendario" class="text-xs font-semibold text-primary underline"> Ver calendario </a>
-          </div>
-        </header>
-
-        @if (isLoadingToday()) {
-          <div class="space-y-3">
-            @for (i of [1, 2]; track i) {
-              <div class="h-14 animate-pulse rounded-lg bg-surface-sunken"></div>
-            }
-          </div>
-        } @else if (todayDeadlines().length === 0) {
-          <p class="rounded-lg border border-default bg-surface-muted px-4 py-6 text-center text-sm text-subtle">
-            No tienes plazos ni audiencias programadas para hoy.
-          </p>
-        } @else {
-          <div class="space-y-3">
-            @for (deadline of todayDeadlines(); track deadline.id) {
-              <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-default bg-surface-muted px-4 py-3">
-                <div class="min-w-0">
-                  <div class="flex flex-wrap items-center gap-2">
-                    <p class="truncate text-sm font-semibold text-text">{{ deadline.title }}</p>
-                    @if (deadline.type) {
-                      <span class="rounded-full px-2 py-0.5 text-xs font-semibold" [class]="getCatalogBadgeClasses(deadline.type.color)">
-                        {{ deadline.type.label }}
-                      </span>
-                    }
-                    <span class="rounded-full px-2 py-0.5 text-xs font-semibold" [class]="getDeadlineStatusClasses(deadline.status)">
-                      {{ getDeadlineStatusLabel(deadline.status) }}
-                    </span>
-                  </div>
-                  <p class="truncate text-xs text-subtle">{{ deadline.process?.title }}</p>
-                </div>
-                <span class="flex-shrink-0 rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted tabular-data">
-                  {{ deadline.dueAt | date: 'HH:mm' }}
-                </span>
-              </div>
-            }
-          </div>
+      <section class="flex items-center justify-between gap-4">
+        <h3 class="text-lg font-semibold text-text">Tu tablero</h3>
+        @if (!isEditingLayout()) {
+          <button
+            type="button"
+            class="flex flex-shrink-0 items-center gap-2 rounded-md border border-default px-4 py-2 text-sm font-semibold text-text transition hover:bg-surface-muted"
+            (click)="enterEditMode()"
+          >
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"
+              />
+            </svg>
+            Personalizar tablero
+          </button>
         }
       </section>
 
-      <!-- Tareas de hoy -->
-      <section class="rounded-lg border border-default bg-surface p-6 shadow-card">
-        <header class="mb-4 flex items-center justify-between gap-3">
-          <div>
-            <h3 class="text-lg font-semibold text-text">Tareas de hoy</h3>
-            <p class="text-sm text-subtle">Trabajo pendiente con vencimiento el día de hoy.</p>
-          </div>
-          <div class="flex flex-shrink-0 items-center gap-3">
-            @if (!isLoadingTodayTasks()) {
-              <span class="rounded-full bg-surface-muted px-3 py-1 text-xs font-semibold text-muted tabular-data">
-                {{ todayTasks().length }} {{ todayTasks().length === 1 ? 'tarea' : 'tareas' }}
-              </span>
-            }
-            <a routerLink="/tareas" class="text-xs font-semibold text-primary underline"> Ver tareas </a>
-          </div>
-        </header>
-
-        @if (isLoadingTodayTasks()) {
-          <div class="space-y-3">
-            @for (i of [1, 2]; track i) {
-              <div class="h-14 animate-pulse rounded-lg bg-surface-sunken"></div>
-            }
-          </div>
-        } @else if (todayTasks().length === 0) {
-          <p class="rounded-lg border border-default bg-surface-muted px-4 py-6 text-center text-sm text-subtle">
-            No tienes tareas pendientes con vencimiento hoy.
-          </p>
-        } @else {
-          <div class="space-y-3">
-            @for (task of todayTasks(); track task.id) {
-              <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-default bg-surface-muted px-4 py-3">
-                <div class="min-w-0">
-                  <div class="flex flex-wrap items-center gap-2">
-                    <p class="truncate text-sm font-semibold text-text">{{ task.title }}</p>
-                    <span class="rounded-full px-2 py-0.5 text-xs font-semibold" [class]="getTaskPriorityClasses(task.priority)">
-                      {{ getTaskPriorityLabel(task.priority) }}
-                    </span>
-                    <span class="rounded-full px-2 py-0.5 text-xs font-semibold" [class]="getTaskStatusClasses(task.status)">
-                      {{ getTaskStatusLabel(task.status) }}
-                    </span>
+      @if (isEditingLayout()) {
+        <section class="rounded-lg border border-default bg-surface p-6 shadow-card">
+          <div class="grid gap-6 lg:grid-cols-2">
+            <div class="min-w-0">
+              <h4 class="text-sm font-semibold text-text">Activos ({{ draftLayout().length }})</h4>
+              <p class="mt-1 text-xs text-subtle">
+                Arrastra para reordenar o usa las flechas — el orden que dejes aquí es el que verás siempre.
+              </p>
+              <div class="mt-3 space-y-2">
+                @if (draftLayout().length === 0) {
+                  <p class="rounded-md border border-dashed border-default p-4 text-center text-sm text-subtle">
+                    No tienes widgets activos. Agrega alguno desde "Disponibles".
+                  </p>
+                }
+                @for (key of draftLayout(); track key; let i = $index) {
+                  <div
+                    draggable="true"
+                    (dragstart)="onDraftDragStart($event, key)"
+                    (dragover)="$event.preventDefault()"
+                    (drop)="onDraftDrop($event, i)"
+                    class="flex cursor-move items-center gap-3 rounded-md border border-default bg-surface-muted px-3 py-2.5"
+                    [attr.aria-label]="'Widget activo: ' + widgetTitle(key)"
+                  >
+                    <div class="flex flex-shrink-0 flex-col" role="group" [attr.aria-label]="'Reordenar ' + widgetTitle(key)">
+                      <button
+                        type="button"
+                        [disabled]="i === 0"
+                        (click)="moveDraftWidgetUp(i)"
+                        class="rounded p-0.5 text-muted transition hover:bg-surface disabled:cursor-not-allowed disabled:opacity-30"
+                        aria-label="Subir"
+                        title="Subir"
+                      >
+                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        [disabled]="i === draftLayout().length - 1"
+                        (click)="moveDraftWidgetDown(i)"
+                        class="rounded p-0.5 text-muted transition hover:bg-surface disabled:cursor-not-allowed disabled:opacity-30"
+                        aria-label="Bajar"
+                        title="Bajar"
+                      >
+                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                        </svg>
+                      </button>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                      <p class="truncate text-sm font-medium text-text">{{ widgetTitle(key) }}</p>
+                      <p class="truncate text-xs text-subtle">{{ widgetDescription(key) }}</p>
+                    </div>
+                    <button
+                      type="button"
+                      (click)="removeWidgetFromDraft(key)"
+                      class="flex-shrink-0 rounded-md p-1.5 text-muted transition hover:bg-danger-tint hover:text-danger"
+                      aria-label="Quitar"
+                      title="Quitar"
+                    >
+                      <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
                   </div>
-                  <p class="truncate text-xs text-subtle">{{ task.process?.title ?? 'Tarea general' }}</p>
-                </div>
-                @if (task.dueAt) {
-                  <span class="flex-shrink-0 rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted tabular-data">
-                    {{ task.dueAt | date: 'HH:mm' }}
-                  </span>
                 }
               </div>
-            }
-          </div>
-        }
-      </section>
+            </div>
 
-      @if (!isLoading() && summary()?.processesByStatus?.length) {
-        <section class="flex flex-wrap gap-3">
-          @for (item of summary()!.processesByStatus; track item.status) {
-            <span class="rounded-md border border-default bg-surface px-4 py-2 text-xs font-semibold text-muted">
-              {{ statusLabel(item.status) }}
-              <span class="ml-1 tabular-data text-text">{{ item.count }}</span>
-            </span>
-          }
-        </section>
-      }
-
-      <section class="grid gap-6 lg:grid-cols-4">
-        @if (isLoading()) {
-          @for (i of [1, 2, 3, 4]; track i) {
-            <article class="rounded-lg border border-default bg-surface p-6 shadow-card">
-              <div class="h-4 w-24 animate-pulse rounded bg-surface-sunken"></div>
-              <div class="mt-4 h-8 w-16 animate-pulse rounded bg-surface-sunken"></div>
-              <div class="mt-3 h-3 w-32 animate-pulse rounded bg-surface-sunken"></div>
-            </article>
-          }
-        } @else {
-          @for (card of statCards(); track card.title) {
-            <article class="rounded-lg border border-default bg-surface p-6 shadow-card">
-              <div class="flex items-center justify-between">
-                <h3 class="text-sm font-semibold text-muted">{{ card.title }}</h3>
-                <span class="text-xs font-semibold" [class]="card.trendClass">{{ card.trend }}</span>
+            <div class="min-w-0">
+              <h4 class="text-sm font-semibold text-text">Disponibles ({{ availableWidgets().length }})</h4>
+              <p class="mt-1 text-xs text-subtle">Agrega los que quieras ver en tu tablero.</p>
+              <div class="mt-3 space-y-2">
+                @if (availableWidgets().length === 0) {
+                  <p class="rounded-md border border-dashed border-default p-4 text-center text-sm text-subtle">
+                    Ya agregaste todos los widgets disponibles.
+                  </p>
+                }
+                @for (widget of availableWidgets(); track widget.key) {
+                  <div
+                    class="flex items-center gap-3 rounded-md border border-default px-3 py-2.5"
+                    [attr.aria-label]="'Widget disponible: ' + widget.title"
+                  >
+                    <div class="min-w-0 flex-1">
+                      <p class="truncate text-sm font-medium text-text">{{ widget.title }}</p>
+                      <p class="truncate text-xs text-subtle">{{ widget.description }}</p>
+                    </div>
+                    <button
+                      type="button"
+                      (click)="addWidgetToDraft(widget.key)"
+                      class="flex-shrink-0 rounded-md border border-default px-3 py-1.5 text-xs font-semibold text-text transition hover:bg-surface-muted"
+                    >
+                      Agregar
+                    </button>
+                  </div>
+                }
               </div>
-              <p class="mt-4 text-3xl font-semibold text-text tabular-data">{{ card.value }}</p>
-              <p class="mt-2 text-sm text-subtle">{{ card.description }}</p>
-            </article>
-          }
-        }
-      </section>
-
-      <section class="grid gap-6 lg:grid-cols-5">
-        <article class="lg:col-span-3 rounded-lg border border-default bg-surface p-6 shadow-card">
-          <header class="mb-4 flex items-center justify-between">
-            <div>
-              <h3 class="text-lg font-semibold text-text">Procesos con riesgo alto</h3>
-              <p class="text-sm text-subtle">Prioriza tareas preventivas para mitigar contingencias.</p>
             </div>
-            @if (!isLoading()) {
-              <span class="rounded-full bg-danger-tint px-3 py-1 text-xs font-semibold text-danger tabular-data">
-                {{ summary()?.highRiskProcessesCount ?? 0 }} activos
-              </span>
+          </div>
+
+          <div class="mt-6 flex items-center justify-end gap-3 border-t border-default pt-4">
+            <button
+              type="button"
+              class="rounded-md border border-default px-4 py-2 text-sm font-semibold text-text transition hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-60"
+              [disabled]="isSavingLayout()"
+              (click)="cancelEditMode()"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              class="rounded-md bg-navy-900 px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:bg-navy-950 disabled:cursor-not-allowed disabled:opacity-60"
+              [disabled]="isSavingLayout()"
+              (click)="saveLayoutEdits()"
+            >
+              {{ isSavingLayout() ? 'Guardando…' : 'Guardar cambios' }}
+            </button>
+          </div>
+        </section>
+      } @else {
+        <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+          @for (widgetKey of layout(); track widgetKey) {
+            @if (widgetComponent(widgetKey); as component) {
+              <div [class]="widgetGridItemClasses(widgetKey)">
+                <ng-container *ngComponentOutlet="component; inputs: widgetInputs(widgetKey)" />
+              </div>
             }
-          </header>
-
-          @if (isLoading()) {
-            <div class="space-y-4">
-              @for (i of [1, 2, 3]; track i) {
-                <div class="h-16 animate-pulse rounded-lg bg-surface-sunken"></div>
-              }
-            </div>
-          } @else if (!summary()?.highRiskProcesses?.length) {
-            <p class="rounded-lg border border-default bg-surface-muted px-4 py-6 text-center text-sm text-subtle">
-              No hay procesos de riesgo alto en este momento.
-            </p>
-          } @else {
-            <div class="space-y-4">
-              @for (process of summary()!.highRiskProcesses; track process.id) {
-                <div class="rounded-lg bg-danger-tint px-4 py-4 text-sm text-danger">
-                  <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
-                    <div class="min-w-0">
-                      <p class="truncate text-base font-semibold text-danger">{{ process.title }}</p>
-                      <p class="truncate text-xs uppercase tracking-wide text-danger/80">{{ process.court || 'Sin jurisdicción asignada' }}</p>
-                    </div>
-                    <div class="flex flex-wrap gap-4 text-xs text-danger/90 sm:gap-6">
-                      @if (process.nextHearingDate) {
-                        <span class="flex items-center gap-2">
-                          <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2" />
-                          </svg>
-                          Audiencia {{ process.nextHearingDate | date: 'longDate' }}
-                        </span>
-                      }
-                      <span class="flex items-center gap-2">
-                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" d="m12 6 7.5 12h-15L12 6z" />
-                        </svg>
-                        Riesgo {{ process.riskLevel?.label || 'N/A' }}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              }
-            </div>
           }
-        </article>
-
-        <article class="lg:col-span-2 rounded-lg border border-default bg-surface p-6 shadow-card">
-          <header class="mb-4 flex items-center justify-between">
-            <div>
-              <h3 class="text-lg font-semibold text-text">Próximas audiencias</h3>
-              <p class="text-sm text-subtle">Agenda de los próximos 30 días.</p>
-            </div>
-            @if (!isLoading()) {
-              <span class="rounded-full bg-surface-muted px-3 py-1 text-xs font-semibold text-muted tabular-data">
-                {{ summary()?.upcomingHearingsCount ?? 0 }} eventos
-              </span>
-            }
-          </header>
-
-          @if (isLoading()) {
-            <div class="space-y-4">
-              @for (i of [1, 2, 3]; track i) {
-                <div class="h-16 animate-pulse rounded-lg bg-surface-sunken"></div>
-              }
-            </div>
-          } @else if (!summary()?.upcomingHearings?.length) {
-            <p class="rounded-lg border border-default bg-surface-muted px-4 py-6 text-center text-sm text-subtle">
-              No hay audiencias programadas en los próximos 30 días.
-            </p>
-          } @else {
-            <div class="space-y-4">
-              @for (hearing of summary()!.upcomingHearings; track hearing.id) {
-                <div class="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-lg border border-default bg-surface-muted px-4 py-4 text-sm text-muted">
-                  <div class="min-w-0">
-                    <p class="truncate text-base font-semibold text-text">{{ hearing.title }}</p>
-                    <p class="truncate text-xs uppercase tracking-wide text-subtle">{{ hearing.court || 'Sin jurisdicción asignada' }}</p>
-                    <p class="mt-1 truncate text-xs text-subtle">{{ advisorInitials(hearing.advisors) }} • {{ hearing.client?.fullName ?? 'Cliente sin asignar' }}</p>
-                  </div>
-                  @if (hearing.nextHearingDate) {
-                    <span class="flex-shrink-0 rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted tabular-data">
-                      {{ hearing.nextHearingDate | date: 'dd/MM' }}
-                    </span>
-                  }
-                </div>
-              }
-            </div>
-          }
-        </article>
-      </section>
-
-      <section class="grid gap-6 lg:grid-cols-2">
-        <article class="rounded-lg border border-default bg-surface p-6 shadow-card">
-          <header class="mb-4 flex items-center justify-between">
-            <div>
-              <h3 class="text-lg font-semibold text-text">Documentos recientes</h3>
-              <p class="text-sm text-subtle">{{ summary()?.documentsThisMonth ?? 0 }} archivos subidos este mes.</p>
-            </div>
-            @if (!isLoading()) {
-              <span class="rounded-full bg-success-tint px-3 py-1 text-xs font-semibold text-success tabular-data">
-                {{ summary()?.documentsThisMonth ?? 0 }} este mes
-              </span>
-            }
-          </header>
-
-          @if (isLoading()) {
-            <div class="space-y-4">
-              @for (i of [1, 2, 3]; track i) {
-                <div class="h-12 animate-pulse rounded-lg bg-surface-sunken"></div>
-              }
-            </div>
-          } @else if (!summary()?.recentDocuments?.length) {
-            <p class="rounded-lg border border-default bg-surface-muted px-4 py-6 text-center text-sm text-subtle">
-              Aún no se han subido documentos.
-            </p>
-          } @else {
-            <div class="space-y-4">
-              @for (document of summary()!.recentDocuments; track document.id) {
-                <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-default px-4 py-3 text-sm text-muted">
-                  <div class="min-w-0">
-                    <p class="truncate font-semibold text-text">{{ document.filename }}</p>
-                    <p class="truncate text-xs text-subtle">{{ document.entityType }} • {{ document.uploadedBy }}</p>
-                  </div>
-                  <span class="flex-shrink-0 rounded-full bg-surface-muted px-3 py-1 text-xs font-semibold text-muted tabular-data">
-                    {{ document.createdAt | date: 'dd/MM' }}
-                  </span>
-                </div>
-              }
-            </div>
-          }
-        </article>
-
-        <article class="rounded-lg border border-default bg-surface p-6 shadow-card">
-          <header class="mb-4 flex items-center justify-between">
-            <div>
-              <h3 class="text-lg font-semibold text-text">Asesores destacados</h3>
-              <p class="text-sm text-subtle">Calificación y experiencia de tu equipo activo.</p>
-            </div>
-            @if (!isLoading()) {
-              <span class="rounded-full bg-accent-tint px-3 py-1 text-xs font-semibold text-accent tabular-data">
-                {{ summary()?.topAdvisors?.length ?? 0 }} perfiles
-              </span>
-            }
-          </header>
-
-          @if (isLoading()) {
-            <div class="space-y-4">
-              @for (i of [1, 2, 3]; track i) {
-                <div class="h-12 animate-pulse rounded-lg bg-surface-sunken"></div>
-              }
-            </div>
-          } @else if (!summary()?.topAdvisors?.length) {
-            <p class="rounded-lg border border-default bg-surface-muted px-4 py-6 text-center text-sm text-subtle">
-              No hay asesores activos registrados.
-            </p>
-          } @else {
-            <div class="space-y-4">
-              @for (advisor of summary()!.topAdvisors; track advisor.id) {
-                <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-default px-4 py-3 text-sm text-muted">
-                  <div class="min-w-0">
-                    <p class="truncate font-semibold text-text">{{ advisor.name }}</p>
-                    <p class="truncate text-xs text-subtle">{{ advisor.specialty?.label || 'N/A' }}</p>
-                  </div>
-                  <div class="flex items-center gap-3 text-xs text-subtle">
-                    <span class="flex items-center gap-1 text-accent">
-                      <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="m10 15.27 5.18 3.05-1.64-5.81L18 8.97l-6-.21L10 3l-2 5.76-6 .21 4.46 3.54L6.82 18z" />
-                      </svg>
-                      <span class="tabular-data">{{ advisor.rating }}</span>
-                    </span>
-                    <span class="tabular-data">{{ advisor.experienceYears }} años exp.</span>
-                  </div>
-                </div>
-              }
-            </div>
-          }
-        </article>
-      </section>
+        </div>
+      }
     </div>
   `,
 })
 export class DashboardComponent implements OnInit {
   private readonly dashboardService = inject(DashboardService);
+  private readonly dashboardWidgetsService = inject(DashboardWidgetsService);
   private readonly authService = inject(AuthService);
   private readonly deadlinesService = inject(DeadlinesService);
   private readonly tasksService = inject(TasksService);
+  private readonly toast = inject(ToastService);
 
   readonly summary = signal<DashboardSummary | null>(null);
   readonly isLoading = signal(true);
@@ -471,19 +383,33 @@ export class DashboardComponent implements OnInit {
   readonly todayTasks = signal<TaskResponse[]>([]);
   readonly isLoadingTodayTasks = signal(true);
 
-  protected readonly getCatalogBadgeClasses = getCatalogBadgeClasses;
-  protected readonly getDeadlineStatusClasses = getDeadlineStatusClasses;
-  protected readonly getDeadlineStatusLabel = getDeadlineStatusLabel;
-  protected readonly getTaskStatusClasses = getTaskStatusClasses;
-  protected readonly getTaskStatusLabel = getTaskStatusLabel;
-  protected readonly getTaskPriorityClasses = getTaskPriorityClasses;
-  protected readonly getTaskPriorityLabel = getTaskPriorityLabel;
+  /** F32 PR2: orden efectivo de widgets a renderizar (catálogo de 3 capas + layout del usuario). */
+  readonly layout = signal<string[]>([]);
+  /** F32 PR3: catálogo efectivo devuelto junto al layout — títulos/descripciones para la pantalla de edición. */
+  readonly catalog = signal<DashboardWidgetCatalogItem[]>([]);
+
+  // F32 PR3: `draftLayout` es una copia de trabajo de `layout()` mientras
+  // se edita — nunca se lee para renderizar el tablero en vivo, así que
+  // cancelar no tiene que revertir nada más que descartarla.
+  readonly isEditingLayout = signal(false);
+  readonly draftLayout = signal<string[]>([]);
+  readonly isSavingLayout = signal(false);
+  private draggedWidgetKey: string | null = null;
+
+  /** Widgets del catálogo que todavía no están en el layout en edición. */
+  readonly availableWidgets = computed(() =>
+    this.catalog().filter((widget) => !this.draftLayout().includes(widget.key)),
+  );
 
   readonly checklist = signal<OnboardingChecklist | null>(null);
 
+  // BUG-11: el backend ya devuelve null para no-dueños, así que en la
+  // práctica esta condición nunca dispara con datos reales — se deja como
+  // defensa en profundidad, por si algo llega a poblar `checklist` sin
+  // pasar por loadChecklist().
   readonly showChecklist = computed(() => {
     const checklist = this.checklist();
-    return checklist !== null && !checklist.wizardCompleted;
+    return checklist !== null && !checklist.wizardCompleted && this.authService.currentUser()?.isOwner === true;
   });
 
   readonly checklistItems = computed<ChecklistItemView[]>(() => {
@@ -502,57 +428,20 @@ export class DashboardComponent implements OnInit {
     ];
   });
 
+  // BUG-18: el saludo usa el nombre real del usuario (ya disponible desde
+  // F4 en AuthUser.firstName) en vez de derivarlo del email — con
+  // acastilla@, info@ o abogado1@ el heurístico anterior nunca daba un
+  // nombre real. Sin firstName (usuario legado o sin sesión aún), el
+  // saludo se muestra sin nombre (decisión del propietario) en vez de
+  // volver a inventar uno desde el correo.
   readonly firstName = computed(() => {
     const user = this.authService.currentUser();
-    if (!user) {
-      return 'Equipo';
-    }
-
-    const emailPart = user.email.split('@')[0];
-    const parts = emailPart.split('.');
-    if (parts.length > 0) {
-      return parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
-    }
-
-    return 'Usuario';
+    return user?.firstName?.trim() || null;
   });
 
-  readonly statCards = computed(() => {
-    const summary = this.summary();
-    if (!summary) {
-      return [];
-    }
-
-    return [
-      {
-        title: 'Procesos totales',
-        value: summary.totalProcesses,
-        description: 'Casos monitorizados en todas las áreas jurídicas.',
-        trend: 'Actualizado',
-        trendClass: 'text-xs font-semibold text-success',
-      },
-      {
-        title: 'Clientes activos',
-        value: summary.activeClients,
-        description: 'Cuentas activas con relación vigente.',
-        trend: 'En gestión',
-        trendClass: 'text-xs font-semibold text-info',
-      },
-      {
-        title: 'Audiencias próximas',
-        value: summary.upcomingHearingsCount,
-        description: 'Eventos confirmados en los próximos 30 días.',
-        trend: summary.upcomingHearingsCount > 0 ? 'Agenda activa' : 'Sin eventos',
-        trendClass: 'text-xs font-semibold text-warning',
-      },
-      {
-        title: 'Alertas de riesgo',
-        value: summary.highRiskProcessesCount,
-        description: 'Procesos que requieren acciones preventivas.',
-        trend: summary.highRiskProcessesCount > 0 ? 'Prioriza hoy' : 'Sin alertas',
-        trendClass: 'text-xs font-semibold text-danger',
-      },
-    ];
+  readonly heroGreeting = computed(() => {
+    const name = this.firstName();
+    return name ? `Hola ${name}, listo para tu jornada legal.` : 'Hola, listo para tu jornada legal.';
   });
 
   ngOnInit(): void {
@@ -560,6 +449,134 @@ export class DashboardComponent implements OnInit {
     this.loadChecklist();
     this.loadTodayDeadlines();
     this.loadTodayTasks();
+    this.loadWidgets();
+  }
+
+  loadWidgets(): void {
+    this.dashboardWidgetsService.getWidgets().subscribe({
+      next: ({ catalog, layout }) => {
+        this.catalog.set(catalog);
+        this.layout.set(layout);
+      },
+      error: () => {
+        // El layout dinámico es una mejora de UX, no una dependencia dura —
+        // si falla, el dashboard se ve como siempre en vez de quedar vacío.
+        this.layout.set(FALLBACK_WIDGET_ORDER);
+      },
+    });
+  }
+
+  /** Componente a instanciar para un widgetKey — null si el key ya no está en WIDGET_REGISTRY (defensivo ante un layout guardado con una key obsoleta). */
+  widgetComponent(widgetKey: string): Type<unknown> | null {
+    return WIDGET_REGISTRY[widgetKey]?.component ?? null;
+  }
+
+  widgetInputs(widgetKey: string): Record<string, unknown> {
+    return WIDGET_REGISTRY[widgetKey]?.inputs(this) ?? {};
+  }
+
+  /** Clase de grid-span del widget en el tablero en vivo — 'full' ocupa las 2 columnas, 'half' (default) ocupa 1. */
+  widgetGridItemClasses(widgetKey: string): string {
+    return WIDGET_REGISTRY[widgetKey]?.span === 'full' ? 'md:col-span-2' : '';
+  }
+
+  widgetTitle(widgetKey: string): string {
+    return this.catalog().find((widget) => widget.key === widgetKey)?.title ?? widgetKey;
+  }
+
+  widgetDescription(widgetKey: string): string {
+    return this.catalog().find((widget) => widget.key === widgetKey)?.description ?? '';
+  }
+
+  // F32 PR3 — modo edición del tablero. Guardado explícito: nada de esto
+  // toca `layout()` (lo que se renderiza en vivo) hasta saveLayoutEdits().
+
+  enterEditMode(): void {
+    this.draftLayout.set([...this.layout()]);
+    this.isEditingLayout.set(true);
+  }
+
+  cancelEditMode(): void {
+    this.isEditingLayout.set(false);
+    this.draftLayout.set([]);
+  }
+
+  addWidgetToDraft(widgetKey: string): void {
+    if (this.draftLayout().includes(widgetKey)) {
+      return;
+    }
+    this.draftLayout.update((keys) => [...keys, widgetKey]);
+  }
+
+  removeWidgetFromDraft(widgetKey: string): void {
+    this.draftLayout.update((keys) => keys.filter((key) => key !== widgetKey));
+  }
+
+  moveDraftWidgetUp(index: number): void {
+    if (index <= 0) {
+      return;
+    }
+    this.draftLayout.update((keys) => {
+      const next = [...keys];
+      [next[index - 1], next[index]] = [next[index], next[index - 1]];
+      return next;
+    });
+  }
+
+  moveDraftWidgetDown(index: number): void {
+    this.draftLayout.update((keys) => {
+      if (index >= keys.length - 1) {
+        return keys;
+      }
+      const next = [...keys];
+      [next[index], next[index + 1]] = [next[index + 1], next[index]];
+      return next;
+    });
+  }
+
+  // Drag & drop nativo HTML5, mismo patrón que F28
+  // (settings-task-statuses.component.ts) — sin librería, con las flechas
+  // subir/bajar como camino accesible por teclado (Design System cap. 06).
+  onDraftDragStart(event: DragEvent, widgetKey: string): void {
+    this.draggedWidgetKey = widgetKey;
+    event.dataTransfer?.setData('text/plain', widgetKey);
+  }
+
+  onDraftDrop(event: DragEvent, targetIndex: number): void {
+    event.preventDefault();
+    const draggedKey = this.draggedWidgetKey;
+    this.draggedWidgetKey = null;
+    if (!draggedKey) {
+      return;
+    }
+    const current = this.draftLayout();
+    const sourceIndex = current.indexOf(draggedKey);
+    if (sourceIndex === -1 || sourceIndex === targetIndex) {
+      return;
+    }
+    const reordered = [...current];
+    const [moved] = reordered.splice(sourceIndex, 1);
+    reordered.splice(targetIndex, 0, moved);
+    this.draftLayout.set(reordered);
+  }
+
+  saveLayoutEdits(): void {
+    if (this.isSavingLayout()) {
+      return;
+    }
+    this.isSavingLayout.set(true);
+    this.dashboardWidgetsService.saveLayout(this.draftLayout()).subscribe({
+      next: (layout) => {
+        this.layout.set(layout);
+        this.isSavingLayout.set(false);
+        this.isEditingLayout.set(false);
+        this.toast.success('Tablero personalizado guardado correctamente.');
+      },
+      error: (error) => {
+        this.isSavingLayout.set(false);
+        this.toast.error(error.message || 'No se pudo guardar el tablero.');
+      },
+    });
   }
 
   loadTodayTasks(): void {
@@ -627,17 +644,5 @@ export class DashboardComponent implements OnInit {
         this.isLoading.set(false);
       },
     });
-  }
-
-  statusLabel(status: string): string {
-    return STATUS_LABELS[status] ?? status;
-  }
-
-  advisorInitials(advisors: { firstName: string; lastName: string }[]): string {
-    if (!advisors.length) {
-      return 'NA';
-    }
-    const advisor = advisors[0];
-    return `${advisor.firstName.charAt(0)}${advisor.lastName.charAt(0)}`.toUpperCase();
   }
 }

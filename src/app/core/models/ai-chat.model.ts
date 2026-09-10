@@ -1,0 +1,77 @@
+/**
+ * F20.1 — contrato del asistente IA Nivel 0 (sin LLM). Los tipos reflejan
+ * exactamente `AiMessageResponse`/`ChatResponseBody`/`ChatHistoryBody` del
+ * backend (ver `ai-chat.service.ts` y `ai.controller.ts` en lexar-backend).
+ */
+
+export type AiChatRole = 'user' | 'assistant';
+export type AiChatFeedback = 'up' | 'down';
+
+export interface AiChatLink {
+  label: string;
+  path: string;
+}
+
+export interface AiChatMessage {
+  id: string;
+  role: AiChatRole;
+  content: string;
+  intentId: string | null;
+  understood: boolean;
+  /** F7-R4: true cuando el "no entendido" fue causado por agotar el cupo
+   * de IA del plan (límite comercial), no por un hueco de catálogo. Dispara
+   * el CTA de upgrade (PlanUpgradeService) — `understood` por sí solo no
+   * alcanza para distinguir ambos casos. */
+  quotaExhausted: boolean;
+  /** F20.3 — `true` mientras la redacción Nivel 2 sigue transmitiéndose por
+   * streaming (`content` vacío hasta que termina). El panel abre
+   * `AiChatService.streamSynthesis(id)` cuando ve este flag en `true`. */
+  synthesizing: boolean;
+  feedback: AiChatFeedback | null;
+  links: AiChatLink[];
+  createdAt: string;
+}
+
+/** F20.3 — un evento del stream SSE `GET /ai/messages/:id/stream`. Solo dos
+ * formas posibles: un fragmento de texto (`delta`) o el fin del stream
+ * (`done`) — nunca ambos a la vez. Los `ping` de heartbeat del backend
+ * (F12) no necesitan modelo propio: se ignoran en el listener de
+ * `AiChatService.streamSynthesis`, nunca llegan hasta el consumidor. */
+export interface AiSynthesisStreamEvent {
+  delta?: string;
+  done?: boolean;
+}
+
+/** F7-R4: consumo del mes vigente del cupo de IA (GET /ai/usage). */
+export interface AiUsageSummary {
+  used: number;
+  limit: number;
+  periodStart: string;
+  periodEnd: string;
+}
+
+export interface AiChatResponse {
+  conversationId: string;
+  userMessage: AiChatMessage;
+  assistantMessage: AiChatMessage;
+}
+
+export interface AiChatHistory {
+  conversationId: string | null;
+  messages: AiChatMessage[];
+}
+
+/**
+ * Chips de preguntas sugeridas — reflejan `examplePrompt` del catálogo del
+ * backend (`intent-catalog.ts`). Se mantienen aquí en vez de exponer el
+ * catálogo completo por un endpoint nuevo: son solo ejemplos de arranque,
+ * no una fuente de verdad que el frontend necesite sincronizar en runtime.
+ */
+export const AI_CHAT_SUGGESTED_PROMPTS: string[] = [
+  '¿Qué audiencias tengo esta semana?',
+  '¿Qué plazos están por vencer?',
+  '¿Cuáles son mis tareas pendientes?',
+  '¿Cuántos procesos activos tengo?',
+  '¿Cómo está repartida la carga por asesor?',
+  '¿Qué puedes hacer?',
+];

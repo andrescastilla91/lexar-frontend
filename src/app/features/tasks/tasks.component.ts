@@ -18,6 +18,7 @@ import {
 import { TaskStatusResponse } from '../../core/models/task-status.model';
 import { TaskStatusControlComponent } from '../../shared/components/task-status-control/task-status-control.component';
 import { TaskApprovalsInboxComponent } from './components/task-approvals-inbox.component';
+import { TaskEditModalComponent } from './components/task-edit-modal.component';
 import { HasPermissionDirective } from '../../core/directives/has-permission.directive';
 // TaskActivityResponse ya no se usa aquí: la bitácora vive en
 // TaskStatusControlComponent (ver punto 4 del feedback 2026-08-06).
@@ -43,6 +44,7 @@ interface TaskGroup {
     RouterLink,
     TaskStatusControlComponent,
     TaskApprovalsInboxComponent,
+    TaskEditModalComponent,
     HasPermissionDirective,
   ],
   template: `
@@ -399,6 +401,19 @@ interface TaskGroup {
             <button
               type="button"
               [disabled]="task.status.isTerminal"
+              (click)="openEditModal(task)"
+              [title]="
+                task.status.isTerminal
+                  ? 'Tarea terminada: no se puede editar'
+                  : ''
+              "
+              class="flex-1 rounded-md border border-default px-4 py-2 text-sm font-semibold text-muted transition hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+            >
+              Editar
+            </button>
+            <button
+              type="button"
+              [disabled]="task.status.isTerminal"
               (click)="deleteTask(task)"
               [title]="
                 task.status.isTerminal
@@ -413,6 +428,15 @@ interface TaskGroup {
         </div>
       </div>
     }
+
+    <!-- F28: modal de edición — se abre cerrando el detalle (no apilan) -->
+    <app-task-edit-modal
+      [isOpen]="editModalOpen()"
+      [task]="editingTask()"
+      [advisors]="advisors()"
+      (close)="closeEditModal()"
+      (updated)="onTaskEdited($event)"
+    />
 
     <!-- Modal de creación -->
     @if (createModalOpen()) {
@@ -546,6 +570,8 @@ export class TasksComponent {
   readonly isLoading = signal(false);
   readonly viewMode = signal<'lista' | 'tablero'>('lista');
   readonly selectedTask = signal<TaskResponse | null>(null);
+  readonly editingTask = signal<TaskResponse | null>(null);
+  readonly editModalOpen = signal(false);
   readonly createModalOpen = signal(false);
   readonly isCreating = signal(false);
   readonly createError = signal<string | null>(null);
@@ -719,6 +745,25 @@ export class TasksComponent {
 
   closeDetail(): void {
     this.selectedTask.set(null);
+  }
+
+  /** F28 — cierra el detalle antes de abrir el modal de edición: son dos
+   * overlays de pantalla completa, no tiene sentido apilarlos. */
+  openEditModal(task: TaskResponse): void {
+    this.selectedTask.set(null);
+    this.editingTask.set(task);
+    this.editModalOpen.set(true);
+  }
+
+  closeEditModal(): void {
+    this.editModalOpen.set(false);
+  }
+
+  /** El modal de edición ya hizo el PATCH y mostró el toast — aquí solo se
+   * refleja el resultado en el estado local, mismo patrón que
+   * onTaskUpdated para el control de estado. */
+  onTaskEdited(updated: TaskResponse): void {
+    this.onTaskUpdated(updated);
   }
 
   /** El control de estado compartido (app-task-status-control) ya hizo el

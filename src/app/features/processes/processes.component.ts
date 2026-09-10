@@ -43,9 +43,11 @@ import {
   UpdateLegalProcessRequest,
   UpdateProcessStatusRequest,
 } from '../../core/models/legal-process.model';
-import { ProcessEvent } from '../../core/models/process-event.model';
+import { ProcessEvent, ProcessEventType } from '../../core/models/process-event.model';
 import { ConfirmDialogService } from '../../core/services/confirm-dialog.service';
 import { ToastService } from '../../core/services/toast.service';
+import { PortalVisibilityPolicyService } from '../../core/services/portal-visibility-policy.service';
+import { PortalEventVisibilityPolicy } from '../../core/models/portal-visibility-policy.model';
 import { ProcessesTableComponent } from './components/processes-table.component';
 import { ProcessFormComponent } from './components/process-form.component';
 import { ProcessStatusModalComponent } from './components/process-status-modal.component';
@@ -191,7 +193,7 @@ import {
         [riskLevels]="riskLevels()"
         (close)="togglePanel()"
         (submit)="submitProcess()"
-        (toggleAdvisor)="toggleAdvisor($event)"
+        (advisorIdsChange)="setAdvisorIds($event)"
         (generateCaseNumber)="generateCaseNumber()"
       />
 
@@ -212,6 +214,7 @@ import {
         [processTitle]="editingProcess()?.title ?? null"
         [isLoadingHistory]="isLoadingHistory()"
         [events]="processHistory()"
+        [visibilityPolicies]="visibilityPolicies()"
         (close)="closeHistoryModal()"
         (previewFile)="previewFileFromHistory($event.fileId, $event.filename)"
         (downloadFile)="downloadFile($event)"
@@ -272,6 +275,7 @@ import {
         [errorMessage]="formError()"
         [processTitle]="editingProcess()?.title ?? null"
         [files]="annotationFiles()"
+        [visibilityMode]="annotationVisibilityMode()"
         (close)="closeAnnotationModal()"
         (submit)="submitAnnotation()"
         (filesSelected)="onAnnotationFilesSelected($event)"
@@ -318,6 +322,7 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   private readonly deadlinesService = inject(DeadlinesService);
   private readonly tasksService = inject(TasksService);
   private readonly taskStatusesService = inject(TaskStatusesService);
+  private readonly visibilityPolicyService = inject(PortalVisibilityPolicyService);
   private readonly sanitizer = inject(DomSanitizer);
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly toast = inject(ToastService);
@@ -359,6 +364,14 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   readonly editingProcess = signal<LegalProcessResponse | null>(null);
   readonly processHistory = signal<ProcessEvent[]>([]); // HU-17
   readonly isLoadingHistory = signal(false); // HU-17
+  // F27: política de visibilidad del portal por tipo de evento — se carga
+  // una vez y se reutiliza en el modal de historial y el de anotaciones.
+  readonly visibilityPolicies = signal<PortalEventVisibilityPolicy[]>([]);
+  readonly annotationVisibilityMode = computed(
+    () =>
+      this.visibilityPolicies().find((p) => p.eventType === ProcessEventType.ANNOTATION)?.mode ??
+      null
+  );
   readonly previewingFile = signal<{
     id: string;
     originalFilename: string;
@@ -435,9 +448,11 @@ export class ProcessesComponent implements OnInit, OnDestroy {
     notes: [''],
   });
 
-  // HU-16: Formulario de anotación
+  // HU-16: Formulario de anotación. F27: markAsInternal solo se manda si
+  // la política de ANNOTATION está en DEFAULT_ON (ver annotation-modal).
   readonly annotationForm = this.fb.nonNullable.group({
     description: ['', [Validators.required, Validators.maxLength(2000)]],
+    markAsInternal: [false],
   });
 
   // F13: Formulario de creación de plazos
@@ -464,6 +479,15 @@ export class ProcessesComponent implements OnInit, OnDestroy {
     this.loadCatalogs();
     this.loadTaskTemplates();
     this.loadTaskStatuses();
+    this.loadVisibilityPolicies();
+  }
+
+  // F27: política de visibilidad del portal por tipo de evento.
+  loadVisibilityPolicies(): void {
+    this.visibilityPolicyService.getAll().subscribe({
+      next: (policies) => this.visibilityPolicies.set(policies),
+      error: (error) => console.error('Error loading visibility policies:', error),
+    });
   }
 
   loadCatalogs(): void {
@@ -629,9 +653,12 @@ export class ProcessesComponent implements OnInit, OnDestroy {
       },
       error: (error) => {
         console.error('Error saving process:', error);
-        this.formError.set(
-          error.error?.message || 'Error al guardar el proceso',
-        );
+        // BUG-10: legalProcessesService ya envuelve el error en un Error
+        // nativo con el mensaje real extraído (.message) — error.error no
+        // existe ahí, así que error.error?.message siempre caía al genérico.
+        const message = error.message || 'Error al guardar el proceso';
+        this.formError.set(message);
+        this.toast.error(message);
         this.isLoading.set(false);
       },
     });
@@ -739,7 +766,7 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   openAnnotationModal(process: LegalProcessResponse): void {
     this.editingProcess.set(process);
     this.annotationModalOpen.set(true);
-    this.annotationForm.reset();
+    this.annotationForm.reset({ description: '', markAsInternal: false });
     this.annotationFiles.set([]);
   }
 
@@ -747,7 +774,7 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   closeAnnotationModal(): void {
     this.annotationModalOpen.set(false);
     this.editingProcess.set(null);
-    this.annotationForm.reset();
+    this.annotationForm.reset({ description: '', markAsInternal: false });
     this.annotationFiles.set([]);
     this.formError.set(null);
   }
@@ -780,12 +807,12 @@ export class ProcessesComponent implements OnInit, OnDestroy {
 
     this.isLoading.set(true);
     this.formError.set(null);
-    const description = this.annotationForm.getRawValue().description;
+    const { description, markAsInternal } = this.annotationForm.getRawValue();
     const processId = this.editingProcess()!.id;
 
     // Primero crear la anotación
     this.processEventsService
-      .createAnnotation(processId, description)
+      .createAnnotation(processId, description, markAsInternal)
       .pipe(
         // Luego subir archivos si hay, vinculándolos a la anotación creada
         switchMap((annotationEvent) => {
@@ -820,8 +847,10 @@ export class ProcessesComponent implements OnInit, OnDestroy {
         },
         error: (error) => {
           console.error('Error creating annotation:', error);
+          // BUG-20 (hallazgo tardío en ola 3): error.message, no
+          // error.error?.message — ver comentario en settings.component.ts.
           this.formError.set(
-            error.error?.message || 'Error al crear anotación o subir archivos',
+            error.message || 'Error al crear anotación o subir archivos',
           );
           this.isLoading.set(false);
         },
@@ -1160,9 +1189,11 @@ export class ProcessesComponent implements OnInit, OnDestroy {
         },
         error: (error) => {
           console.error('Error updating status:', error);
-          this.formError.set(
-            error.error?.message || 'Error al actualizar el estado',
-          );
+          // BUG-10: mismo patrón que saveProcess — updateProcessStatus
+          // también envuelve el error en un Error nativo.
+          const message = error.message || 'Error al actualizar el estado';
+          this.formError.set(message);
+          this.toast.error(message);
           this.isLoading.set(false);
         },
       });
@@ -1186,7 +1217,10 @@ export class ProcessesComponent implements OnInit, OnDestroy {
       },
       error: (error) => {
         console.error('Error deleting process:', error);
-        alert('Error al eliminar el proceso');
+        // BUG-20 (hallazgo tardío en ola 3): alert() nativo reemplazado por
+        // ToastService, leyendo error.message (no error.error?.message) —
+        // ver comentario en settings.component.ts.
+        this.toast.error(error.message || 'Error al eliminar el proceso');
         this.isLoading.set(false);
       },
     });
@@ -1236,21 +1270,11 @@ export class ProcessesComponent implements OnInit, OnDestroy {
     }
   }
 
-  toggleAdvisor(advisorId: string): void {
-    const currentIds = this.processForm.get('advisorIds')?.value || [];
-    const index = currentIds.indexOf(advisorId);
-
-    if (index > -1) {
-      // Remover el ID
-      this.processForm.patchValue({
-        advisorIds: currentIds.filter((id: string) => id !== advisorId),
-      });
-    } else {
-      // Agregar el ID
-      this.processForm.patchValue({
-        advisorIds: [...currentIds, advisorId],
-      });
-    }
+  // BUG-06 etapa 2: MultiSelectComponent (dentro de ProcessFormComponent)
+  // emite el array completo de ids seleccionados en cada cambio, en vez de
+  // un id a la vez — ya no hace falta calcular el toggle acá.
+  setAdvisorIds(advisorIds: string[]): void {
+    this.processForm.patchValue({ advisorIds });
   }
 
   generateCaseNumber(): void {
@@ -1273,7 +1297,7 @@ export class ProcessesComponent implements OnInit, OnDestroy {
       },
       error: (error) => {
         console.error('Error al descargar archivo:', error);
-        alert('Error al descargar el archivo');
+        this.toast.error(error.message || 'Error al descargar el archivo');
       },
     });
   }
@@ -1295,7 +1319,7 @@ export class ProcessesComponent implements OnInit, OnDestroy {
       },
       error: (error) => {
         console.error('Error al obtener URL del archivo:', error);
-        alert('Error al cargar vista previa del archivo');
+        this.toast.error(error.message || 'Error al cargar vista previa del archivo');
       },
     });
   }

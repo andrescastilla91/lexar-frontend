@@ -6,7 +6,9 @@ import { LegalProcessesService } from '../../core/services/legal-processes.servi
 import { ClientsService } from '../../core/services/clients.service';
 import { FileModel } from '../../core/models/file.model';
 import { HasPermissionDirective } from '../../core/directives/has-permission.directive';
+import { PermissionsService } from '../../core/services/permissions.service';
 import { ConfirmDialogService } from '../../core/services/confirm-dialog.service';
+import { ToastService } from '../../core/services/toast.service';
 import { FilePreviewModalComponent } from '../../core/components/file-preview-modal.component';
 import { DocumentUploadPanelComponent } from './components/document-upload-panel.component';
 import { DocumentsListComponent, DocumentRow } from './components/documents-list.component';
@@ -66,7 +68,10 @@ import { DocumentsListComponent, DocumentRow } from './components/documents-list
         [files]="documentRows()"
         [isLoading]="loading()"
         [filterEntityType]="filterEntityType()"
+        [hasFullAccess]="hasFullDocumentAccess()"
+        [onlyMine]="onlyMine()"
         (filterChange)="onFilterChange($event)"
+        (onlyMineChange)="onOnlyMineChange($event)"
         (refresh)="loadFiles()"
         (previewFile)="previewFile($event)"
         (downloadFile)="downloadFile($event)"
@@ -89,6 +94,8 @@ export class DocumentsComponent implements OnInit {
   private readonly processesService = inject(LegalProcessesService);
   private readonly clientsService = inject(ClientsService);
   private readonly confirmDialog = inject(ConfirmDialogService);
+  private readonly permissionsService = inject(PermissionsService);
+  private readonly toast = inject(ToastService);
 
   readonly files = signal<FileModel[]>([]);
   readonly processes = signal<{ id: string; title: string }[]>([]);
@@ -101,6 +108,13 @@ export class DocumentsComponent implements OnInit {
   readonly previewingFile = signal<FileModel | null>(null);
   readonly uploadPanelOpen = signal(false);
   readonly filterEntityType = signal('');
+  /** F30: filtro "Solo los míos" — solo tiene efecto real para quien tiene
+   * files.view.all (ver hasFullDocumentAccess). */
+  readonly onlyMine = signal(false);
+
+  readonly hasFullDocumentAccess = computed(() =>
+    this.permissionsService.hasPermission('files.view.all'),
+  );
 
   readonly uploadForm = this.fb.nonNullable.group({
     entityType: ['legal_process', Validators.required],
@@ -149,7 +163,10 @@ export class DocumentsComponent implements OnInit {
 
   loadFiles(): void {
     this.loading.set(true);
-    const params = this.filterEntityType() ? { entityType: this.filterEntityType() } : {};
+    const params = {
+      ...(this.filterEntityType() ? { entityType: this.filterEntityType() } : {}),
+      ...(this.onlyMine() ? { onlyMine: true } : {}),
+    };
 
     this.filesService.listFiles(params).subscribe({
       next: (response) => {
@@ -165,6 +182,11 @@ export class DocumentsComponent implements OnInit {
 
   onFilterChange(entityType: string): void {
     this.filterEntityType.set(entityType);
+    this.loadFiles();
+  }
+
+  onOnlyMineChange(onlyMine: boolean): void {
+    this.onlyMine.set(onlyMine);
     this.loadFiles();
   }
 
@@ -211,8 +233,14 @@ export class DocumentsComponent implements OnInit {
           this.loadFiles();
         },
         error: (err) => {
+          // BUG-20 ola 1: err.message ya es el mensaje real y seguro que
+          // calculó error.interceptor.ts (BUG-19) — err.error?.message lee
+          // el body crudo, sin sus reglas de seguridad (p. ej. un 500 nunca
+          // confía en el body).
           this.isUploading.set(false);
-          this.uploadError.set(err.error?.message || 'Error al subir el archivo');
+          const message = err.message || 'Error al subir el archivo';
+          this.uploadError.set(message);
+          this.toast.error(message);
         },
       });
   }
@@ -240,7 +268,10 @@ export class DocumentsComponent implements OnInit {
       },
       error: (err) => {
         console.error('Error downloading file:', err);
-        alert('Error al descargar el archivo');
+        // BUG-20 ola 1: alert() nativo reemplazado por ToastService; se lee
+        // err.message (el mensaje real y seguro del interceptor) en vez de
+        // un texto hardcodeado que ocultaba el motivo real del fallo.
+        this.toast.error(err.message || 'Error al descargar el archivo');
       },
     });
   }
@@ -257,7 +288,12 @@ export class DocumentsComponent implements OnInit {
 
     this.filesService.deleteFile(file.id).subscribe({
       next: () => this.loadFiles(),
-      error: (err) => alert('Error al eliminar: ' + err.error?.message),
+      error: (err) => {
+        // BUG-20 ola 1: alert() nativo reemplazado por ToastService; se lee
+        // err.message en vez de err.error?.message (ver comentario en
+        // handleUpload).
+        this.toast.error(err.message || 'Error al eliminar el documento');
+      },
     });
   }
 

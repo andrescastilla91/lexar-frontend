@@ -103,13 +103,13 @@ describe('AdminTenantsComponent', () => {
     platformAdminServiceMock.updateSubscription.mockReturnValue(of({ message: 'Suscripción actualizada' }));
     const component = createComponent();
     component.subscriptionAction.set('change_plan');
-    component.planCodeInput.set('PROFESIONAL');
+    component.planCodeInput.set('ESTUDIO');
 
     await component.applySubscriptionAction('company-1');
 
     expect(platformAdminServiceMock.updateSubscription).toHaveBeenCalledWith('company-1', {
       action: 'change_plan',
-      planCode: 'PROFESIONAL',
+      planCode: 'ESTUDIO',
       days: undefined,
     });
     expect(toastServiceMock.success).toHaveBeenCalledWith('Suscripción actualizada');

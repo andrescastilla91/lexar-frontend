@@ -1,4 +1,4 @@
-import { APIRequestContext, Page, request } from '@playwright/test';
+import { APIRequestContext, Locator, Page, request } from '@playwright/test';
 import { expect, test, TestTenant } from '../shared/tenant-fixture';
 import { E2E_API_ORIGIN, E2E_MAILPIT_ORIGIN } from '../shared/environment';
 import { LoginPage } from '../pages/login.page';
@@ -184,6 +184,49 @@ async function setupNonApproverUser(
   return { email, password, displayName: 'Redactor E2E' };
 }
 
+/** F28 — crea, desde Configuración > Estados de tareas, un estado sin
+ * requisitos especiales (para probar reordenamiento, no aprobación). */
+async function createStatus(page: Page, label: string): Promise<void> {
+  await page.goto('/configuracion');
+  await selectSettingsTab(page, 'Estados de tareas');
+
+  await page.getByRole('button', { name: 'Nuevo estado' }).click();
+  await page.locator('input[formcontrolname="code"]').fill(`e2e_${Date.now()}_${Math.floor(Math.random() * 1000)}`);
+  await page.locator('input[formcontrolname="label"]').fill(label);
+  await page.getByRole('button', { name: 'Guardar' }).click();
+
+  await expect(page.getByText('Estado creado correctamente.')).toBeVisible();
+}
+
+async function gotoTaskStatusesTab(page: Page): Promise<void> {
+  await page.goto('/configuracion');
+  await selectSettingsTab(page, 'Estados de tareas');
+}
+
+/** El badge de label de cada fila (`getCatalogBadgeClasses`) es el único
+ * `span` con esta combinación exacta de utilidades — las demás insignias de
+ * la fila ("Estado final", "Requiere aprobación", etc.) usan
+ * `px-2 py-0.5`, no `px-2.5 py-1`, así que no colisionan. */
+const STATUS_LABEL_SELECTOR = 'span.rounded-full.px-2\\.5.py-1.text-xs.font-semibold';
+
+async function getStatusLabels(page: Page): Promise<string[]> {
+  // trim(): el interpolado va en su propia línea dentro del <span>
+  // (`{{ status.label }}`), así que el textContent trae espacio/salto de
+  // línea al borde incluso con `preserveWhitespaces: false`.
+  const raw = await page.locator(STATUS_LABEL_SELECTOR).allTextContents();
+  return raw.map((text) => text.trim());
+}
+
+function statusRow(page: Page, label: string): Locator {
+  return page
+    .locator('div.rounded-lg.border.border-default.bg-surface.p-4.shadow-card')
+    .filter({ has: page.locator(STATUS_LABEL_SELECTOR, { hasText: label }) });
+}
+
+async function moveStatusDown(page: Page, label: string): Promise<void> {
+  await statusRow(page, label).getByRole('button', { name: 'Bajar' }).click();
+}
+
 test.describe('Tareas: tablero drag y flujo de aprobación (F14)', () => {
   test('el tablero muestra las columnas por estado y permite crear una tarea general', async ({
     page,
@@ -294,5 +337,84 @@ test.describe('Tareas: tablero drag y flujo de aprobación (F14)', () => {
 
     await tasksPageAsAdmin.switchToBoardView();
     await expect(tasksPageAsAdmin.statusColumn(statusLabel).getByText(taskTitle)).toBeVisible();
+  });
+});
+
+/**
+ * F28 — edición de campos de tarea y orden configurable de estados. La
+ * verificación de la regla de estado terminal y del registro en bitácora ya
+ * está cubierta a nivel unitario (tasks.service.spec.ts) y en la suite F1
+ * del backend (rbac-matrix/tenant-isolation); aquí solo se ejercita el
+ * flujo de UI real: que editar persista y que reordenar persista.
+ */
+test.describe('F28 — edición de tareas y orden de estados', () => {
+  test('editar una tarea desde el detalle persiste los cambios tras recargar', async ({ page, tenant }) => {
+    await loginAsAdmin(page, tenant);
+
+    const tasksPage = new TasksPage(page);
+    await tasksPage.goto();
+
+    const originalTitle = `Tarea editar E2E ${Date.now()}`;
+    await tasksPage.openCreateModal();
+    await tasksPage.fillCreateForm({ title: originalTitle });
+    await tasksPage.submitCreate();
+    await expect(page.getByText('Tarea creada correctamente.')).toBeVisible();
+
+    const editedTitle = `${originalTitle} (editada)`;
+    await tasksPage.openDetailFromList(originalTitle);
+    await tasksPage.openEditModal();
+    await tasksPage.fillEditForm({
+      title: editedTitle,
+      description: 'Descripción editada por Playwright',
+      priority: 'HIGH',
+    });
+    await tasksPage.submitEdit();
+
+    await expect(page.getByText('Tarea actualizada correctamente.')).toBeVisible();
+
+    // Recargar y volver a abrir el detalle confirma que el PATCH persistió
+    // en el backend, no solo en el estado local del componente.
+    await page.reload();
+    await expect(tasksPage.listTaskRow(editedTitle)).toBeVisible();
+
+    await tasksPage.openDetailFromList(editedTitle);
+    // Se escopa al panel de detalle: la fila subyacente de la lista sigue
+    // en el DOM bajo el overlay y también muestra el badge de prioridad, lo
+    // que duplicaría el match de "Alta" si se buscara a nivel de página.
+    const detailPanel = page
+      .locator('div.fixed.inset-0')
+      .filter({ has: page.getByRole('heading', { name: editedTitle, exact: true }) });
+    await expect(detailPanel.getByText('Descripción editada por Playwright')).toBeVisible();
+    await expect(detailPanel.getByText('Alta', { exact: true })).toBeVisible();
+  });
+
+  test('reordenar estados desde Configuración persiste tras recargar', async ({ page, tenant }) => {
+    await loginAsAdmin(page, tenant);
+
+    const suffix = Date.now();
+    const labelA = `Estado A E2E ${suffix}`;
+    const labelB = `Estado B E2E ${suffix}`;
+    // Se crean en orden A, B — al ir siempre al final (posición "Al
+    // final" por defecto), A queda antes que B.
+    await createStatus(page, labelA);
+    await createStatus(page, labelB);
+    await expect(statusRow(page, labelB)).toBeVisible();
+
+    const before = await getStatusLabels(page);
+    expect(before.indexOf(labelA)).toBeGreaterThanOrEqual(0);
+    expect(before.indexOf(labelB)).toBeGreaterThan(before.indexOf(labelA));
+
+    await moveStatusDown(page, labelA);
+    await expect(page.getByText('Orden actualizado correctamente.')).toBeVisible();
+
+    // Recargar y volver a entrar a la pestaña confirma que el reorder
+    // persistió en el backend (sortOrder real), no solo en el signal local.
+    // Se espera la fila (no solo la navegación) porque loadStatuses() es
+    // async: leer el DOM justo tras gotoTaskStatusesTab puede ganarle al
+    // fetch y devolver la lista todavía vacía (causa del flaky visto en CI).
+    await gotoTaskStatusesTab(page);
+    await expect(statusRow(page, labelB)).toBeVisible();
+    const after = await getStatusLabels(page);
+    expect(after.indexOf(labelB)).toBeLessThan(after.indexOf(labelA));
   });
 });

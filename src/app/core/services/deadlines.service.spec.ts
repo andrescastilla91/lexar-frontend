@@ -1,9 +1,11 @@
 import { TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { DeadlinesService } from './deadlines.service';
 import { DeadlineResponse, DeadlineStatus } from '../models/deadline.model';
 import { environment } from '../../../environments/environment';
+import { errorInterceptor } from '../interceptors/error.interceptor';
+import { PlanUpgradeService } from './plan-upgrade.service';
 
 describe('DeadlinesService', () => {
   let service: DeadlinesService;
@@ -27,8 +29,15 @@ describe('DeadlinesService', () => {
   };
 
   beforeEach(() => {
+    // BUG-20 ola 2: se incluye errorInterceptor real en el pipeline — en
+    // producción el servicio siempre recibe el error YA procesado por él
+    // (provideHttpClient en app.config.ts lo registra globalmente).
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideHttpClient(withInterceptors([errorInterceptor])),
+        provideHttpClientTesting(),
+        { provide: PlanUpgradeService, useValue: { isPlanGateError: () => false, promptUpgrade: () => {} } },
+      ],
     });
 
     service = TestBed.inject(DeadlinesService);
@@ -74,13 +83,16 @@ describe('DeadlinesService', () => {
     expect(result).toEqual(deadline);
   });
 
-  it('create en error propaga el mensaje del backend', () => {
+  // BUG-20: un 500 nunca confía en el body — error.interceptor.ts (BUG-19)
+  // siempre usa su genérico en español ahí, sin importar el fallback local
+  // del servicio.
+  it('create en un 500, usa el genérico del interceptor (nunca confía en el body)', () => {
     let error: Error | undefined;
     service.create('process-1', { title: 't', typeId: 'x', dueAt: 'x' }).subscribe({ error: (e) => (error = e) });
 
     httpMock.expectOne(`${apiUrl}/legal-processes/process-1/deadlines`).flush('error', { status: 500, statusText: 'Server Error' });
 
-    expect(error?.message).toBe('Error al crear plazo');
+    expect(error?.message).toBe('Error interno del servidor');
   });
 
   it('getAll hace GET a /deadlines sin params cuando no hay filtros', () => {
@@ -110,13 +122,13 @@ describe('DeadlinesService', () => {
     req.flush({ message: 'ok', deadlines: [] });
   });
 
-  it('getAll en error propaga el mensaje del backend', () => {
+  it('getAll en un 500, usa el genérico del interceptor (nunca confía en el body)', () => {
     let error: Error | undefined;
     service.getAll().subscribe({ error: (e) => (error = e) });
 
     httpMock.expectOne(`${apiUrl}/deadlines`).flush('error', { status: 500, statusText: 'Server Error' });
 
-    expect(error?.message).toBe('Error al cargar plazos');
+    expect(error?.message).toBe('Error interno del servidor');
   });
 
   it('getOne hace GET a /deadlines/:id y extrae el plazo', () => {
@@ -151,13 +163,13 @@ describe('DeadlinesService', () => {
     expect(result?.status).toBe(DeadlineStatus.DONE);
   });
 
-  it('update en error propaga el mensaje del backend', () => {
+  it('update en un 500, usa el genérico del interceptor (nunca confía en el body)', () => {
     let error: Error | undefined;
     service.update('deadline-1', {}).subscribe({ error: (e) => (error = e) });
 
     httpMock.expectOne(`${apiUrl}/deadlines/deadline-1`).flush('error', { status: 500, statusText: 'Server Error' });
 
-    expect(error?.message).toBe('Error al actualizar plazo');
+    expect(error?.message).toBe('Error interno del servidor');
   });
 
   it('delete hace DELETE y resuelve void', () => {

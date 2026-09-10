@@ -46,10 +46,15 @@ describe('DocumentsListComponent', () => {
     });
   }
 
-  function createComponent(files: DocumentRow[] = [buildRow()], isLoading = false) {
+  function createComponent(
+    files: DocumentRow[] = [buildRow()],
+    isLoading = false,
+    hasFullAccess = false,
+  ) {
     const fixture = TestBed.createComponent(DocumentsListComponent);
     fixture.componentRef.setInput('files', files);
     fixture.componentRef.setInput('isLoading', isLoading);
+    fixture.componentRef.setInput('hasFullAccess', hasFullAccess);
     fixture.detectChanges();
     return { fixture, component: fixture.componentInstance };
   }
@@ -121,6 +126,43 @@ describe('DocumentsListComponent', () => {
     refreshButton.click();
 
     expect(spy).toHaveBeenCalled();
+  });
+
+  it('F30: sin files.view.all no muestra el filtro Todos/Solo los míos y sí el texto explicativo', () => {
+    configure(['files.view']);
+    const { fixture } = createComponent([buildRow()], false, false);
+
+    const selects = fixture.nativeElement.querySelectorAll('select');
+    // solo el select de tipo de entidad, no el de Todos/Solo los míos
+    expect(selects.length).toBe(1);
+    expect(fixture.nativeElement.textContent).toContain(
+      'Ves los documentos de los procesos y clientes a tu cargo.',
+    );
+  });
+
+  it('F30: con files.view.all muestra el filtro Todos/Solo los míos y no el texto explicativo', () => {
+    configure(['files.view', 'files.view.all']);
+    const { fixture } = createComponent([buildRow()], false, true);
+
+    const selects = fixture.nativeElement.querySelectorAll('select');
+    expect(selects.length).toBe(2);
+    expect(fixture.nativeElement.textContent).not.toContain(
+      'Ves los documentos de los procesos y clientes a tu cargo.',
+    );
+  });
+
+  it('F30: emite onlyMineChange(true) al seleccionar "Solo los míos"', () => {
+    configure(['files.view', 'files.view.all']);
+    const { fixture, component } = createComponent([buildRow()], false, true);
+    const spy = jest.fn();
+    component.onlyMineChange.subscribe(spy);
+
+    const selects = fixture.nativeElement.querySelectorAll('select') as NodeListOf<HTMLSelectElement>;
+    const onlyMineSelect = selects[0];
+    onlyMineSelect.value = 'mine';
+    onlyMineSelect.dispatchEvent(new Event('change'));
+
+    expect(spy).toHaveBeenCalledWith(true);
   });
 
   it('emite previewFile, downloadFile y deleteFile con el archivo correspondiente', () => {

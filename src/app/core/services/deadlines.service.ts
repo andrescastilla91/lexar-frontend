@@ -19,6 +19,10 @@ interface DeadlineItemResponse {
   deadline: DeadlineResponse;
 }
 
+// BUG-20 ola 2: todos los catchError de este servicio leen error.message —
+// no error.error?.message — porque error.interceptor.ts (BUG-19) ya calculó
+// ahí el mensaje real y seguro (nunca confía en el body de un 500, descarta
+// el 404 de ruta sin match). Leer error.error?.message se salta esa lógica.
 @Injectable({ providedIn: 'root' })
 export class DeadlinesService {
   private readonly http = inject(HttpClient);
@@ -35,7 +39,7 @@ export class DeadlinesService {
         catchError((error) => {
           console.error('Error al obtener plazos del proceso:', error);
           return throwError(
-            () => new Error(error.error?.message || 'Error al cargar plazos'),
+            () => new Error(error.message || 'Error al cargar plazos'),
           );
         }),
       );
@@ -55,7 +59,7 @@ export class DeadlinesService {
         catchError((error) => {
           console.error('Error al crear plazo:', error);
           return throwError(
-            () => new Error(error.error?.message || 'Error al crear plazo'),
+            () => new Error(error.message || 'Error al crear plazo'),
           );
         }),
       );
@@ -77,7 +81,7 @@ export class DeadlinesService {
         catchError((error) => {
           console.error('Error al obtener plazos:', error);
           return throwError(
-            () => new Error(error.error?.message || 'Error al cargar plazos'),
+            () => new Error(error.message || 'Error al cargar plazos'),
           );
         }),
       );
@@ -92,7 +96,7 @@ export class DeadlinesService {
         catchError((error) => {
           console.error('Error al obtener el plazo:', error);
           return throwError(
-            () => new Error(error.error?.message || 'Error al cargar el plazo'),
+            () => new Error(error.message || 'Error al cargar el plazo'),
           );
         }),
       );
@@ -110,7 +114,7 @@ export class DeadlinesService {
           console.error('Error al actualizar plazo:', error);
           return throwError(
             () =>
-              new Error(error.error?.message || 'Error al actualizar plazo'),
+              new Error(error.message || 'Error al actualizar plazo'),
           );
         }),
       );
@@ -124,7 +128,7 @@ export class DeadlinesService {
         catchError((error) => {
           console.error('Error al eliminar plazo:', error);
           return throwError(
-            () => new Error(error.error?.message || 'Error al eliminar plazo'),
+            () => new Error(error.message || 'Error al eliminar plazo'),
           );
         }),
       );

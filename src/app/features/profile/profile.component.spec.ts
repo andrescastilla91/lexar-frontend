@@ -162,8 +162,11 @@ describe('ProfileComponent', () => {
   });
 
   it('onSubmitProfile en error muestra el mensaje del backend y un toast', () => {
+    // BUG-20 ola 1: ProfileService no envuelve sus errores — el componente
+    // recibe directo el objeto de error.interceptor.ts, con .message ya
+    // resuelto (no anidado bajo .error).
     profileServiceMock.updateMe.mockReturnValue(
-      throwError(() => ({ error: { message: 'Teléfono inválido' } })),
+      throwError(() => ({ message: 'Teléfono inválido' })),
     );
     const component = createComponent();
 
@@ -224,7 +227,7 @@ describe('ProfileComponent', () => {
 
   it('onSubmitPassword en error muestra el mensaje y detiene el envío', () => {
     profileServiceMock.changePassword.mockReturnValue(
-      throwError(() => ({ error: { message: 'Contraseña actual incorrecta' } })),
+      throwError(() => ({ message: 'Contraseña actual incorrecta' })),
     );
     const component = createComponent();
     component.passwordForm.setValue({ currentPassword: 'mala', newPassword: 'nuevaClave123' });
@@ -235,6 +238,18 @@ describe('ProfileComponent', () => {
     expect(component.isSubmittingPassword()).toBe(false);
     expect(authServiceMock.logout).not.toHaveBeenCalled();
     expect(toastServiceMock.error).toHaveBeenCalledWith('Contraseña actual incorrecta');
+  });
+
+  it('onSaveNotificationPreferences en error, muestra un toast con el mensaje real', () => {
+    notificationsServiceMock.updatePreferences.mockReturnValue(
+      throwError(() => ({ message: 'No se pudieron guardar' })),
+    );
+    const component = createComponent();
+
+    component.onSaveNotificationPreferences();
+
+    expect(component.isSavingPreferences()).toBe(false);
+    expect(toastServiceMock.error).toHaveBeenCalledWith('No se pudieron guardar');
   });
 
   it('onRevokeSession no revoca si el usuario cancela el diálogo', async () => {
@@ -260,6 +275,17 @@ describe('ProfileComponent', () => {
     expect(toastServiceMock.success).toHaveBeenCalledWith('Sesión cerrada correctamente.');
   });
 
+  it('onRevokeSession en error, muestra un toast con el mensaje real', async () => {
+    confirmDialogMock.confirm.mockResolvedValue(true);
+    profileServiceMock.revokeSession.mockReturnValue(throwError(() => ({ message: 'No se pudo cerrar' })));
+    const component = createComponent();
+
+    component.onRevokeSession('s1');
+    await Promise.resolve();
+
+    expect(toastServiceMock.error).toHaveBeenCalledWith('No se pudo cerrar');
+  });
+
   it('onStartTwoFactorSetup obtiene el secreto y muestra el formulario de confirmación', () => {
     authServiceMock.setupTwoFactor.mockReturnValue(
       of({ message: 'ok', otpauthUri: 'otpauth://totp/x', secret: 'SECRET123' }),
@@ -271,6 +297,16 @@ describe('ProfileComponent', () => {
     expect(component.isSettingUpTwoFactor()).toBe(true);
     expect(component.twoFactorSecret()).toBe('SECRET123');
     expect(component.otpauthUri()).toBe('otpauth://totp/x');
+  });
+
+  it('onStartTwoFactorSetup en error, muestra un toast con el mensaje real', () => {
+    authServiceMock.setupTwoFactor.mockReturnValue(throwError(() => ({ message: 'No se pudo iniciar' })));
+    const component = createComponent();
+
+    component.onStartTwoFactorSetup();
+
+    expect(component.isStartingTwoFactor()).toBe(false);
+    expect(toastServiceMock.error).toHaveBeenCalledWith('No se pudo iniciar');
   });
 
   it('onConfirmTwoFactorSetup activa el 2FA y muestra los códigos de recuperación', () => {
@@ -287,9 +323,12 @@ describe('ProfileComponent', () => {
     expect(toastServiceMock.success).toHaveBeenCalledWith('Verificación en dos pasos activada correctamente.');
   });
 
-  it('onConfirmTwoFactorSetup en error muestra el mensaje del backend', () => {
+  it('onConfirmTwoFactorSetup en error, muestra el mensaje real inline y en un toast', () => {
+    // BUG-20 ola 1: AuthService no envuelve sus errores — el componente
+    // recibe directo el objeto de error.interceptor.ts, con .message ya
+    // resuelto (no anidado bajo .error).
     authServiceMock.verifyTwoFactor.mockReturnValue(
-      throwError(() => ({ error: { message: 'Código inválido' } })),
+      throwError(() => ({ message: 'Código inválido' })),
     );
     const component = createComponent();
 
@@ -297,6 +336,7 @@ describe('ProfileComponent', () => {
 
     expect(component.twoFactorVerifyError()).toBe('Código inválido');
     expect(component.isVerifyingTwoFactor()).toBe(false);
+    expect(toastServiceMock.error).toHaveBeenCalledWith('Código inválido');
   });
 
   it('onDisableTwoFactor valida el formulario antes de enviar', () => {
@@ -317,6 +357,18 @@ describe('ProfileComponent', () => {
 
     expect(authServiceMock.disableTwoFactor).toHaveBeenCalledWith('Passw0rd!', '123456');
     expect(toastServiceMock.success).toHaveBeenCalledWith('Verificación en dos pasos desactivada correctamente.');
+  });
+
+  it('onDisableTwoFactor en error, muestra el mensaje real inline y en un toast', () => {
+    authServiceMock.disableTwoFactor.mockReturnValue(throwError(() => ({ message: 'Código incorrecto' })));
+    const component = createComponent();
+    component.disableTwoFactorForm.setValue({ password: 'Passw0rd!', code: '000000' });
+
+    component.onDisableTwoFactor();
+
+    expect(component.disableTwoFactorError()).toBe('Código incorrecto');
+    expect(component.isDisablingTwoFactor()).toBe(false);
+    expect(toastServiceMock.error).toHaveBeenCalledWith('Código incorrecto');
   });
 
   it('onRegenerateRecoveryCodes valida el formulario antes de enviar', () => {
@@ -342,9 +394,9 @@ describe('ProfileComponent', () => {
     expect(toastServiceMock.success).toHaveBeenCalledWith('Códigos de recuperación regenerados correctamente.');
   });
 
-  it('onRegenerateRecoveryCodes en error muestra el mensaje del backend', () => {
+  it('onRegenerateRecoveryCodes en error, muestra el mensaje real inline y en un toast', () => {
     authServiceMock.regenerateTwoFactorRecoveryCodes.mockReturnValue(
-      throwError(() => ({ error: { message: 'La contraseña ingresada es incorrecta.' } })),
+      throwError(() => ({ message: 'La contraseña ingresada es incorrecta.' })),
     );
     const component = createComponent();
     component.disableTwoFactorForm.setValue({ password: 'mala', code: '123456' });
@@ -353,5 +405,6 @@ describe('ProfileComponent', () => {
 
     expect(component.regenerateCodesError()).toBe('La contraseña ingresada es incorrecta.');
     expect(component.isRegeneratingRecoveryCodes()).toBe(false);
+    expect(toastServiceMock.error).toHaveBeenCalledWith('La contraseña ingresada es incorrecta.');
   });
 });
