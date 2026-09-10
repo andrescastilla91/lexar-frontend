@@ -6,6 +6,7 @@ import { TaskStatusesService } from '../../../core/services/task-statuses.servic
 import { ConfirmDialogService } from '../../../core/services/confirm-dialog.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { PermissionsService } from '../../../core/services/permissions.service';
+import { PlanUpgradeService } from '../../../core/services/plan-upgrade.service';
 import { TaskApprovalCandidate, TaskStatusResponse } from '../../../core/models/task-status.model';
 
 describe('SettingsTaskStatusesComponent', () => {
@@ -14,10 +15,12 @@ describe('SettingsTaskStatusesComponent', () => {
     create: jest.Mock;
     update: jest.Mock;
     delete: jest.Mock;
+    reorder: jest.Mock;
     getApprovalCandidates: jest.Mock;
   };
   let confirmDialogMock: { confirm: jest.Mock };
   let toastServiceMock: { success: jest.Mock; error: jest.Mock };
+  let planUpgradeMock: { isPlanGateError: jest.Mock; promptUpgrade: jest.Mock };
 
   const statuses: TaskStatusResponse[] = [
     {
@@ -58,10 +61,12 @@ describe('SettingsTaskStatusesComponent', () => {
       create: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
+      reorder: jest.fn(),
       getApprovalCandidates: jest.fn().mockReturnValue(of(candidates)),
     };
     confirmDialogMock = { confirm: jest.fn().mockResolvedValue(true) };
     toastServiceMock = { success: jest.fn(), error: jest.fn() };
+    planUpgradeMock = { isPlanGateError: jest.fn().mockReturnValue(false), promptUpgrade: jest.fn() };
 
     TestBed.configureTestingModule({
       imports: [SettingsTaskStatusesComponent],
@@ -69,6 +74,7 @@ describe('SettingsTaskStatusesComponent', () => {
         { provide: TaskStatusesService, useValue: taskStatusesServiceMock },
         { provide: ConfirmDialogService, useValue: confirmDialogMock },
         { provide: ToastService, useValue: toastServiceMock },
+        { provide: PlanUpgradeService, useValue: planUpgradeMock },
         {
           provide: PermissionsService,
           useValue: {
@@ -117,14 +123,30 @@ describe('SettingsTaskStatusesComponent', () => {
     expect(component.statuses()).toEqual(statuses);
   });
 
-  it('toggleApprover agrega y quita ids del set de seleccionados', () => {
+  it('setApproverIds reemplaza el set de seleccionados (wiring del MultiSelectComponent)', () => {
     const component = createComponent();
 
-    component.toggleApprover('u1');
+    component.setApproverIds(['u1', 'u2']);
     expect(component.selectedApproverIds().has('u1')).toBe(true);
+    expect(component.selectedApproverIds().has('u2')).toBe(true);
 
-    component.toggleApprover('u1');
+    component.setApproverIds([]);
     expect(component.selectedApproverIds().has('u1')).toBe(false);
+  });
+
+  it('approvalCandidateItems traduce TaskApprovalCandidate a MultiSelectItem', () => {
+    const component = createComponent();
+
+    expect(component.approvalCandidateItems()).toEqual(
+      candidates.map((c) => ({ id: c.id, label: `${c.firstName} ${c.lastName}` })),
+    );
+  });
+
+  it('selectedApproverIdsArray refleja el set como array', () => {
+    const component = createComponent();
+
+    component.setApproverIds(['u1']);
+    expect(component.selectedApproverIdsArray()).toEqual(['u1']);
   });
 
   it('openCreateModal limpia el form, aprobadores y habilita el código', () => {
@@ -171,8 +193,9 @@ describe('SettingsTaskStatusesComponent', () => {
       isTerminal: false,
       requiresApproval: false,
       requiresNote: false,
+      position: statuses.length,
     });
-    component.toggleApprover('u1');
+    component.setApproverIds(['u1']);
 
     component.submit();
 
@@ -199,8 +222,9 @@ describe('SettingsTaskStatusesComponent', () => {
       isTerminal: true,
       requiresApproval: true,
       requiresNote: false,
+      position: statuses.length,
     });
-    component.toggleApprover('u1');
+    component.setApproverIds(['u1']);
 
     component.submit();
 
@@ -238,6 +262,7 @@ describe('SettingsTaskStatusesComponent', () => {
       isTerminal: false,
       requiresApproval: false,
       requiresNote: false,
+      position: statuses.length,
     });
 
     component.submit();
@@ -282,5 +307,155 @@ describe('SettingsTaskStatusesComponent', () => {
     await component.deleteStatus(statuses[1]);
 
     expect(toastServiceMock.error).toHaveBeenCalledWith('No se pudo eliminar');
+  });
+
+  // F7-R3: taskApprovals solo gatea la creación/edición con requiresApproval:true.
+  // El toast+CTA de upgrade lo dispara error.interceptor.ts de forma
+  // centralizada (ver error.interceptor.spec.ts) — el componente solo cierra
+  // el modal y evita mostrar el error genérico encima.
+  it('submit en gate de plan: cierra el modal, no muestra el error genérico ni dispara el CTA él mismo', () => {
+    const gateError = { error: { code: 'FEATURE_NOT_IN_PLAN', message: 'Tu plan no incluye el motor de aprobaciones' } };
+    planUpgradeMock.isPlanGateError.mockReturnValue(true);
+    taskStatusesServiceMock.create.mockReturnValue(throwError(() => gateError));
+    const component = createComponent();
+    component.openCreateModal();
+    component.form.setValue({
+      code: 'en_revision',
+      label: 'En revisión',
+      color: 'warning',
+      isTerminal: false,
+      requiresApproval: true,
+      requiresNote: false,
+      position: statuses.length,
+    });
+
+    component.submit();
+
+    expect(planUpgradeMock.promptUpgrade).not.toHaveBeenCalled();
+    expect(component.modalOpen()).toBe(false);
+    expect(component.formError()).toBeNull();
+    expect(toastServiceMock.error).not.toHaveBeenCalled();
+  });
+
+  // F28 — reordenamiento (drag, botones subir/bajar, y posición al crear)
+  const reordered = [statuses[1], statuses[0]];
+
+  it('moveDown(0) intercambia con el siguiente y persiste el nuevo orden', () => {
+    taskStatusesServiceMock.reorder.mockReturnValue(of(reordered));
+    const component = createComponent();
+
+    component.moveDown(0);
+
+    expect(component.statuses()).toEqual(reordered);
+    expect(taskStatusesServiceMock.reorder).toHaveBeenCalledWith(['s2', 's1']);
+    expect(toastServiceMock.success).toHaveBeenCalledWith('Orden actualizado correctamente.');
+  });
+
+  it('moveDown en el último elemento no hace nada', () => {
+    const component = createComponent();
+
+    component.moveDown(1);
+
+    expect(taskStatusesServiceMock.reorder).not.toHaveBeenCalled();
+  });
+
+  it('moveUp(0) no hace nada', () => {
+    const component = createComponent();
+
+    component.moveUp(0);
+
+    expect(taskStatusesServiceMock.reorder).not.toHaveBeenCalled();
+  });
+
+  it('moveUp(1) intercambia con el anterior y persiste', () => {
+    taskStatusesServiceMock.reorder.mockReturnValue(of(reordered));
+    const component = createComponent();
+
+    component.moveUp(1);
+
+    expect(component.statuses()).toEqual(reordered);
+    expect(taskStatusesServiceMock.reorder).toHaveBeenCalledWith(['s2', 's1']);
+  });
+
+  it('si el backend rechaza el reorder, revierte el orden optimista y avisa por toast', () => {
+    taskStatusesServiceMock.reorder.mockReturnValue(throwError(() => ({ message: 'No se pudo reordenar' })));
+    const component = createComponent();
+
+    component.moveDown(0);
+
+    expect(component.statuses()).toEqual(statuses);
+    expect(toastServiceMock.error).toHaveBeenCalledWith('No se pudo reordenar');
+  });
+
+  it('onDragStart guarda el id arrastrado; onDrop reordena y persiste', () => {
+    taskStatusesServiceMock.reorder.mockReturnValue(of(reordered));
+    const component = createComponent();
+
+    component.onDragStart({ dataTransfer: { setData: jest.fn() } } as unknown as DragEvent, 's2');
+    component.onDrop({ preventDefault: jest.fn() } as unknown as DragEvent, 0);
+
+    expect(component.statuses()).toEqual(reordered);
+    expect(taskStatusesServiceMock.reorder).toHaveBeenCalledWith(['s2', 's1']);
+  });
+
+  it('onDrop sin un drag previo no hace nada', () => {
+    const component = createComponent();
+
+    component.onDrop({ preventDefault: jest.fn() } as unknown as DragEvent, 0);
+
+    expect(taskStatusesServiceMock.reorder).not.toHaveBeenCalled();
+  });
+
+  it('onDrop en el mismo índice de origen no dispara reorder', () => {
+    const component = createComponent();
+
+    component.onDragStart({ dataTransfer: { setData: jest.fn() } } as unknown as DragEvent, 's1');
+    component.onDrop({ preventDefault: jest.fn() } as unknown as DragEvent, 0);
+
+    expect(taskStatusesServiceMock.reorder).not.toHaveBeenCalled();
+  });
+
+  it('submit al crear con una posición anterior al final llama a reorder con el id insertado en ese índice', () => {
+    const created: TaskStatusResponse = { ...statuses[0], id: 's3', code: 'en_revision', label: 'En revisión' };
+    taskStatusesServiceMock.create.mockReturnValue(of(created));
+    taskStatusesServiceMock.reorder.mockReturnValue(of([created, ...statuses]));
+    const component = createComponent();
+    component.openCreateModal();
+    component.form.setValue({
+      code: 'en_revision',
+      label: 'En revisión',
+      color: 'warning',
+      isTerminal: false,
+      requiresApproval: false,
+      requiresNote: false,
+      position: 0,
+    });
+
+    component.submit();
+
+    expect(taskStatusesServiceMock.reorder).toHaveBeenCalledWith(['s3', 's1', 's2']);
+    expect(component.statuses()).toEqual([created, ...statuses]);
+  });
+
+  it('submit al crear con posición "al final" no llama a reorder, solo recarga', () => {
+    const created: TaskStatusResponse = { ...statuses[0], id: 's3', code: 'en_revision', label: 'En revisión' };
+    taskStatusesServiceMock.create.mockReturnValue(of(created));
+    const component = createComponent();
+    taskStatusesServiceMock.getAll.mockClear();
+    component.openCreateModal();
+    component.form.setValue({
+      code: 'en_revision',
+      label: 'En revisión',
+      color: 'warning',
+      isTerminal: false,
+      requiresApproval: false,
+      requiresNote: false,
+      position: statuses.length,
+    });
+
+    component.submit();
+
+    expect(taskStatusesServiceMock.reorder).not.toHaveBeenCalled();
+    expect(taskStatusesServiceMock.getAll).toHaveBeenCalled();
   });
 });

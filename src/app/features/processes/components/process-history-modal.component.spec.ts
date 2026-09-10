@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { ProcessHistoryModalComponent } from './process-history-modal.component';
 import { ProcessEvent, ProcessEventType } from '../../../core/models/process-event.model';
 import { PermissionsService } from '../../../core/services/permissions.service';
+import { PortalEventVisibilityMode } from '../../../core/models/portal-visibility-policy.model';
 
 describe('ProcessHistoryModalComponent', () => {
   let permissionsServiceMock: { userPermissions: () => string[]; hasAnyPermission: jest.Mock };
@@ -74,14 +75,28 @@ describe('ProcessHistoryModalComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Ana Gómez');
   });
 
-  it('no muestra el botón de visibilidad para eventos ANNOTATION aunque haya permiso', async () => {
+  it('F27: muestra el botón de visibilidad para eventos ANNOTATION cuando su política no es ALWAYS', async () => {
     await configure(true);
     const fixture = createComponent();
     fixture.componentRef.setInput('isOpen', true);
     fixture.componentRef.setInput('events', [{ ...baseEvent, type: ProcessEventType.ANNOTATION }]);
     fixture.detectChanges();
 
+    expect(fixture.nativeElement.querySelector('button[title*="visible"]')).not.toBeNull();
+  });
+
+  it('F27: oculta el botón de visibilidad y muestra el badge "Siempre visible" cuando el tipo está en modo ALWAYS', async () => {
+    await configure(true);
+    const fixture = createComponent();
+    fixture.componentRef.setInput('isOpen', true);
+    fixture.componentRef.setInput('events', [baseEvent]);
+    fixture.componentRef.setInput('visibilityPolicies', [
+      { eventType: ProcessEventType.STATUS_CHANGE, mode: PortalEventVisibilityMode.ALWAYS, allowsAlways: true },
+    ]);
+    fixture.detectChanges();
+
     expect(fixture.nativeElement.querySelector('button[title*="visible"]')).toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Siempre visible para el cliente');
   });
 
   it('sin el permiso legal_processes.edit, no muestra el botón de visibilidad', async () => {

@@ -10,13 +10,13 @@ import { Locator, Page } from '@playwright/test';
  * a través de una anotación (`app-process-annotation-modal`, HU-16) y se
  * descargan/previsualizan desde el historial (`app-process-history-modal`,
  * HU-17). El toggle "compartir con cliente" que expone el historial es a
- * nivel de EVENTO, no de archivo, y el propio template lo oculta para
- * eventos ANNOTATION (ver `@if (event.type !== eventTypes.ANNOTATION)` en
- * process-history-modal.component.ts) — el backend además lo rechaza
- * explícitamente para ese tipo de evento (comentario en
- * ProcessEventsService.setEventVisibility). Es decir: hoy no existe un
- * camino de UI para des-compartir un documento adjunto a un proceso, así
- * que este page object no expone esa acción — ver el spec para el detalle.
+ * nivel de EVENTO, no de archivo. F27 (2026-09-02) reabrió el "ajuste de
+ * alcance" de F16: el toggle ya NO se oculta para ANNOTATION — se rige por
+ * la política de visibilidad configurable (ver
+ * settings-portal-visibility.page.ts) igual que cualquier otro tipo de
+ * evento; solo se oculta cuando el tipo está en modo ALWAYS (entonces se
+ * muestra el badge fijo "Siempre visible para el cliente" en su lugar, ver
+ * process-history-modal.component.ts).
  */
 export class ProcessesPage {
   readonly newProcessButton: Locator;
@@ -36,6 +36,10 @@ export class ProcessesPage {
   readonly annotationDescriptionInput: Locator;
   readonly annotationFileInput: Locator;
   readonly saveAnnotationButton: Locator;
+  // F27: solo existe en el DOM cuando la política de ANNOTATION está en
+  // DEFAULT_ON (nace visible) — ver `@if (isVisibleByDefault())` en
+  // process-annotation-modal.component.ts.
+  readonly annotationMarkInternalCheckbox: Locator;
 
   readonly closeHistoryButton: Locator;
 
@@ -67,6 +71,9 @@ export class ProcessesPage {
     this.annotationDescriptionInput = this.page.locator('textarea[formcontrolname="description"]');
     this.annotationFileInput = this.page.locator('input[type="file"]');
     this.saveAnnotationButton = this.page.getByRole('button', { name: 'Guardar anotación' });
+    this.annotationMarkInternalCheckbox = this.page
+      .locator('app-process-annotation-modal')
+      .getByLabel('Marcar como interna (no visible para el cliente)');
 
     this.closeHistoryButton = this.page.getByRole('button', { name: 'Cerrar' });
   }
@@ -75,12 +82,29 @@ export class ProcessesPage {
     await this.page.goto('/procesos');
   }
 
-  // Checkbox de "Asesores responsables" dentro del modal — filtrado por el
-  // nombre visible (`advisor.user.firstName + lastName`, ver
-  // process-form.component.ts). Necesario porque un proceso ACTIVE exige al
-  // menos un asesor asignado (`legal-processes.service.ts`: "No se puede
-  // activar un proceso sin al menos un asesor asignado."), y un tenant recién
-  // registrado no tiene ningún Advisor por defecto.
+  // Buscador de "Asesores responsables" dentro del modal (MultiSelectComponent,
+  // ajuste 2026-09-03: la lista de opciones ya no está siempre visible, se
+  // abre al enfocar el input, igual que un <select>).
+  //
+  // getByRole en vez de getByPlaceholder: el `placeholder="Buscar asesor…"`
+  // que process-form.component.ts pasa como atributo estático a
+  // <app-multi-select> queda reflejado también en el custom element host
+  // (no solo en el <input> interno), así que getByPlaceholder resolvía a 2
+  // elementos ("strict mode violation"). role=combobox solo lo tiene el
+  // <input> real.
+  advisorSearchInput(): Locator {
+    return this.page
+      .locator('app-process-form')
+      .getByRole('combobox', { name: 'Asesores responsables' });
+  }
+
+  // Checkbox de un asesor dentro del listbox — filtrado por el nombre
+  // visible (`advisor.user.firstName + lastName`, ver process-form.component.ts).
+  // Necesario porque un proceso ACTIVE exige al menos un asesor asignado
+  // (`legal-processes.service.ts`: "No se puede activar un proceso sin al
+  // menos un asesor asignado."), y un tenant recién registrado no tiene
+  // ningún Advisor por defecto. Requiere que el listbox esté abierto (ver
+  // advisorSearchInput()) para ser visible/interactuable.
   advisorCheckbox(advisorFullName: string): Locator {
     return this.page
       .locator('app-process-form')
@@ -107,6 +131,10 @@ export class ProcessesPage {
     await this.stageSelect.selectOption({ label: data.stageLabel });
     await this.riskLevelSelect.selectOption({ label: data.riskLevelLabel });
     if (data.advisorFullName) {
+      // Abre el listbox del multi-select (ajuste 2026-09-03: cerrado por
+      // defecto, se abre al enfocar el buscador) antes de poder marcar el
+      // checkbox del asesor.
+      await this.advisorSearchInput().click();
       await this.advisorCheckbox(data.advisorFullName).check();
     }
     await this.saveProcessButton.click();
@@ -173,7 +201,23 @@ export class ProcessesPage {
     // de click(), esta acción de Playwright sí tolera inputs ocultos.
     await this.annotationFileInput.setInputFiles(filePath);
     await this.saveAnnotationButton.click();
+    await this.waitForAnnotationModalToClose();
+  }
 
+  // F27: crea una anotación sin archivo adjunto — usada para probar la
+  // política de visibilidad (DEFAULT_ON con/sin "marcar interna"), donde el
+  // archivo no aporta nada al caso y solo añade tiempo de ejecución.
+  async addAnnotation(description: string, options: { markAsInternal?: boolean } = {}): Promise<void> {
+    await this.annotateButton().click();
+    await this.annotationDescriptionInput.fill(description);
+    if (options.markAsInternal) {
+      await this.annotationMarkInternalCheckbox.check();
+    }
+    await this.saveAnnotationButton.click();
+    await this.waitForAnnotationModalToClose();
+  }
+
+  private async waitForAnnotationModalToClose(): Promise<void> {
     // <app-process-annotation-modal> está montado sin condición en
     // processes.component.ts — el tag host nunca se desmonta, solo su
     // contenido (el overlay `fixed inset-0`) vía `@if (isOpen())` dentro de
@@ -228,6 +272,22 @@ export class ProcessesPage {
 
   async openHistory(): Promise<void> {
     await this.viewHistoryButton().click();
+  }
+
+  // F27: fila del historial para un evento, acotada por su descripción —
+  // necesaria para leer el badge/botón de visibilidad de ESE evento
+  // puntual (varios eventos comparten el mismo `getEventLabel()`, ej. dos
+  // "Cambio de estado", así que no basta con filtrar por el tipo).
+  historyEventRow(description: string | RegExp): Locator {
+    return this.page.locator('app-process-history-modal .flex.gap-4').filter({ hasText: description });
+  }
+
+  historyAlwaysVisibleBadge(description: string | RegExp): Locator {
+    return this.historyEventRow(description).getByText('Siempre visible para el cliente', { exact: true });
+  }
+
+  historyVisibilityToggle(description: string | RegExp): Locator {
+    return this.historyEventRow(description).locator('button[title*="visible"]');
   }
 
   // La card de escritorio (`p-6 shadow-card`) y la card mobile (`p-4

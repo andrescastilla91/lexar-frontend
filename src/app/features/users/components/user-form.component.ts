@@ -65,7 +65,6 @@ import { FormGroup, ReactiveFormsModule } from '@angular/forms';
                 type="email"
                 autocomplete="off"
                 placeholder="usuario@empresa.com"
-                [disabled]="editingUserHasLoggedIn()"
                 class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30 disabled:bg-surface-muted disabled:text-subtle disabled:cursor-not-allowed"
               />
               @if (form().get('email')?.touched && form().get('email')?.invalid) {

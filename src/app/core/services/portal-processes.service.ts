@@ -9,6 +9,8 @@ import {
   PortalTimelineItem,
 } from '../models/portal.model';
 
+// BUG-20 ola 2: lee error.message — no error.error?.message — ver el
+// comentario en deadlines.service.ts.
 @Injectable({ providedIn: 'root' })
 export class PortalProcessesService {
   private readonly http = inject(HttpClient);
@@ -17,7 +19,7 @@ export class PortalProcessesService {
   findProcesses(): Observable<PortalProcessListItem[]> {
     return this.http.get<{ processes: PortalProcessListItem[] }>(`${this.apiUrl}/processes`).pipe(
       map((response) => response.processes),
-      catchError((error) => throwError(() => new Error(error.error?.message || 'No se pudieron cargar tus procesos')))
+      catchError((error) => throwError(() => new Error(error.message || 'No se pudieron cargar tus procesos')))
     );
   }
 
@@ -26,7 +28,7 @@ export class PortalProcessesService {
       .get<{ timeline: PortalTimelineItem[] }>(`${this.apiUrl}/processes/${processId}/timeline`)
       .pipe(
         map((response) => response.timeline),
-        catchError((error) => throwError(() => new Error(error.error?.message || 'No se pudo cargar la línea de tiempo')))
+        catchError((error) => throwError(() => new Error(error.message || 'No se pudo cargar la línea de tiempo')))
       );
   }
 
@@ -35,7 +37,7 @@ export class PortalProcessesService {
       .get<{ documents: PortalDocumentItem[] }>(`${this.apiUrl}/processes/${processId}/documents`)
       .pipe(
         map((response) => response.documents),
-        catchError((error) => throwError(() => new Error(error.error?.message || 'No se pudieron cargar los documentos')))
+        catchError((error) => throwError(() => new Error(error.message || 'No se pudieron cargar los documentos')))
       );
   }
 
@@ -43,7 +45,7 @@ export class PortalProcessesService {
     return this.http
       .get<PortalDownloadUrlResponse>(`${this.apiUrl}/processes/${processId}/documents/${fileId}/download`)
       .pipe(
-        catchError((error) => throwError(() => new Error(error.error?.message || 'No se pudo generar el enlace de descarga')))
+        catchError((error) => throwError(() => new Error(error.message || 'No se pudo generar el enlace de descarga')))
       );
   }
 }

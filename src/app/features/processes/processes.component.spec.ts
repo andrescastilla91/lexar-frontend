@@ -14,8 +14,10 @@ import { TasksService } from '../../core/services/tasks.service';
 import { TaskStatusesService } from '../../core/services/task-statuses.service';
 import { ConfirmDialogService } from '../../core/services/confirm-dialog.service';
 import { ToastService } from '../../core/services/toast.service';
+import { PortalVisibilityPolicyService } from '../../core/services/portal-visibility-policy.service';
 import { LegalProcessResponse, ProcessStatus } from '../../core/models/legal-process.model';
 import { ProcessEvent, ProcessEventType } from '../../core/models/process-event.model';
+import { PortalEventVisibilityMode, PortalEventVisibilityPolicy } from '../../core/models/portal-visibility-policy.model';
 import { DeadlineResponse, DeadlineStatus } from '../../core/models/deadline.model';
 import { TaskPriority, TaskResponse } from '../../core/models/task.model';
 import { TaskStatusResponse } from '../../core/models/task-status.model';
@@ -53,11 +55,11 @@ describe('ProcessesComponent', () => {
     instantiateTemplate: jest.Mock;
   };
   let taskStatusesServiceMock: { getAll: jest.Mock };
+  let visibilityPolicyServiceMock: { getAll: jest.Mock };
   let confirmDialogMock: { confirm: jest.Mock };
   let toastMock: { success: jest.Mock; error: jest.Mock };
   let queryParamId: string | null;
   let navigateSpy: jest.SpyInstance;
-  let alertSpy: jest.SpyInstance;
 
   const process: LegalProcessResponse = {
     id: 'p1',
@@ -169,6 +171,7 @@ describe('ProcessesComponent', () => {
     files?: Partial<typeof filesServiceMock>;
     deadlines?: Partial<typeof deadlinesServiceMock>;
     tasks?: Partial<typeof tasksServiceMock>;
+    visibilityPolicies?: PortalEventVisibilityPolicy[];
     confirmResolves?: boolean;
     queryParamId?: string | null;
   } = {}) {
@@ -234,10 +237,12 @@ describe('ProcessesComponent', () => {
 
     taskStatusesServiceMock = { getAll: jest.fn().mockReturnValue(of([taskStatus])) };
 
+    visibilityPolicyServiceMock = {
+      getAll: jest.fn().mockReturnValue(of(overrides.visibilityPolicies ?? [])),
+    };
+
     confirmDialogMock = { confirm: jest.fn().mockResolvedValue(overrides.confirmResolves ?? true) };
     toastMock = { success: jest.fn(), error: jest.fn() };
-
-    alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {});
 
     const activatedRouteMock = {
       snapshot: { queryParamMap: { get: () => queryParamId } },
@@ -261,6 +266,7 @@ describe('ProcessesComponent', () => {
         { provide: DeadlinesService, useValue: deadlinesServiceMock },
         { provide: TasksService, useValue: tasksServiceMock },
         { provide: TaskStatusesService, useValue: taskStatusesServiceMock },
+        { provide: PortalVisibilityPolicyService, useValue: visibilityPolicyServiceMock },
         { provide: ConfirmDialogService, useValue: confirmDialogMock },
         { provide: ToastService, useValue: toastMock },
         { provide: ActivatedRoute, useValue: activatedRouteMock },
@@ -278,10 +284,6 @@ describe('ProcessesComponent', () => {
     fixture.detectChanges();
     return fixture.componentInstance;
   }
-
-  afterEach(() => {
-    alertSpy?.mockRestore();
-  });
 
   describe('carga inicial', () => {
     it('carga procesos, asesores, clientes y catálogos al construirse', async () => {
@@ -438,12 +440,16 @@ describe('ProcessesComponent', () => {
       );
     });
 
-    it('en error, expone el mensaje del backend', async () => {
+    // BUG-10: legalProcessesService.createLegalProcess()/updateLegalProcess()
+    // ya envuelven el error en un Error nativo con el mensaje real — .error
+    // no existe ahí. El mock refleja esa forma real, no la forma cruda del
+    // interceptor (que nunca llega así hasta el componente).
+    it('en error, expone el mensaje real en el form y en el toast', async () => {
       await configure({
         legalProcesses: {
           createLegalProcess: jest
             .fn()
-            .mockReturnValue(throwError(() => ({ error: { message: 'Cliente inválido' } }))),
+            .mockReturnValue(throwError(() => new Error('Cliente inválido'))),
         },
       });
       const component = createComponent();
@@ -452,6 +458,7 @@ describe('ProcessesComponent', () => {
       component.submitProcess();
 
       expect(component.formError()).toBe('Cliente inválido');
+      expect(toastMock.error).toHaveBeenCalledWith('Cliente inválido');
       expect(component.isLoading()).toBe(false);
     });
   });
@@ -592,12 +599,17 @@ describe('ProcessesComponent', () => {
       expect(component.statusModalOpen()).toBe(false);
     });
 
-    it('en error, expone el mensaje del backend', async () => {
+    // BUG-10: legalProcessesService.updateProcessStatus() ya envuelve el
+    // error del interceptor en un Error nativo (new Error(mensaje real)) —
+    // .error no existe ahí. El mock refleja esa forma real, no
+    // { error: { message } } (la forma cruda del interceptor, que nunca
+    // llega así hasta el componente).
+    it('en error, expone el mensaje real en el form y en el toast', async () => {
       await configure({
         legalProcesses: {
           updateProcessStatus: jest
             .fn()
-            .mockReturnValue(throwError(() => ({ error: { message: 'Transición inválida' } }))),
+            .mockReturnValue(throwError(() => new Error('Transición inválida'))),
         },
       });
       const component = createComponent();
@@ -607,6 +619,7 @@ describe('ProcessesComponent', () => {
       await component.updateStatus();
 
       expect(component.formError()).toBe('Transición inválida');
+      expect(toastMock.error).toHaveBeenCalledWith('Transición inválida');
     });
   });
 
@@ -630,7 +643,7 @@ describe('ProcessesComponent', () => {
       expect(component.isLoading()).toBe(false);
     });
 
-    it('en error, muestra una alerta', async () => {
+    it('en error, muestra un toast (BUG-20: ya no usa alert nativo)', async () => {
       await configure({
         confirmResolves: true,
         legalProcesses: { deleteLegalProcess: jest.fn().mockReturnValue(throwError(() => new Error('falló'))) },
@@ -639,20 +652,20 @@ describe('ProcessesComponent', () => {
 
       await component.deleteProcess(process);
 
-      expect(alertSpy).toHaveBeenCalledWith('Error al eliminar el proceso');
+      expect(toastMock.error).toHaveBeenCalledWith('falló');
       expect(component.isLoading()).toBe(false);
     });
   });
 
-  describe('toggleAdvisor y generateCaseNumber', () => {
-    it('agrega el id si no está seleccionado y lo quita si ya estaba', async () => {
+  describe('setAdvisorIds y generateCaseNumber', () => {
+    it('escribe el array completo de ids recibido de MultiSelectComponent', async () => {
       await configure();
       const component = createComponent();
 
-      component.toggleAdvisor('adv1');
-      expect(component.processForm.value.advisorIds).toEqual(['adv1']);
+      component.setAdvisorIds(['adv1', 'adv2']);
+      expect(component.processForm.value.advisorIds).toEqual(['adv1', 'adv2']);
 
-      component.toggleAdvisor('adv1');
+      component.setAdvisorIds([]);
       expect(component.processForm.value.advisorIds).toEqual([]);
     });
 
@@ -721,7 +734,7 @@ describe('ProcessesComponent', () => {
 
       component.submitAnnotation();
 
-      expect(processEventsServiceMock.createAnnotation).toHaveBeenCalledWith('p1', 'Nota importante');
+      expect(processEventsServiceMock.createAnnotation).toHaveBeenCalledWith('p1', 'Nota importante', false);
       expect(filesServiceMock.uploadFile).toHaveBeenCalledWith(file, 'legal_process', 'p1', undefined, 'ev1');
       expect(component.isLoading()).toBe(false);
       expect(component.annotationModalOpen()).toBe(false);
@@ -743,7 +756,7 @@ describe('ProcessesComponent', () => {
     it('submitAnnotation en error expone el mensaje del backend', async () => {
       await configure({
         processEvents: {
-          createAnnotation: jest.fn().mockReturnValue(throwError(() => ({ error: { message: 'Nota inválida' } }))),
+          createAnnotation: jest.fn().mockReturnValue(throwError(() => ({ message: 'Nota inválida' }))),
         },
       });
       const component = createComponent();
@@ -811,6 +824,44 @@ describe('ProcessesComponent', () => {
       component.toggleEventVisibility({ eventId: 'ev1', visibleToClient: true });
 
       expect(processEventsServiceMock.setEventVisibility).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('F27 política de visibilidad del portal', () => {
+    it('carga la política al construirse', async () => {
+      await configure();
+      createComponent();
+
+      expect(visibilityPolicyServiceMock.getAll).toHaveBeenCalled();
+    });
+
+    it('annotationVisibilityMode expone el modo de ANNOTATION cargado', async () => {
+      const policies: PortalEventVisibilityPolicy[] = [
+        { eventType: ProcessEventType.ANNOTATION, mode: PortalEventVisibilityMode.DEFAULT_ON, allowsAlways: false },
+        { eventType: ProcessEventType.STATUS_CHANGE, mode: PortalEventVisibilityMode.ALWAYS, allowsAlways: true },
+      ];
+      await configure({ visibilityPolicies: policies });
+      const component = createComponent();
+
+      expect(component.annotationVisibilityMode()).toBe(PortalEventVisibilityMode.DEFAULT_ON);
+    });
+
+    it('annotationVisibilityMode es null si aún no hay política cargada para ANNOTATION', async () => {
+      await configure({ visibilityPolicies: [] });
+      const component = createComponent();
+
+      expect(component.annotationVisibilityMode()).toBeNull();
+    });
+
+    it('submitAnnotation envía markAsInternal cuando el usuario lo marca', async () => {
+      await configure();
+      const component = createComponent();
+      component.editingProcess.set(process);
+      component.annotationForm.patchValue({ description: 'Nota interna', markAsInternal: true });
+
+      component.submitAnnotation();
+
+      expect(processEventsServiceMock.createAnnotation).toHaveBeenCalledWith('p1', 'Nota interna', true);
     });
   });
 
@@ -1040,13 +1091,13 @@ describe('ProcessesComponent', () => {
   });
 
   describe('archivos: descarga y previsualización', () => {
-    it('downloadFile en error muestra una alerta', async () => {
+    it('downloadFile en error muestra un toast (BUG-20: ya no usa alert nativo)', async () => {
       await configure({ files: { downloadFile: jest.fn().mockReturnValue(throwError(() => new Error('falló'))) } });
       const component = createComponent();
 
       component.downloadFile('f1');
 
-      expect(alertSpy).toHaveBeenCalledWith('Error al descargar el archivo');
+      expect(toastMock.error).toHaveBeenCalledWith('falló');
     });
 
     it('previewFileFromHistory reconoce un PDF', async () => {
@@ -1077,13 +1128,13 @@ describe('ProcessesComponent', () => {
       expect(component.previewingFile()?.isPdf).toBe(false);
     });
 
-    it('previewFileFromHistory en error muestra una alerta', async () => {
+    it('previewFileFromHistory en error muestra un toast (BUG-20: ya no usa alert nativo)', async () => {
       await configure({ files: { getDownloadUrl: jest.fn().mockReturnValue(throwError(() => new Error('falló'))) } });
       const component = createComponent();
 
       component.previewFileFromHistory('f1', 'contrato.pdf');
 
-      expect(alertSpy).toHaveBeenCalledWith('Error al cargar vista previa del archivo');
+      expect(toastMock.error).toHaveBeenCalledWith('falló');
     });
 
     it('closePreviewModal limpia el archivo y la url en vista previa', async () => {

@@ -72,4 +72,34 @@ describe('ToastService', () => {
 
     expect(service.toasts()).toHaveLength(1);
   });
+
+  // F7-R3: toast con acción (CTA "Ver planes" del upgrade de plan) — se
+  // queda más tiempo porque pide una decisión, no solo informa.
+  it('un toast con acción incluye la acción en el item', () => {
+    service.error('Llegaste al límite de tu plan', {
+      label: 'Ver planes',
+      routerLink: ['/configuracion'],
+      queryParams: { tab: 'plan', suggested: 'ESTUDIO' },
+    });
+
+    expect(service.toasts()).toEqual([
+      {
+        id: 1,
+        type: 'error',
+        message: 'Llegaste al límite de tu plan',
+        action: { label: 'Ver planes', routerLink: ['/configuracion'], queryParams: { tab: 'plan', suggested: 'ESTUDIO' } },
+      },
+    ]);
+  });
+
+  it('un toast con acción se autodescarta a los 10000ms, no a los 4000ms', () => {
+    jest.useFakeTimers();
+    service.error('Llegaste al límite de tu plan', { label: 'Ver planes', routerLink: ['/configuracion'] });
+
+    jest.advanceTimersByTime(4000);
+    expect(service.toasts()).toHaveLength(1);
+
+    jest.advanceTimersByTime(6000);
+    expect(service.toasts()).toEqual([]);
+  });
 });

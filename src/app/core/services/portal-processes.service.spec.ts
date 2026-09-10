@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { PortalProcessesService } from './portal-processes.service';
 import {
@@ -10,6 +10,9 @@ import {
 } from '../models/portal.model';
 import { environment } from '../../../environments/environment';
 
+import { errorInterceptor } from '../interceptors/error.interceptor';
+import { PlanUpgradeService } from './plan-upgrade.service';
+
 describe('PortalProcessesService', () => {
   let service: PortalProcessesService;
   let httpMock: HttpTestingController;
@@ -17,7 +20,11 @@ describe('PortalProcessesService', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideHttpClient(withInterceptors([errorInterceptor])),
+        provideHttpClientTesting(),
+        { provide: PlanUpgradeService, useValue: { isPlanGateError: () => false, promptUpgrade: () => {} } },
+      ],
     });
 
     service = TestBed.inject(PortalProcessesService);
@@ -72,7 +79,7 @@ describe('PortalProcessesService', () => {
 
       httpMock.expectOne(`${apiUrl}/processes`).flush('error', { status: 500, statusText: 'Server Error' });
 
-      expect(error?.message).toBe('No se pudieron cargar tus procesos');
+      expect(error?.message).toBe('Error interno del servidor');
     });
   });
 
@@ -99,7 +106,7 @@ describe('PortalProcessesService', () => {
         .expectOne(`${apiUrl}/processes/p1/timeline`)
         .flush('error', { status: 500, statusText: 'Server Error' });
 
-      expect(error?.message).toBe('No se pudo cargar la línea de tiempo');
+      expect(error?.message).toBe('Error interno del servidor');
     });
   });
 
@@ -132,7 +139,7 @@ describe('PortalProcessesService', () => {
         .expectOne(`${apiUrl}/processes/p1/documents`)
         .flush('error', { status: 500, statusText: 'Server Error' });
 
-      expect(error?.message).toBe('No se pudieron cargar los documentos');
+      expect(error?.message).toBe('Error interno del servidor');
     });
   });
 
@@ -162,7 +169,7 @@ describe('PortalProcessesService', () => {
         .expectOne(`${apiUrl}/processes/p1/documents/f1/download`)
         .flush('error', { status: 500, statusText: 'Server Error' });
 
-      expect(error?.message).toBe('No se pudo generar el enlace de descarga');
+      expect(error?.message).toBe('Error interno del servidor');
     });
   });
 });

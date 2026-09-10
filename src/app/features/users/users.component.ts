@@ -272,7 +272,11 @@ export class UsersComponent implements OnInit {
         this.panelOpen.set(true);
       },
       error: (error) => {
-        this.toastService.error(error.error?.message || 'Error al cargar el usuario');
+        // BUG-20 ola 3: error.message ya es el mensaje real y seguro que
+        // calculó error.interceptor.ts (BUG-19) — error.error?.message lee
+        // el body crudo, sin sus reglas de seguridad (los demás error: de
+        // este componente comparten el mismo fix).
+        this.toastService.error(error.message || 'Error al cargar el usuario');
       },
     });
   }
@@ -315,7 +319,7 @@ export class UsersComponent implements OnInit {
           this.isSubmitting.set(false);
         },
         error: (error) => {
-          const message = error.error?.message || 'Error al actualizar usuario';
+          const message = error.message || 'Error al actualizar usuario';
           this.errorMessage.set(message);
           this.toastService.error(message);
           this.isSubmitting.set(false);
@@ -336,7 +340,7 @@ export class UsersComponent implements OnInit {
           this.isSubmitting.set(false);
         },
         error: (error) => {
-          const message = error.error?.message || 'Error al enviar la invitación';
+          const message = error.message || 'Error al enviar la invitación';
           this.errorMessage.set(message);
           this.toastService.error(message);
           this.isSubmitting.set(false);
@@ -363,7 +367,7 @@ export class UsersComponent implements OnInit {
         );
       },
       error: (error) => {
-        this.toastService.error(error.error?.message || 'Error al cambiar estado del usuario');
+        this.toastService.error(error.message || 'Error al cambiar estado del usuario');
       },
     });
   }
@@ -384,7 +388,7 @@ export class UsersComponent implements OnInit {
         this.toastService.success('Verificación en dos pasos desactivada exitosamente');
       },
       error: (error) => {
-        this.toastService.error(error.error?.message || 'Error al desactivar la verificación en dos pasos');
+        this.toastService.error(error.message || 'Error al desactivar la verificación en dos pasos');
       },
     });
   }
@@ -396,7 +400,7 @@ export class UsersComponent implements OnInit {
         this.toastService.success(response.message || `Invitación reenviada a ${user.email}`);
       },
       error: (error) => {
-        this.toastService.error(error.error?.message || 'Error al reenviar la invitación');
+        this.toastService.error(error.message || 'Error al reenviar la invitación');
       },
     });
   }
@@ -431,7 +435,7 @@ export class UsersComponent implements OnInit {
         this.isSubmitting.set(false);
       },
       error: (error) => {
-        this.toastService.error(error.error?.message || 'Error al asignar roles');
+        this.toastService.error(error.message || 'Error al asignar roles');
         this.isSubmitting.set(false);
       },
     });

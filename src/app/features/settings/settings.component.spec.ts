@@ -1,9 +1,16 @@
 import { TestBed } from '@angular/core/testing';
+import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { SettingsComponent } from './settings.component';
 import { CompanyService } from '../../core/services/company.service';
 import { CompanyProfile } from '../../core/models/company.model';
 import { ToastService } from '../../core/services/toast.service';
+import { PlanUpgradeService } from '../../core/services/plan-upgrade.service';
+import { SubscriptionService } from '../../core/services/subscription.service';
+import { Entitlements } from '../../core/models/subscription-backend.model';
+import { PortalVisibilityPolicyService } from '../../core/services/portal-visibility-policy.service';
+import { DashboardWidgetsService } from '../../core/services/dashboard-widgets.service';
+import { AiChatService } from '../../core/services/ai-chat.service';
 
 describe('SettingsComponent', () => {
   let companyServiceMock: {
@@ -12,6 +19,48 @@ describe('SettingsComponent', () => {
     uploadLogo: jest.Mock;
   };
   let toastServiceMock: { success: jest.Mock; error: jest.Mock };
+  let planUpgradeMock: { isPlanGateError: jest.Mock; promptUpgrade: jest.Mock };
+  // F7-R3: al abrir ?tab=plan se renderiza el SettingsPlanComponent real
+  // (no un mock), así que su dependencia SubscriptionService también hay
+  // que proveerla aquí o revienta con NG0201 (No provider for HttpClient).
+  let subscriptionServiceMock: {
+    getEntitlements: jest.Mock;
+    getPlanCatalog: jest.Mock;
+    listInvoices: jest.Mock;
+    isSimulationEnabled: jest.Mock;
+  };
+  let portalVisibilityPolicyServiceMock: { getAll: jest.Mock; update: jest.Mock };
+  // F32 PR3: al abrir la pestaña "Tablero" se renderiza el
+  // SettingsDashboardWidgetsComponent real — misma razón que
+  // portalVisibilityPolicyServiceMock (ver comentario arriba).
+  let dashboardWidgetsServiceMock: { getCompanySettings: jest.Mock; updateCompanySettings: jest.Mock };
+  // F7-R4 (#292): SettingsPlanComponent también inyecta AiChatService para la
+  // barra de consumo de IA — mismo motivo que subscriptionServiceMock arriba.
+  let aiChatServiceMock: { getUsage: jest.Mock };
+  let queryParams: Record<string, string>;
+
+  const baseEntitlements: Entitlements = {
+    planCode: 'TRIAL',
+    planName: 'Prueba gratuita',
+    status: 'trialing',
+    isReadOnly: false,
+    trialEndsAt: null,
+    currentPeriodEnd: new Date().toISOString(),
+    cancelAtPeriodEnd: false,
+    features: {
+      chatbot: true,
+      clientPortal: true,
+      advancedReports: false,
+      taskApprovals: true,
+      customCatalogs: true,
+      mandatory2faPolicy: true,
+      exportableReports: true,
+      exportableAudit: false,
+      earlyAccess: false,
+    },
+    limits: { maxUsers: 10, maxActiveProcesses: 100, maxStorageMb: 10240, aiCreditsMonth: 50, portalClientsMax: null },
+    usage: { users: 1, activeProcesses: 1, storageMb: 1 },
+  };
 
   const baseCompany: CompanyProfile = {
     id: 'c1',
@@ -33,19 +82,50 @@ describe('SettingsComponent', () => {
     updatedAt: '2026-01-01T00:00:00.000Z',
   };
 
-  function configure(): void {
+  function configure(initialQueryParams: Record<string, string> = {}): void {
     companyServiceMock = {
       getCompany: jest.fn().mockReturnValue(of(baseCompany)),
       updateCompany: jest.fn(),
       uploadLogo: jest.fn(),
     };
     toastServiceMock = { success: jest.fn(), error: jest.fn() };
+    planUpgradeMock = { isPlanGateError: jest.fn().mockReturnValue(false), promptUpgrade: jest.fn() };
+    subscriptionServiceMock = {
+      getEntitlements: jest.fn().mockReturnValue(of(baseEntitlements)),
+      getPlanCatalog: jest.fn().mockReturnValue(of([])),
+      listInvoices: jest.fn().mockReturnValue(of([])),
+      isSimulationEnabled: jest.fn().mockReturnValue(of(false)),
+    };
+    // F27: al abrir la pestaña "Portal del cliente" se renderiza el
+    // SettingsPortalVisibilityComponent real — igual que con SettingsPlanComponent
+    // (ver comentario de subscriptionServiceMock), su dependencia hay que proveerla aquí.
+    portalVisibilityPolicyServiceMock = {
+      getAll: jest.fn().mockReturnValue(of([])),
+      update: jest.fn(),
+    };
+    dashboardWidgetsServiceMock = {
+      getCompanySettings: jest.fn().mockReturnValue(of([])),
+      updateCompanySettings: jest.fn(),
+    };
+    aiChatServiceMock = {
+      getUsage: jest.fn().mockReturnValue(of({ used: 7, limit: 20, periodStart: '2026-09-01', periodEnd: '2026-10-01' })),
+    };
+    queryParams = initialQueryParams;
 
     TestBed.configureTestingModule({
       imports: [SettingsComponent],
       providers: [
         { provide: CompanyService, useValue: companyServiceMock },
         { provide: ToastService, useValue: toastServiceMock },
+        { provide: PlanUpgradeService, useValue: planUpgradeMock },
+        { provide: SubscriptionService, useValue: subscriptionServiceMock },
+        { provide: PortalVisibilityPolicyService, useValue: portalVisibilityPolicyServiceMock },
+        { provide: DashboardWidgetsService, useValue: dashboardWidgetsServiceMock },
+        { provide: AiChatService, useValue: aiChatServiceMock },
+        {
+          provide: ActivatedRoute,
+          useValue: { snapshot: { queryParamMap: convertToParamMap(queryParams) } },
+        },
       ],
     });
   }
@@ -97,8 +177,11 @@ describe('SettingsComponent', () => {
   });
 
   it('onSubmitLegal en error muestra el mensaje del backend y un toast', () => {
+    // BUG-20: el mock simula la forma real que arma error.interceptor.ts
+    // ({message, statusCode, error}) — el componente lee error.message, no
+    // error.error?.message.
     companyServiceMock.updateCompany.mockReturnValue(
-      throwError(() => ({ error: { message: 'Dato inválido' } })),
+      throwError(() => ({ message: 'Dato inválido' })),
     );
     const component = createComponent();
 
@@ -161,7 +244,9 @@ describe('SettingsComponent', () => {
   // select de siempre (celular Y tablet, sin cambios de comportamiento en
   // ese rango); desde 1024px se muestra un sidebar real a la izquierda en
   // vez de una lista apilada arriba del contenido.
-  it('el sidebar de escritorio está oculto por debajo de lg y visible desde lg, con las 9 secciones', () => {
+  // F32 PR3: se agregó la pestaña "Tablero" — pasa de 10 a 11 secciones
+  // (F27 ya había hecho el mismo ajuste de 9 a 10 al agregar "Portal del cliente").
+  it('el sidebar de escritorio está oculto por debajo de lg y visible desde lg, con las 11 secciones', () => {
     const fixture = TestBed.createComponent(SettingsComponent);
     fixture.detectChanges();
 
@@ -171,17 +256,17 @@ describe('SettingsComponent', () => {
     expect(nav?.className).toContain('hidden');
     expect(nav?.className).toContain('lg:flex');
     expect(nav?.className).toContain('lg:flex-col');
-    expect(buttons?.length).toBe(9);
+    expect(buttons?.length).toBe(11);
   });
 
-  it('el select cubre mobile y tablet (oculto solo desde lg), con las mismas 9 opciones', () => {
+  it('el select cubre mobile y tablet (oculto solo desde lg), con las mismas 11 opciones', () => {
     const fixture = TestBed.createComponent(SettingsComponent);
     fixture.detectChanges();
 
     const mobileWrapper = fixture.nativeElement.querySelector('.lg\\:hidden');
     const options = mobileWrapper?.querySelectorAll('option');
 
-    expect(options?.length).toBe(9);
+    expect(options?.length).toBe(11);
   });
 
   it('click en un ítem del sidebar cambia de tab directamente', () => {
@@ -196,5 +281,109 @@ describe('SettingsComponent', () => {
     billingButton.click();
 
     expect(component.activeTab()).toBe('billing');
+  });
+
+  // F27: verifica que la nueva pestaña se pueda abrir y cargue la política real.
+  it('click en "Portal del cliente" cambia de tab y carga la política de visibilidad', () => {
+    const fixture = TestBed.createComponent(SettingsComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+
+    const nav = fixture.nativeElement.querySelector('nav[aria-label="Secciones de configuración"]');
+    const portalButton = Array.from(nav.querySelectorAll('button')).find((btn) =>
+      (btn as HTMLElement).textContent?.includes('Portal del cliente'),
+    ) as HTMLElement;
+    portalButton.click();
+    fixture.detectChanges();
+
+    expect(component.activeTab()).toBe('portal-visibility');
+    expect(portalVisibilityPolicyServiceMock.getAll).toHaveBeenCalled();
+  });
+
+  // F32 PR3: verifica que la nueva pestaña se pueda abrir y cargue el
+  // catálogo de widgets por empresa real.
+  it('click en "Tablero" cambia de tab y carga la configuración de widgets', () => {
+    const fixture = TestBed.createComponent(SettingsComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+
+    const nav = fixture.nativeElement.querySelector('nav[aria-label="Secciones de configuración"]');
+    const dashboardTabButton = Array.from(nav.querySelectorAll('button')).find((btn) =>
+      (btn as HTMLElement).textContent?.includes('Tablero'),
+    ) as HTMLElement;
+    dashboardTabButton.click();
+    fixture.detectChanges();
+
+    expect(component.activeTab()).toBe('dashboard-widgets');
+    expect(dashboardWidgetsServiceMock.getCompanySettings).toHaveBeenCalled();
+  });
+
+  // F7-R3: ?tab=&suggested= navegan directo a la pestaña de planes con el
+  // plan sugerido resaltado (CTA de upgrade desde otra pantalla).
+  it('lee ?tab=plan de la URL y abre directo esa pestaña', () => {
+    configure({ tab: 'plan' });
+    const component = createComponent();
+
+    expect(component.activeTab()).toBe('plan');
+  });
+
+  it('lee ?suggested= de la URL y lo expone para resaltar el plan sugerido', () => {
+    configure({ tab: 'plan', suggested: 'ESTUDIO' });
+    const component = createComponent();
+
+    expect(component.suggestedPlanCode()).toBe('ESTUDIO');
+  });
+
+  it('ignora un ?tab= que no es una pestaña válida y se queda en la pestaña por defecto', () => {
+    configure({ tab: 'no-existe' });
+    const component = createComponent();
+
+    expect(component.activeTab()).toBe('legal');
+  });
+
+  it('sin ?suggested= en la URL, suggestedPlanCode queda en null', () => {
+    const component = createComponent();
+
+    expect(component.suggestedPlanCode()).toBeNull();
+  });
+
+  // F7-R3: el toast+CTA de upgrade lo dispara error.interceptor.ts de forma
+  // centralizada (ver error.interceptor.spec.ts) — el componente solo
+  // revierte el checkbox, no muestra su propio mensaje ni dispara el CTA.
+  it('onSubmitSecurity: si el error es un gate de plan, revierte el checkbox sin mostrar error propio', () => {
+    const gateError = { error: { code: 'FEATURE_NOT_IN_PLAN', message: 'Tu plan actual no incluye esta funcionalidad' } };
+    planUpgradeMock.isPlanGateError.mockReturnValue(true);
+    companyServiceMock.updateCompany.mockReturnValue(throwError(() => gateError));
+    const component = createComponent();
+    component.securityForm.patchValue({ require2fa: true });
+
+    component.onSubmitSecurity();
+
+    expect(planUpgradeMock.promptUpgrade).not.toHaveBeenCalled();
+    expect(component.securityForm.get('require2fa')?.value).toBe(false);
+    expect(component.securityError()).toBeNull();
+    expect(component.isSubmittingSecurity()).toBe(false);
+  });
+
+  it('onSubmitSecurity: en un error que no es de plan, muestra el mensaje real y no llama al CTA de upgrade', () => {
+    companyServiceMock.updateCompany.mockReturnValue(throwError(() => ({ message: 'Dato inválido' })));
+    const component = createComponent();
+
+    component.onSubmitSecurity();
+
+    expect(planUpgradeMock.promptUpgrade).not.toHaveBeenCalled();
+    expect(component.securityError()).toBe('Dato inválido');
+    expect(toastServiceMock.error).toHaveBeenCalledWith('Dato inválido');
+  });
+
+  it('onSubmitSecurity: en éxito guarda la política y muestra el toast', () => {
+    const updated: CompanyProfile = { ...baseCompany, require2fa: true };
+    companyServiceMock.updateCompany.mockReturnValue(of(updated));
+    const component = createComponent();
+
+    component.onSubmitSecurity();
+
+    expect(component.company()?.require2fa).toBe(true);
+    expect(toastServiceMock.success).toHaveBeenCalledWith('Política de seguridad guardada correctamente.');
   });
 });

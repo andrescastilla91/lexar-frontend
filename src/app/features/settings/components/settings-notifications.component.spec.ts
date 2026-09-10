@@ -64,8 +64,11 @@ describe('SettingsNotificationsComponent', () => {
   });
 
   it('si falla la carga, muestra un toast de error', () => {
+    // BUG-20: el mock simula la forma real que arma error.interceptor.ts
+    // ({message, statusCode, error}) — el componente lee error.message, no
+    // error.error?.message.
     notificationsServiceMock.getCompanySettings.mockReturnValue(
-      throwError(() => ({ error: { message: 'No se pudo cargar' } })),
+      throwError(() => ({ message: 'No se pudo cargar' })),
     );
     const component = createComponent();
 
@@ -107,7 +110,7 @@ describe('SettingsNotificationsComponent', () => {
 
   it('toggleChannel en error muestra un toast y libera savingKey', () => {
     notificationsServiceMock.updateCompanySettings.mockReturnValue(
-      throwError(() => ({ error: { message: 'No se pudo actualizar' } })),
+      throwError(() => ({ message: 'No se pudo actualizar' })),
     );
     const component = createComponent();
 

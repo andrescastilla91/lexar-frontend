@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { formatBytes } from '../utils/process-format.utils';
+import { PortalEventVisibilityMode } from '../../../core/models/portal-visibility-policy.model';
 
 @Component({
   selector: 'app-process-annotation-modal',
@@ -33,6 +34,18 @@ import { formatBytes } from '../utils/process-format.utils';
                 {{ form().get('description')?.value?.length || 0 }} / 2000 caracteres
               </p>
             </label>
+
+            <!-- F27: aviso + opción "marcar interna" cuando la política de
+                 ANNOTATION está en DEFAULT_ON (nace visible por defecto). -->
+            @if (isVisibleByDefault()) {
+              <div class="rounded-lg border border-info bg-info-tint p-3">
+                <p class="text-sm text-primary">Esta anotación será visible para el cliente en el portal.</p>
+                <label class="mt-2 flex items-center gap-2 text-sm text-text">
+                  <input type="checkbox" formControlName="markAsInternal" class="h-4 w-4 rounded border-default" />
+                  Marcar como interna (no visible para el cliente)
+                </label>
+              </div>
+            }
 
             <!-- Cargar archivos opcionales -->
             <div class="border-t border-default pt-4">
@@ -133,6 +146,9 @@ export class ProcessAnnotationModalComponent {
   errorMessage = input<string | null>(null);
   processTitle = input<string | null>(null);
   files = input<File[]>([]);
+  // F27: modo de visibilidad vigente para ANNOTATION — controla si se
+  // muestra el aviso + checkbox "marcar interna".
+  visibilityMode = input<PortalEventVisibilityMode | null>(null);
 
   close = output<void>();
   submit = output<void>();
@@ -140,4 +156,8 @@ export class ProcessAnnotationModalComponent {
   removeFile = output<number>();
 
   protected readonly formatBytes = formatBytes;
+
+  isVisibleByDefault(): boolean {
+    return this.visibilityMode() === PortalEventVisibilityMode.DEFAULT_ON;
+  }
 }

@@ -66,6 +66,7 @@ export class AdminLayoutComponent {
     { label: 'Métricas', route: '/admin/metrics' },
     { label: 'Equipo', route: '/admin/team' },
     { label: 'Notificaciones', route: '/admin/notifications' },
+    { label: 'Permisos', route: '/admin/permissions' },
   ];
 
   logout(): void {

@@ -1,9 +1,12 @@
 import { TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { DashboardService } from './dashboard.service';
 import { DashboardSummary, OnboardingChecklist } from '../models/dashboard.model';
 import { environment } from '../../../environments/environment';
+
+import { errorInterceptor } from '../interceptors/error.interceptor';
+import { PlanUpgradeService } from './plan-upgrade.service';
 
 describe('DashboardService', () => {
   let service: DashboardService;
@@ -35,7 +38,11 @@ describe('DashboardService', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideHttpClient(withInterceptors([errorInterceptor])),
+        provideHttpClientTesting(),
+        { provide: PlanUpgradeService, useValue: { isPlanGateError: () => false, promptUpgrade: () => {} } },
+      ],
     });
 
     service = TestBed.inject(DashboardService);
@@ -65,11 +72,11 @@ describe('DashboardService', () => {
       .expectOne(`${apiUrl}/summary`)
       .flush({ message: 'Error al cargar el tablero' }, { status: 500, statusText: 'Server Error' });
 
-    expect(error?.message).toBe('Error al cargar el tablero');
+    expect(error?.message).toBe('Error interno del servidor');
   });
 
   it('getOnboardingChecklist extrae el checklist de la respuesta', () => {
-    let result: OnboardingChecklist | undefined;
+    let result: OnboardingChecklist | null | undefined;
     service.getOnboardingChecklist().subscribe((c) => (result = c));
 
     const req = httpMock.expectOne(`${apiUrl}/onboarding-checklist`);
@@ -77,5 +84,17 @@ describe('DashboardService', () => {
     req.flush({ message: 'ok', checklist });
 
     expect(result).toEqual(checklist);
+  });
+
+  // BUG-11: el backend devuelve checklist: null cuando quien pide el
+  // checklist no es el dueño de la empresa — la card no aplica a invitados.
+  it('getOnboardingChecklist extrae null si el backend indica que no aplica (usuario no-dueño)', () => {
+    let result: OnboardingChecklist | null | undefined;
+    service.getOnboardingChecklist().subscribe((c) => (result = c));
+
+    const req = httpMock.expectOne(`${apiUrl}/onboarding-checklist`);
+    req.flush({ message: 'ok', checklist: null });
+
+    expect(result).toBeNull();
   });
 });

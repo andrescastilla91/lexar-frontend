@@ -10,6 +10,12 @@ export interface Permission {
   id: string;
   code: string;
   description?: string;
+  // F31: el backend NUNCA los devuelve vacíos (deriva un fallback legible
+  // del code si faltan en DB) — el frontend no necesita su propio fallback.
+  label: string;
+  groupCode: string;
+  groupLabel: string;
+  groupDescription: string | null;
 }
 
 export interface CreateRoleRequest {

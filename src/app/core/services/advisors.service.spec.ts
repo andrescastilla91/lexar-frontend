@@ -1,9 +1,11 @@
 import { TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { AdvisorsService } from './advisors.service';
 import { AdvisorResponse, AdvisorStatus } from '../models/advisor-backend.model';
 import { environment } from '../../../environments/environment';
+import { errorInterceptor } from '../interceptors/error.interceptor';
+import { PlanUpgradeService } from './plan-upgrade.service';
 
 describe('AdvisorsService', () => {
   let service: AdvisorsService;
@@ -25,8 +27,17 @@ describe('AdvisorsService', () => {
   };
 
   beforeEach(() => {
+    // BUG-20 ola 1: se incluye errorInterceptor real en el pipeline — el
+    // servicio, en producción, siempre recibe el error YA procesado por él
+    // (provideHttpClient en app.config.ts registra errorInterceptor
+    // globalmente). Probar el servicio sin el interceptor testeaba una forma
+    // de error (HttpErrorResponse crudo) que nunca ocurre en la app real.
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideHttpClient(withInterceptors([errorInterceptor])),
+        provideHttpClientTesting(),
+        { provide: PlanUpgradeService, useValue: { isPlanGateError: () => false, promptUpgrade: () => {} } },
+      ],
     });
 
     service = TestBed.inject(AdvisorsService);
@@ -74,13 +85,33 @@ describe('AdvisorsService', () => {
     expect(error?.message).toBe('No autorizado');
   });
 
-  it('getAdvisors en error sin mensaje del backend usa el mensaje genérico', () => {
+  // BUG-20: este test asumía que el fallback local del servicio
+  // ('Error al cargar asesores') era lo que se mostraba cuando el body del
+  // 500 no traía mensaje. Con errorInterceptor real en el pipeline (arriba),
+  // .message para CUALQUIER 500 es siempre el genérico de BUG-19 — nunca
+  // llega a estar vacío, así que el fallback local del servicio nunca se
+  // dispara para un 500. El fallback sigue existiendo para el caso teórico
+  // de un error sin pasar por el interceptor (por ejemplo, un fallo de red).
+  it('getAdvisors en un 500 sin mensaje en el body, usa el genérico del interceptor (no el fallback local del servicio)', () => {
     let error: Error | undefined;
     service.getAdvisors().subscribe({ error: (e) => (error = e) });
 
     httpMock.expectOne(() => true).flush('error', { status: 500, statusText: 'Server Error' });
 
-    expect(error?.message).toBe('Error al cargar asesores');
+    expect(error?.message).toBe('Error interno del servidor');
+  });
+
+  // BUG-20: aunque el 500 SÍ traiga un `message` en el body (p. ej. el
+  // "Internal server error" en inglés que devuelve Nest por defecto ante una
+  // excepción no controlada), el interceptor nunca confía en él — la
+  // regla es "nunca" para 500, no solo "cuando el body viene vacío".
+  it('getAdvisors en un 500 con message en el body, igual usa el genérico (nunca confía en el body de un 500)', () => {
+    let error: Error | undefined;
+    service.getAdvisors().subscribe({ error: (e) => (error = e) });
+
+    httpMock.expectOne(() => true).flush({ message: 'Internal server error' }, { status: 500, statusText: 'Server Error' });
+
+    expect(error?.message).toBe('Error interno del servidor');
   });
 
   it('getAdvisor hace GET a /advisors/:id y extrae el asesor', () => {
@@ -136,13 +167,17 @@ describe('AdvisorsService', () => {
     expect(result).toEqual(advisor);
   });
 
-  it('updateAdvisor en error propaga el mensaje del backend', () => {
+  // BUG-20: un 500 nunca confía en el body — error.interceptor.ts (BUG-19)
+  // siempre usa su genérico en español ahí, sin importar el fallback local
+  // del servicio (que solo aplicaría si error.message viniera vacío, y con
+  // el interceptor real nunca lo está).
+  it('updateAdvisor en un 500, usa el genérico del interceptor (nunca confía en el body)', () => {
     let error: Error | undefined;
     service.updateAdvisor('adv-1', {}).subscribe({ error: (e) => (error = e) });
 
     httpMock.expectOne(`${apiUrl}/adv-1`).flush('error', { status: 500, statusText: 'Server Error' });
 
-    expect(error?.message).toBe('Error al actualizar asesor');
+    expect(error?.message).toBe('Error interno del servidor');
   });
 
   it('toggleActive hace PATCH a /toggle-active y extrae el asesor', () => {
@@ -156,13 +191,13 @@ describe('AdvisorsService', () => {
     expect(result?.isActive).toBe(false);
   });
 
-  it('toggleActive en error propaga el mensaje del backend', () => {
+  it('toggleActive en un 500, usa el genérico del interceptor (nunca confía en el body)', () => {
     let error: Error | undefined;
     service.toggleActive('adv-1').subscribe({ error: (e) => (error = e) });
 
     httpMock.expectOne(`${apiUrl}/adv-1/toggle-active`).flush('error', { status: 500, statusText: 'Server Error' });
 
-    expect(error?.message).toBe('Error al cambiar estado del asesor');
+    expect(error?.message).toBe('Error interno del servidor');
   });
 
   it('deleteAdvisor hace DELETE y resuelve void', () => {

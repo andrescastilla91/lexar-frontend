@@ -1,9 +1,12 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, input, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { SubscriptionService } from '../../../core/services/subscription.service';
 import { ConfirmDialogService } from '../../../core/services/confirm-dialog.service';
 import { ToastService } from '../../../core/services/toast.service';
+import { AiChatService } from '../../../core/services/ai-chat.service';
 import { Entitlements, PlanCatalogEntry, SaasInvoice } from '../../../core/models/subscription-backend.model';
+import { AiUsageSummary } from '../../../core/models/ai-chat.model';
+import { PlanComparisonTableComponent } from './plan-comparison-table.component';
 
 interface UsageBar {
   label: string;
@@ -15,7 +18,7 @@ interface UsageBar {
 @Component({
   selector: 'app-settings-plan',
   standalone: true,
-  imports: [DatePipe],
+  imports: [DatePipe, PlanComparisonTableComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="flex flex-col gap-6">
@@ -103,43 +106,14 @@ interface UsageBar {
               </span>
             }
           </div>
-          <div class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-3">
-            @for (plan of plans(); track plan.code) {
-              <div
-                class="flex flex-col rounded-lg border p-5 shadow-card"
-                [class.border-navy-900]="plan.code === ent.planCode"
-                [class.border-default]="plan.code !== ent.planCode"
-              >
-                <p class="text-base font-semibold text-text">{{ plan.name }}</p>
-                <p class="mt-1 text-2xl font-bold text-text">
-                  {{ formatPrice(plan.priceMonthly, plan.currency) }}
-                  <span class="text-sm font-normal text-subtle">/mes</span>
-                </p>
-                <ul class="mt-3 flex-1 space-y-1 text-xs text-subtle">
-                  <li>{{ plan.maxUsers ?? 'Ilimitados' }} usuarios</li>
-                  <li>{{ plan.maxActiveProcesses ?? 'Ilimitados' }} procesos activos</li>
-                  <li>{{ plan.maxStorageMb ? plan.maxStorageMb / 1024 + ' GB' : 'Almacenamiento ilimitado' }}</li>
-                  @if (plan.features.chatbot) {
-                    <li>Chatbot IA</li>
-                  }
-                  @if (plan.features.clientPortal) {
-                    <li>Portal del cliente</li>
-                  }
-                </ul>
-                <button
-                  type="button"
-                  class="mt-4 rounded-md px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-60"
-                  [class.bg-navy-900]="plan.code !== ent.planCode"
-                  [class.text-white]="plan.code !== ent.planCode"
-                  [class.bg-surface-muted]="plan.code === ent.planCode"
-                  [class.text-subtle]="plan.code === ent.planCode"
-                  [disabled]="plan.code === ent.planCode || isCheckingOut()"
-                  (click)="checkout(plan.code)"
-                >
-                  {{ plan.code === ent.planCode ? 'Plan actual' : 'Actualizar a ' + plan.name }}
-                </button>
-              </div>
-            }
+          <div class="mt-3">
+            <app-plan-comparison-table
+              [plans]="plans()"
+              [currentPlanCode]="ent.planCode"
+              [suggestedPlanCode]="suggestedPlanCode()"
+              [isCheckingOut]="isCheckingOut()"
+              (selectPlan)="checkout($event)"
+            />
           </div>
         </div>
 
@@ -200,6 +174,10 @@ export class SettingsPlanComponent implements OnInit {
   private readonly subscriptionService = inject(SubscriptionService);
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly toast = inject(ToastService);
+  private readonly aiChatService = inject(AiChatService);
+
+  /** F7-R3: plan a resaltar cuando se llega vía el CTA de upgrade de otra pantalla. */
+  readonly suggestedPlanCode = input<string | null>(null);
 
   readonly isLoading = signal(true);
   readonly isCheckingOut = signal(false);
@@ -208,6 +186,9 @@ export class SettingsPlanComponent implements OnInit {
   readonly plans = signal<PlanCatalogEntry[]>([]);
   readonly invoices = signal<SaasInvoice[]>([]);
   readonly simulationEnabled = signal(false);
+  /** F7-R4: consumo del cupo mensual de IA — informativo, no bloquea la
+   * pantalla si falla (ver comentario en AiChatService.getUsage). */
+  readonly aiUsage = signal<AiUsageSummary | null>(null);
 
   readonly trialDaysLeft = computed(() => {
     const ent = this.entitlements();
@@ -226,7 +207,7 @@ export class SettingsPlanComponent implements OnInit {
     const toPercent = (current: number, max: number | null): number =>
       max === null || max === 0 ? Math.min(100, current > 0 ? 15 : 0) : Math.min(100, Math.round((current / max) * 100));
 
-    return [
+    const bars: UsageBar[] = [
       { label: 'Usuarios', current: ent.usage.users, max: ent.limits.maxUsers, percent: toPercent(ent.usage.users, ent.limits.maxUsers) },
       {
         label: 'Procesos activos',
@@ -241,6 +222,22 @@ export class SettingsPlanComponent implements OnInit {
         percent: toPercent(ent.usage.storageMb, ent.limits.maxStorageMb),
       },
     ];
+
+    // F7-R4: se agrega solo si ya llegó el resumen y el plan realmente
+    // incluye cupo de IA (limit <= 0 en AiUsageService.hasQuota significa
+    // "sin cupo" — mostrar la barra en ese caso confundiría más de lo que
+    // informa, igual que un plan sin ese feature).
+    const usage = this.aiUsage();
+    if (usage && usage.limit > 0) {
+      bars.push({
+        label: 'Cupo de IA (mensual)',
+        current: usage.used,
+        max: usage.limit,
+        percent: toPercent(usage.used, usage.limit),
+      });
+    }
+
+    return bars;
   });
 
   ngOnInit(): void {
@@ -267,6 +264,11 @@ export class SettingsPlanComponent implements OnInit {
 
     this.subscriptionService.isSimulationEnabled().subscribe({
       next: (enabled) => this.simulationEnabled.set(enabled),
+      error: () => {},
+    });
+
+    this.aiChatService.getUsage().subscribe({
+      next: (usage) => this.aiUsage.set(usage),
       error: () => {},
     });
   }

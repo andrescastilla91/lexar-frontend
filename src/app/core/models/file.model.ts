@@ -80,6 +80,10 @@ export interface ListFilesParams {
   entityId?: string;
   page?: number;
   limit?: number;
+  /** F30: filtro "Solo los míos" del menú Documentos — solo tiene efecto
+   * real para quien tiene el permiso files.view.all (para el resto, el
+   * backend ya limita a lo propio sin importar este flag). */
+  onlyMine?: boolean;
 }
 
 /**

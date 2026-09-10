@@ -1,7 +1,11 @@
-import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import { ProcessEvent, ProcessEventType } from '../../../core/models/process-event.model';
 import { formatBytes, formatDate, getEventColor, getEventIcon, getEventLabel } from '../utils/process-format.utils';
 import { HasPermissionDirective } from '../../../core/directives/has-permission.directive';
+import {
+  PortalEventVisibilityMode,
+  PortalEventVisibilityPolicy,
+} from '../../../core/models/portal-visibility-policy.model';
 
 export interface HistoryVisibilityToggle {
   eventId: string;
@@ -76,7 +80,9 @@ export interface HistoryFileRef {
                               {{ getEventLabel(event.type) }}
                             </span>
                             <span class="text-xs text-subtle">{{ formatDate(event.createdAt) }}</span>
-                            @if (event.type !== eventTypes.ANNOTATION) {
+                            @if (isAlwaysVisible(event.type)) {
+                              <span class="text-xs font-medium text-success">Siempre visible para el cliente</span>
+                            } @else {
                               <button
                                 *hasPermission="['legal_processes.edit']"
                                 type="button"
@@ -93,9 +99,9 @@ export interface HistoryFileRef {
                                   <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
                                 </svg>
                               </button>
-                            }
-                            @if (event.visibleToClient) {
-                              <span class="text-xs font-medium text-success">Visible para el cliente</span>
+                              @if (event.visibleToClient) {
+                                <span class="text-xs font-medium text-success">Visible para el cliente</span>
+                              }
                             }
                           </div>
                           <p class="mt-1 text-sm text-text">{{ event.description }}</p>
@@ -180,6 +186,9 @@ export class ProcessHistoryModalComponent {
   processTitle = input<string | null>(null);
   isLoadingHistory = input(false);
   events = input<ProcessEvent[]>([]);
+  // F27: política de visibilidad por tipo de evento — determina si el
+  // toggle manual se oculta a favor del badge "Siempre visible".
+  visibilityPolicies = input<PortalEventVisibilityPolicy[]>([]);
 
   close = output<void>();
   previewFile = output<HistoryFileRef>();
@@ -192,4 +201,17 @@ export class ProcessHistoryModalComponent {
   protected readonly getEventIcon = getEventIcon;
   protected readonly getEventColor = getEventColor;
   protected readonly getEventLabel = getEventLabel;
+
+  private readonly alwaysVisibleTypes = computed(
+    () =>
+      new Set(
+        this.visibilityPolicies()
+          .filter((p) => p.mode === PortalEventVisibilityMode.ALWAYS)
+          .map((p) => p.eventType)
+      )
+  );
+
+  isAlwaysVisible(type: ProcessEventType): boolean {
+    return this.alwaysVisibleTypes().has(type);
+  }
 }

@@ -17,10 +17,17 @@ export class ProcessEventsService {
   private readonly apiUrl = `${environment.apiUrl}/legal-processes`;
 
   /**
-   * HU-16: Crear anotación en un proceso
+   * HU-16: Crear anotación en un proceso. F27: markAsInternal solo importa
+   * cuando la política de ANNOTATION está en DEFAULT_ON — con la política
+   * en DEFAULT_OFF (default) la anotación ya nace oculta sin necesidad de
+   * marcarla.
    */
-  createAnnotation(processId: string, description: string): Observable<ProcessEvent> {
-    const request: CreateAnnotationRequest = { description };
+  createAnnotation(
+    processId: string,
+    description: string,
+    markAsInternal?: boolean
+  ): Observable<ProcessEvent> {
+    const request: CreateAnnotationRequest = { description, markAsInternal };
     return this.http
       .post<{ annotation: ProcessEvent }>(`${this.apiUrl}/${processId}/annotations`, request)
       .pipe(map((response) => response.annotation));
@@ -36,8 +43,10 @@ export class ProcessEventsService {
   }
 
   /**
-   * F16: toggle "compartir con cliente" — el backend rechaza esto para
-   * eventos ANNOTATION (ver ProcessEventsService.setVisibility).
+   * F16: toggle "compartir con cliente". F27: el backend ya no rechaza
+   * esto para ANNOTATION (se rige por la política, como cualquier otro
+   * tipo) — solo rechaza (400) si el tipo del evento está en modo ALWAYS
+   * (ver ProcessEventsService.setVisibility).
    */
   setEventVisibility(processId: string, eventId: string, visibleToClient: boolean): Observable<ProcessEvent> {
     return this.http

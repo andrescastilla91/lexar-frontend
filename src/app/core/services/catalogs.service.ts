@@ -11,6 +11,8 @@ import {
   UpdateCatalogItemRequest,
 } from '../models/catalog-backend.model';
 
+// BUG-20 ola 2: lee error.message — no error.error?.message — ver el
+// comentario en deadlines.service.ts.
 @Injectable({ providedIn: 'root' })
 export class CatalogsService {
   private readonly http = inject(HttpClient);
@@ -33,7 +35,7 @@ export class CatalogsService {
       catchError((error) => {
         this.cache.delete(type);
         console.error(`Error al obtener catálogo ${type}:`, error);
-        return throwError(() => new Error(error.error?.message || 'Error al cargar catálogo'));
+        return throwError(() => new Error(error.message || 'Error al cargar catálogo'));
       }),
       shareReplay({ bufferSize: 1, refCount: false })
     );
@@ -55,7 +57,7 @@ export class CatalogsService {
       tap(() => this.invalidate(type)),
       catchError((error) => {
         console.error('Error al crear ítem de catálogo:', error);
-        return throwError(() => new Error(error.error?.message || 'Error al crear ítem de catálogo'));
+        return throwError(() => new Error(error.message || 'Error al crear ítem de catálogo'));
       })
     );
   }
@@ -66,7 +68,7 @@ export class CatalogsService {
       tap(() => this.invalidate(type)),
       catchError((error) => {
         console.error('Error al actualizar ítem de catálogo:', error);
-        return throwError(() => new Error(error.error?.message || 'Error al actualizar ítem de catálogo'));
+        return throwError(() => new Error(error.message || 'Error al actualizar ítem de catálogo'));
       })
     );
   }
@@ -77,7 +79,7 @@ export class CatalogsService {
       tap(() => this.invalidate(type)),
       catchError((error) => {
         console.error('Error al eliminar ítem de catálogo:', error);
-        return throwError(() => new Error(error.error?.message || 'Error al eliminar ítem de catálogo'));
+        return throwError(() => new Error(error.message || 'Error al eliminar ítem de catálogo'));
       })
     );
   }

@@ -1,13 +1,15 @@
 import { TestBed } from '@angular/core/testing';
 import { FormBuilder, Validators } from '@angular/forms';
 import { ProcessAnnotationModalComponent } from './process-annotation-modal.component';
+import { PortalEventVisibilityMode } from '../../../core/models/portal-visibility-policy.model';
 
 describe('ProcessAnnotationModalComponent', () => {
   const fb = new FormBuilder();
 
-  function buildForm(description = '') {
+  function buildForm(description = '', markAsInternal = false) {
     return fb.nonNullable.group({
       description: [description, [Validators.required, Validators.maxLength(2000)]],
+      markAsInternal: [markAsInternal],
     });
   }
 
@@ -107,6 +109,28 @@ describe('ProcessAnnotationModalComponent', () => {
 
     const submitBtn: HTMLButtonElement = fixture.nativeElement.querySelector('button[type="submit"]');
     expect(submitBtn.disabled).toBe(false);
+  });
+
+  it('F27: no muestra el aviso de visibilidad cuando la política de ANNOTATION no es DEFAULT_ON', () => {
+    const fixture = createComponent();
+    fixture.componentRef.setInput('form', buildForm());
+    fixture.componentRef.setInput('isOpen', true);
+    fixture.componentRef.setInput('visibilityMode', PortalEventVisibilityMode.DEFAULT_OFF);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('será visible para el cliente');
+    expect(fixture.nativeElement.querySelector('input[type="checkbox"]')).toBeNull();
+  });
+
+  it('F27: muestra el aviso y el checkbox "marcar interna" cuando la política de ANNOTATION es DEFAULT_ON', () => {
+    const fixture = createComponent();
+    fixture.componentRef.setInput('form', buildForm());
+    fixture.componentRef.setInput('isOpen', true);
+    fixture.componentRef.setInput('visibilityMode', PortalEventVisibilityMode.DEFAULT_ON);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('será visible para el cliente');
+    expect(fixture.nativeElement.querySelector('input[type="checkbox"]')).not.toBeNull();
   });
 
   it('emite close al hacer clic en cancelar', () => {

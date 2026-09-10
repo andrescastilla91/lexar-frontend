@@ -1,9 +1,11 @@
 import { Component, inject } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { ToastService } from '../services/toast.service';
 
 @Component({
   selector: 'app-toast',
   standalone: true,
+  imports: [RouterLink],
   template: `
     <div class="fixed inset-x-4 bottom-4 z-50 flex flex-col gap-2 sm:inset-x-auto sm:right-4 sm:w-full sm:max-w-sm">
       @for (toast of toastService.toasts(); track toast.id) {
@@ -21,7 +23,19 @@ import { ToastService } from '../services/toast.service';
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
             </svg>
           }
-          <p class="flex-1 break-words text-sm text-text">{{ toast.message }}</p>
+          <div class="flex-1">
+            <p class="break-words text-sm text-text">{{ toast.message }}</p>
+            @if (toast.action; as action) {
+              <a
+                [routerLink]="action.routerLink"
+                [queryParams]="action.queryParams"
+                (click)="toastService.dismiss(toast.id)"
+                class="mt-1 inline-block text-sm font-semibold text-info hover:underline"
+              >
+                {{ action.label }}
+              </a>
+            }
+          </div>
           <button
             type="button"
             (click)="toastService.dismiss(toast.id)"

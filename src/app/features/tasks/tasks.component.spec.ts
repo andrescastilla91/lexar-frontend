@@ -287,6 +287,42 @@ describe('TasksComponent', () => {
       expect(component.allTasks()).toEqual([updated]);
       expect(component.selectedTask()).toEqual(updated);
     });
+
+    // F28
+    it('openEditModal cierra el detalle y abre el modal de edición con la tarea', async () => {
+      await configure();
+      const component = createComponent();
+      const task = buildTask();
+      component.openDetail(task);
+
+      component.openEditModal(task);
+
+      expect(component.selectedTask()).toBeNull();
+      expect(component.editingTask()).toEqual(task);
+      expect(component.editModalOpen()).toBe(true);
+    });
+
+    it('closeEditModal cierra el modal de edición', async () => {
+      await configure();
+      const component = createComponent();
+      component.openEditModal(buildTask());
+
+      component.closeEditModal();
+
+      expect(component.editModalOpen()).toBe(false);
+    });
+
+    it('onTaskEdited refleja la tarea editada en la lista (mismo camino que onTaskUpdated)', async () => {
+      await configure();
+      const component = createComponent();
+      const original = buildTask({ id: 'task-1', title: 'Original' });
+      component.allTasks.set([original]);
+
+      const edited = buildTask({ id: 'task-1', title: 'Editada' });
+      component.onTaskEdited(edited);
+
+      expect(component.allTasks()).toEqual([edited]);
+    });
   });
 
   describe('deleteTask', () => {

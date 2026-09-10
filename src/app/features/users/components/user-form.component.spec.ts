@@ -58,26 +58,31 @@ describe('UserFormComponent', () => {
     expect(spy).toHaveBeenCalled();
   });
 
-  it('explica el motivo cuando editingUserHasLoggedIn es true en edición (BUG-13: no deshabilita realmente el input)', () => {
-    const { fixture } = createComponent();
+  it('explica el motivo y refleja el disabled real del FormControl cuando editingUserHasLoggedIn es true en edición', () => {
+    const { fixture, form } = createComponent();
     fixture.componentRef.setInput('isOpen', true);
     fixture.componentRef.setInput('isEditing', true);
     fixture.componentRef.setInput('editingUserHasLoggedIn', true);
+
+    // BUG-14 (docs/06-bugs/BUG-14-email-usuario-no-queda-deshabilitado.md):
+    // el input combinaba formControlName con [disabled] en el mismo elemento
+    // — conflicto documentado por Angular donde el estado real del
+    // FormControl gana y el binding [disabled] queda sin efecto. El fix
+    // quitó el binding [disabled] del template: quien deshabilita el campo
+    // es SIEMPRE el FormControl real — en producción, UsersComponent.editUser()
+    // ya llama form.get('email')?.disable(). Este test reproduce esa misma
+    // responsabilidad del contenedor para probar que, sin binding en
+    // competencia, el input SÍ respeta el estado real del control.
+    form.get('email')?.disable();
     fixture.detectChanges();
 
-    // BUG-13 (docs/06-bugs/BACKLOG-BUGS.md): el input combina formControlName
-    // con [disabled] en el mismo elemento — conflicto documentado por Angular
-    // donde el estado real del FormControl gana y el binding [disabled] queda
-    // sin efecto. El campo NO queda deshabilitado en el navegador real pese al
-    // texto explicativo. Al corregir el bug (mover el disable a un effect()
-    // sobre el FormControl), esta aserción debe volver a `toBe(true)`.
     const emailInput: HTMLInputElement = fixture.nativeElement.querySelector('input[type="email"]');
-    expect(emailInput.disabled).toBe(false);
+    expect(emailInput.disabled).toBe(true);
     expect(fixture.nativeElement.textContent).toContain('El email no puede modificarse');
   });
 
   it('permite editar el email cuando editingUserHasLoggedIn es false en edición', () => {
-    const { fixture } = createComponent();
+    const { fixture, form } = createComponent();
     fixture.componentRef.setInput('isOpen', true);
     fixture.componentRef.setInput('isEditing', true);
     fixture.componentRef.setInput('editingUserHasLoggedIn', false);
@@ -85,6 +90,7 @@ describe('UserFormComponent', () => {
 
     const emailInput: HTMLInputElement = fixture.nativeElement.querySelector('input[type="email"]');
     expect(emailInput.disabled).toBe(false);
+    expect(form.get('email')?.disabled).toBe(false);
     expect(fixture.nativeElement.textContent).toContain('El email puede modificarse');
   });
 

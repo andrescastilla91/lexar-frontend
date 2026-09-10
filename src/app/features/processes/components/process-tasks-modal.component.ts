@@ -4,6 +4,7 @@ import { AdvisorResponse } from '../../../core/models/advisor-backend.model';
 import { TaskPriority, TaskResponse, TaskTemplateResponse } from '../../../core/models/task.model';
 import { TaskStatusResponse } from '../../../core/models/task-status.model';
 import { TaskStatusControlComponent } from '../../../shared/components/task-status-control/task-status-control.component';
+import { TaskEditModalComponent } from '../../tasks/components/task-edit-modal.component';
 import { formatDate } from '../utils/process-format.utils';
 import {
   getTaskPriorityClasses,
@@ -30,7 +31,7 @@ type TasksModalTab = 'list' | 'new' | 'template';
 @Component({
   selector: 'app-process-tasks-modal',
   standalone: true,
-  imports: [ReactiveFormsModule, TaskStatusControlComponent],
+  imports: [ReactiveFormsModule, TaskStatusControlComponent, TaskEditModalComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (isOpen()) {
@@ -216,6 +217,17 @@ type TasksModalTab = 'list' | 'new' | 'template';
                             <button
                               type="button"
                               [disabled]="task.status.isTerminal"
+                              (click)="openEditModal(task)"
+                              class="rounded-lg p-2 text-muted transition hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+                              [title]="task.status.isTerminal ? 'Tarea terminada: no se puede editar' : 'Editar tarea'"
+                            >
+                              <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z" />
+                              </svg>
+                            </button>
+                            <button
+                              type="button"
+                              [disabled]="task.status.isTerminal"
                               (click)="deleteTask.emit(task)"
                               class="rounded-lg p-2 text-danger transition hover:bg-danger-tint disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
                               [title]="task.status.isTerminal ? 'Tarea terminada: no se puede eliminar' : 'Eliminar tarea'"
@@ -256,6 +268,15 @@ type TasksModalTab = 'list' | 'new' | 'template';
         </div>
       </div>
     }
+
+    <!-- F28: modal de edición, aparte del overlay principal -->
+    <app-task-edit-modal
+      [isOpen]="editModalOpen()"
+      [task]="editingTask()"
+      [advisors]="advisors()"
+      (close)="closeEditModal()"
+      (updated)="onTaskEdited($event)"
+    />
   `,
 })
 export class ProcessTasksModalComponent {
@@ -287,7 +308,27 @@ export class ProcessTasksModalComponent {
 
   readonly activeTab = signal<TasksModalTab>('list');
 
+  // F28: modal de edición, aparte del propio TaskEditModalComponent
+  // (autocontenido, hace su propio PATCH) — emite `taskUpdated` con el
+  // resultado, mismo output que ya usa TaskStatusControlComponent, así el
+  // padre no necesita distinguir de dónde vino el cambio.
+  readonly editingTask = signal<TaskResponse | null>(null);
+  readonly editModalOpen = signal(false);
+
   onCreateSubmit(): void {
     this.submit.emit();
+  }
+
+  openEditModal(task: TaskResponse): void {
+    this.editingTask.set(task);
+    this.editModalOpen.set(true);
+  }
+
+  closeEditModal(): void {
+    this.editModalOpen.set(false);
+  }
+
+  onTaskEdited(updated: TaskResponse): void {
+    this.taskUpdated.emit(updated);
   }
 }

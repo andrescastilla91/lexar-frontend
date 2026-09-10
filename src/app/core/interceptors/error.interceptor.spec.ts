@@ -2,14 +2,24 @@ import { TestBed } from '@angular/core/testing';
 import { HttpClient, provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { errorInterceptor, ApiError } from './error.interceptor';
+import { PlanUpgradeService } from '../services/plan-upgrade.service';
 
 describe('errorInterceptor', () => {
   let http: HttpClient;
   let httpMock: HttpTestingController;
+  let planUpgradeMock: { isPlanGateError: jest.Mock; promptUpgrade: jest.Mock };
 
   beforeEach(() => {
+    // F7-R3: por defecto ningún error es un gate de plan — los tests que sí
+    // lo necesitan sobreescriben isPlanGateError antes de disparar la request.
+    planUpgradeMock = { isPlanGateError: jest.fn().mockReturnValue(false), promptUpgrade: jest.fn() };
+
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(withInterceptors([errorInterceptor])), provideHttpClientTesting()],
+      providers: [
+        provideHttpClient(withInterceptors([errorInterceptor])),
+        provideHttpClientTesting(),
+        { provide: PlanUpgradeService, useValue: planUpgradeMock },
+      ],
     });
 
     http = TestBed.inject(HttpClient);
@@ -64,6 +74,51 @@ describe('errorInterceptor', () => {
     expect(forbidden.message).toBe('No tienes permisos para realizar esta acción');
   });
 
+  // BUG-19: el interceptor ya no descarta el mensaje real del backend para
+  // TODO 403 — solo cae al genérico cuando el backend no manda ninguno.
+  it('BUG-19: en un 403 con mensaje real del backend, usa ese mensaje y no el genérico', () => {
+    const error = captureError(403, 'Forbidden', {
+      message: 'Tu suscripción está suspendida. Actualiza tu plan para seguir editando.',
+      code: 'SUBSCRIPTION_SUSPENDED',
+    });
+
+    expect(error.message).toBe('Tu suscripción está suspendida. Actualiza tu plan para seguir editando.');
+  });
+
+  it('BUG-19: en un 403 con la lista de permisos requeridos, usa el mensaje real', () => {
+    const error = captureError(403, 'Forbidden', {
+      message: 'No tienes permisos suficientes. Permisos requeridos: roles.create',
+    });
+
+    expect(error.message).toBe('No tienes permisos suficientes. Permisos requeridos: roles.create');
+  });
+
+  // BUG-19: un 404 deliberado de nuestro código (NotFoundException con
+  // mensaje en español) es más útil que el genérico y se muestra tal cual.
+  it('BUG-19: en un 404 con mensaje real del backend, usa ese mensaje', () => {
+    const error = captureError(404, 'Not Found', { message: 'Usuario no encontrado' });
+
+    expect(error.message).toBe('Usuario no encontrado');
+  });
+
+  // BUG-19: el 404 automático de Nest/Express para una ruta sin match trae
+  // "Cannot GET /api/x" en inglés y expone la ruta interna — no es un
+  // NotFoundException deliberado, así que se descarta y cae al genérico.
+  it('BUG-19: en un 404 de ruta sin match ("Cannot GET ..."), usa el genérico en vez de exponer la ruta', () => {
+    const error = captureError(404, 'Not Found', { message: 'Cannot GET /api/ruta-inexistente', error: 'Not Found' });
+
+    expect(error.message).toBe('Recurso no encontrado');
+  });
+
+  // BUG-19: un 500 nunca es un throw deliberado en este backend — aunque
+  // traiga un `message` (típicamente "Internal server error" en inglés, el
+  // default de Nest), siempre se muestra el genérico en español.
+  it('BUG-19: en un 500 con mensaje del backend, igual usa el genérico (nunca confiar en el body de un 500)', () => {
+    const error = captureError(500, 'Internal Server Error', { message: 'Internal server error' });
+
+    expect(error.message).toBe('Error interno del servidor');
+  });
+
   it('maneja errores de red del lado del cliente', () => {
     let error: ApiError | undefined;
 
@@ -71,5 +126,34 @@ describe('errorInterceptor', () => {
     httpMock.expectOne('/api/resource').error(new ErrorEvent('error', { message: 'sin conexión' }));
 
     expect(error?.message).toBe('Error: sin conexión');
+  });
+
+  // F7-R3: un gate de plan dispara el toast+CTA de upgrade una sola vez,
+  // centralizado aquí — y usa su mensaje real, nunca el 403 genérico.
+  it('en un 403 FEATURE_NOT_IN_PLAN: dispara promptUpgrade y usa el mensaje real, no el genérico', () => {
+    planUpgradeMock.isPlanGateError.mockReturnValue(true);
+    const body = { code: 'FEATURE_NOT_IN_PLAN', message: 'Tu plan no incluye esta funcionalidad', feature: 'customCatalogs' };
+
+    const error = captureError(403, 'Forbidden', body);
+
+    expect(error.message).toBe('Tu plan no incluye esta funcionalidad');
+    expect(planUpgradeMock.promptUpgrade).toHaveBeenCalledTimes(1);
+    expect(planUpgradeMock.promptUpgrade.mock.calls[0][0].error).toEqual(body);
+  });
+
+  it('en un 400 LIMIT_REACHED: también dispara promptUpgrade', () => {
+    planUpgradeMock.isPlanGateError.mockReturnValue(true);
+    const body = { code: 'LIMIT_REACHED', message: 'Llegaste al límite de tu plan', limit: 'portalClientsMax' };
+
+    const error = captureError(400, 'Bad Request', body);
+
+    expect(error.message).toBe('Llegaste al límite de tu plan');
+    expect(planUpgradeMock.promptUpgrade).toHaveBeenCalledTimes(1);
+  });
+
+  it('en un 403 normal (no gate de plan): NO dispara promptUpgrade', () => {
+    captureError(403, 'Forbidden', {});
+
+    expect(planUpgradeMock.promptUpgrade).not.toHaveBeenCalled();
   });
 });
