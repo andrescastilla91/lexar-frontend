@@ -31,10 +31,9 @@ test.describe('Portal del cliente end-to-end', () => {
 
     const clientsPage = new ClientsPage(page);
     await clientsPage.goto();
-    await clientsPage.openEdit(portalTenant.clientFullName);
+    await clientsPage.openPortalPanel(portalTenant.clientFullName);
     await clientsPage.inviteToPortal(portalEmail);
     await expect(clientsPage.invitationRow(portalEmail)).toContainText('Pendiente de activación');
-    await clientsPage.closeEditPanel();
 
     const activationToken = await extractTokenFromMailpit(portalEmail);
 

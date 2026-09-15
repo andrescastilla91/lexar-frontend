@@ -5,30 +5,31 @@ import { of, throwError } from 'rxjs';
 import { ClientsComponent } from './clients.component';
 import { ClientsService } from '../../core/services/clients.service';
 import { CatalogsService } from '../../core/services/catalogs.service';
+import { AdvisorsService } from '../../core/services/advisors.service';
 import { ConfirmDialogService } from '../../core/services/confirm-dialog.service';
 import { PermissionsService } from '../../core/services/permissions.service';
 import { ToastService } from '../../core/services/toast.service';
-import { FilesService } from '../../core/services/files.service';
-import { ClientPortalInvitationsService } from '../../core/services/client-portal-invitations.service';
-import { SubscriptionService } from '../../core/services/subscription.service';
-import { ClientResponse } from '../../core/models/client-backend.model';
+import { ClientPersonType, ClientResponse } from '../../core/models/client-backend.model';
 import { CatalogItem } from '../../core/models/catalog-backend.model';
 
+// F33 (2026-09-14): ClientResponse ya no trae companyName/phone/email/
+// assignedAdvisor/updatedAt (email/phone/companyName se movieron a
+// ClientContact, editables solo desde la ficha del cliente) — este fixture
+// refleja el modelo actual.
 function buildClient(overrides: Partial<ClientResponse> = {}): ClientResponse {
   return {
     id: 'c1',
     fullName: 'María González',
-    companyName: 'Corporación Legal S.A.S.',
-    phone: '3001234567',
-    email: 'maria@lexar.com',
+    personType: ClientPersonType.NATURAL,
     address: 'Calle 100',
     documentType: { id: 'd1', code: 'CC', label: 'Cédula', color: null },
     identificationNumber: '123456789',
     riskLevel: { id: 'r1', code: 'LOW', label: 'Bajo', color: '#22c55e' },
+    laftRisk: null,
     isActive: true,
-    assignedAdvisor: null,
-    createdAt: new Date('2026-01-01'),
-    updatedAt: new Date('2026-01-01'),
+    createdAt: '2026-01-01T00:00:00.000Z',
+    contacts: [],
+    advisors: [],
     ...overrides,
   };
 }
@@ -36,35 +37,35 @@ function buildClient(overrides: Partial<ClientResponse> = {}): ClientResponse {
 describe('ClientsComponent', () => {
   let clientsServiceMock: {
     getClients: jest.Mock;
-    getClient: jest.Mock;
     createClient: jest.Mock;
-    updateClient: jest.Mock;
     toggleActive: jest.Mock;
   };
   let catalogsServiceMock: { getActiveCatalog: jest.Mock };
+  let advisorsServiceMock: { getAdvisors: jest.Mock };
   let confirmDialogMock: { confirm: jest.Mock };
   let toastMock: { error: jest.Mock; success: jest.Mock };
   let navigateSpy: jest.SpyInstance;
   let consoleErrorSpy: jest.SpyInstance;
 
   const documentTypes: CatalogItem[] = [
-    { id: 'd1', catalogType: 'document_type', code: 'CC', label: 'Cédula', color: null, sortOrder: 0, isActive: true, isSystem: true },
+    { id: 'd1', catalogType: 'document_type', code: 'CC', label: 'Cédula', color: null, sortOrder: 0, isActive: true, isSystem: true, personTypeScope: null },
   ];
   const riskLevels: CatalogItem[] = [
-    { id: 'r1', catalogType: 'risk_level', code: 'LOW', label: 'Bajo', color: '#22c55e', sortOrder: 0, isActive: true, isSystem: true },
-    { id: 'r2', catalogType: 'risk_level', code: 'HIGH', label: 'Alto', color: '#ef4444', sortOrder: 1, isActive: true, isSystem: true },
+    { id: 'r1', catalogType: 'risk_level', code: 'LOW', label: 'Bajo', color: '#22c55e', sortOrder: 0, isActive: true, isSystem: true, personTypeScope: null },
+    { id: 'r2', catalogType: 'risk_level', code: 'HIGH', label: 'Alto', color: '#ef4444', sortOrder: 1, isActive: true, isSystem: true, personTypeScope: null },
   ];
 
   function configure(openId: string | null = null): void {
     clientsServiceMock = {
       getClients: jest.fn().mockReturnValue(of({ message: '', clients: [buildClient()], total: 1, page: 1, limit: 10 })),
-      getClient: jest.fn().mockReturnValue(of(buildClient())),
       createClient: jest.fn(),
-      updateClient: jest.fn(),
       toggleActive: jest.fn(),
     };
     catalogsServiceMock = {
       getActiveCatalog: jest.fn((type: string) => (type === 'document_type' ? of(documentTypes) : of(riskLevels))),
+    };
+    advisorsServiceMock = {
+      getAdvisors: jest.fn().mockReturnValue(of({ message: '', advisors: [], total: 0, page: 1, limit: 100 })),
     };
     confirmDialogMock = { confirm: jest.fn().mockResolvedValue(true) };
     toastMock = { error: jest.fn(), success: jest.fn() };
@@ -77,35 +78,9 @@ describe('ClientsComponent', () => {
       imports: [ClientsComponent],
       providers: [
         provideRouter([]),
-        // El panel de edición (?openId=) renderiza ClientFormComponent ->
-        // EntityFilesComponent + ClientPortalInvitationsComponent, que
-        // inyectan estos tres servicios (mismo mock que client-form.component.spec.ts).
-        { provide: FilesService, useValue: { getFilesByEntity: jest.fn().mockReturnValue(of([])) } },
-        {
-          provide: ClientPortalInvitationsService,
-          useValue: { list: jest.fn().mockReturnValue(of({ portalUsers: [] })) },
-        },
-        {
-          provide: SubscriptionService,
-          useValue: {
-            getEntitlements: jest.fn().mockReturnValue(
-              of({
-                planCode: 'FIRM',
-                planName: 'Firma',
-                status: 'active',
-                isReadOnly: false,
-                trialEndsAt: null,
-                currentPeriodEnd: '2026-12-31',
-                cancelAtPeriodEnd: false,
-                features: { chatbot: false, clientPortal: true, advancedReports: false },
-                limits: { maxUsers: null, maxActiveProcesses: null, maxStorageMb: null },
-                usage: { users: 0, activeProcesses: 0, storageMb: 0 },
-              }),
-            ),
-          },
-        },
         { provide: ClientsService, useValue: clientsServiceMock },
         { provide: CatalogsService, useValue: catalogsServiceMock },
+        { provide: AdvisorsService, useValue: advisorsServiceMock },
         { provide: ConfirmDialogService, useValue: confirmDialogMock },
         { provide: ToastService, useValue: toastMock },
         { provide: ActivatedRoute, useValue: activatedRouteMock },
@@ -135,13 +110,14 @@ describe('ClientsComponent', () => {
     consoleErrorSpy?.mockRestore();
   });
 
-  it('al iniciar carga catálogos y clientes', () => {
+  it('al iniciar carga catálogos, asesores y clientes', () => {
     configure();
     const { component } = createComponent();
 
     expect(clientsServiceMock.getClients).toHaveBeenCalledWith(1, 10);
     expect(catalogsServiceMock.getActiveCatalog).toHaveBeenCalledWith('document_type');
     expect(catalogsServiceMock.getActiveCatalog).toHaveBeenCalledWith('risk_level');
+    expect(advisorsServiceMock.getAdvisors).toHaveBeenCalledWith(1, 100, { isActive: true });
     expect(component.clients().length).toBe(1);
     expect(component.isLoading()).toBe(false);
   });
@@ -166,42 +142,28 @@ describe('ClientsComponent', () => {
     expect(component.activeCount()).toBe(0);
   });
 
-  it('con ?openId= en la URL, abre el panel de edición del cliente y limpia el query param', () => {
+  it('con ?openId= en la URL, navega directo a la ficha del cliente (F18)', () => {
     configure('c1');
-    const { component } = createComponent();
+    createComponent();
 
-    expect(clientsServiceMock.getClient).toHaveBeenCalledWith('c1');
-    expect(component.panelOpen()).toBe(true);
-    expect(component.editingClient()?.id).toBe('c1');
-    expect(navigateSpy).toHaveBeenCalledWith([], expect.objectContaining({ queryParams: {}, replaceUrl: true }));
+    // F33: la edición ya no ocurre en un panel inline — el ?openId= (llegado
+    // desde la búsqueda global) redirige a /clientes/:id, que abre
+    // ClientDetailComponent (ver client-detail.component.spec.ts).
+    expect(navigateSpy).toHaveBeenCalledWith(['/clientes', 'c1']);
   });
 
-  it('togglePanel abre y cierra el panel, limpiando el formulario y el cliente en edición', () => {
+  it('togglePanel abre y cierra el panel, limpiando el formulario de alta', () => {
     configure();
     const { component } = createComponent();
 
     component.togglePanel();
     expect(component.panelOpen()).toBe(true);
 
-    component.editClient(buildClient());
+    component.clientForm.patchValue({ fullName: 'Algo escrito' });
     component.togglePanel();
 
     expect(component.panelOpen()).toBe(false);
-    expect(component.editingClient()).toBeNull();
     expect(component.clientForm.value.fullName).toBe('');
-  });
-
-  it('editClient precarga el formulario con los datos del cliente', () => {
-    configure();
-    const { component } = createComponent();
-    const client = buildClient({ companyName: null, phone: null, address: null, documentType: null, riskLevel: null });
-
-    component.editClient(client);
-
-    expect(component.editingClient()).toEqual(client);
-    expect(component.clientForm.value.fullName).toBe(client.fullName);
-    expect(component.clientForm.value.documentTypeId).toBe('');
-    expect(component.panelOpen()).toBe(true);
   });
 
   it('submitClient con formulario inválido, lo marca como touched y no llama al servicio', () => {
@@ -224,20 +186,20 @@ describe('ClientsComponent', () => {
     expect(clientsServiceMock.createClient).not.toHaveBeenCalled();
   });
 
-  it('submitClient crea un cliente nuevo en éxito, recarga la lista y cierra el panel', () => {
+  it('submitClient crea un cliente nuevo en éxito, recarga la lista, cierra el panel y navega a su ficha', () => {
     configure();
-    clientsServiceMock.createClient.mockReturnValue(of(buildClient()));
+    const created = buildClient({ id: 'new-1' });
+    clientsServiceMock.createClient.mockReturnValue(of(created));
     const { component } = createComponent();
 
     component.clientForm.setValue({
+      personType: ClientPersonType.NATURAL,
       fullName: 'Nuevo Cliente',
-      companyName: '',
-      phone: '',
-      email: 'nuevo@lexar.com',
       address: '',
       documentTypeId: 'd1',
       identificationNumber: '123456',
       riskLevelId: '',
+      advisorIds: [],
     });
 
     component.submitClient();
@@ -246,6 +208,7 @@ describe('ClientsComponent', () => {
     expect(component.isSubmitting()).toBe(false);
     expect(component.panelOpen()).toBe(false);
     expect(clientsServiceMock.getClients).toHaveBeenCalledTimes(2);
+    expect(navigateSpy).toHaveBeenCalledWith(['/clientes', 'new-1']);
   });
 
   it('submitClient en error de creación, expone el mensaje', () => {
@@ -254,45 +217,18 @@ describe('ClientsComponent', () => {
     const { component } = createComponent();
 
     component.clientForm.setValue({
+      personType: ClientPersonType.NATURAL,
       fullName: 'Nuevo Cliente',
-      companyName: '',
-      phone: '',
-      email: 'nuevo@lexar.com',
       address: '',
       documentTypeId: 'd1',
       identificationNumber: '123456',
       riskLevelId: '',
+      advisorIds: [],
     });
 
     component.submitClient();
 
     expect(component.errorMessage()).toBe('Error al crear cliente');
-    expect(component.isSubmitting()).toBe(false);
-  });
-
-  it('submitClient actualiza un cliente existente en éxito', () => {
-    configure();
-    const client = buildClient();
-    clientsServiceMock.updateClient.mockReturnValue(of(client));
-    const { component } = createComponent();
-
-    component.editClient(client);
-    component.submitClient();
-
-    expect(clientsServiceMock.updateClient).toHaveBeenCalledWith(client.id, expect.any(Object));
-    expect(component.panelOpen()).toBe(false);
-  });
-
-  it('submitClient en error de actualización, expone el mensaje', () => {
-    configure();
-    const client = buildClient();
-    clientsServiceMock.updateClient.mockReturnValue(throwError(() => ({ message: 'Error al actualizar cliente' })));
-    const { component } = createComponent();
-
-    component.editClient(client);
-    component.submitClient();
-
-    expect(component.errorMessage()).toBe('Error al actualizar cliente');
     expect(component.isSubmitting()).toBe(false);
   });
 
@@ -343,14 +279,14 @@ describe('ClientsComponent', () => {
     expect(toastMock.error).toHaveBeenCalledWith('Error al cambiar estado del cliente');
   });
 
-  it('filteredClients filtra por búsqueda, estado y nivel de riesgo', () => {
+  it('filteredClients filtra por búsqueda, estado, tipo de persona y nivel de riesgo', () => {
     configure();
     clientsServiceMock.getClients.mockReturnValue(
       of({
         message: '',
         clients: [
-          buildClient({ id: 'c1', fullName: 'María González', isActive: true, riskLevel: { id: 'r1', code: 'LOW', label: 'Bajo', color: null } }),
-          buildClient({ id: 'c2', fullName: 'Carlos Ruiz', email: 'carlos@lexar.com', isActive: false, riskLevel: { id: 'r2', code: 'HIGH', label: 'Alto', color: null } }),
+          buildClient({ id: 'c1', fullName: 'María González', isActive: true, personType: ClientPersonType.NATURAL, riskLevel: { id: 'r1', code: 'LOW', label: 'Bajo', color: null } }),
+          buildClient({ id: 'c2', fullName: 'Corporación Ruiz S.A.S.', isActive: false, personType: ClientPersonType.JURIDICA, riskLevel: { id: 'r2', code: 'HIGH', label: 'Alto', color: null } }),
         ],
         total: 2,
         page: 1,
@@ -359,13 +295,16 @@ describe('ClientsComponent', () => {
     );
     const { component } = createComponent();
 
-    component.filterForm.patchValue({ search: 'carlos' });
+    component.filterForm.patchValue({ search: 'ruiz' });
     expect(component.filteredClients().map((c) => c.id)).toEqual(['c2']);
 
     component.filterForm.patchValue({ search: '', status: 'inactive' });
     expect(component.filteredClients().map((c) => c.id)).toEqual(['c2']);
 
-    component.filterForm.patchValue({ status: 'all', riskLevel: 'HIGH' });
+    component.filterForm.patchValue({ status: 'all', personType: 'JURIDICA' });
+    expect(component.filteredClients().map((c) => c.id)).toEqual(['c2']);
+
+    component.filterForm.patchValue({ personType: 'all', riskLevel: 'HIGH' });
     expect(component.filteredClients().map((c) => c.id)).toEqual(['c2']);
   });
 

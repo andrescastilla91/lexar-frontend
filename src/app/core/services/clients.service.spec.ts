@@ -157,4 +157,28 @@ describe('ClientsService', () => {
 
     expect(error?.message).toBe('Error interno del servidor');
   });
+
+  // RBAC 2026-09-14: separado de updateClient — requiere clients.edit-compliance.
+  it('updateClientCompliance hace PATCH a /compliance y extrae el cliente', () => {
+    let result: ClientResponse | undefined;
+    service
+      .updateClientCompliance('client-1', { riskLevelId: 'r1', laftRiskId: 'l1' })
+      .subscribe((r) => (result = r));
+
+    const req = httpMock.expectOne(`${apiUrl}/client-1/compliance`);
+    expect(req.request.method).toBe('PATCH');
+    expect(req.request.body).toEqual({ riskLevelId: 'r1', laftRiskId: 'l1' });
+    req.flush({ message: 'ok', client });
+
+    expect(result).toEqual(client);
+  });
+
+  it('updateClientCompliance en error propaga el mensaje del backend', () => {
+    let error: Error | undefined;
+    service.updateClientCompliance('client-1', {}).subscribe({ error: (e) => (error = e) });
+
+    httpMock.expectOne(`${apiUrl}/client-1/compliance`).flush('error', { status: 500, statusText: 'Server Error' });
+
+    expect(error?.message).toBe('Error interno del servidor');
+  });
 });

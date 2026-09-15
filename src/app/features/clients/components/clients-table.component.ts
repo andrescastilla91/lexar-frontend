@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { HasPermissionDirective } from '../../../core/directives/has-permission.directive';
 import { ClientResponse } from '../../../core/models/client-backend.model';
 import { getCatalogBadgeClasses } from '../../../core/utils/catalog-badge.util';
@@ -6,7 +7,7 @@ import { getCatalogBadgeClasses } from '../../../core/utils/catalog-badge.util';
 @Component({
   selector: 'app-clients-table',
   standalone: true,
-  imports: [HasPermissionDirective],
+  imports: [RouterLink, HasPermissionDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (isLoading()) {
@@ -24,9 +25,9 @@ import { getCatalogBadgeClasses } from '../../../core/utils/catalog-badge.util';
           <thead class="bg-surface-muted text-left text-xs font-semibold uppercase tracking-wide text-muted">
             <tr>
               <th class="px-6 py-4">Cliente</th>
-              <th class="px-6 py-4">Empresa</th>
-              <th class="px-6 py-4">Contacto</th>
-              <th class="px-6 py-4">Riesgo</th>
+              <th class="px-6 py-4">Tipo</th>
+              <th class="px-6 py-4">Asesores</th>
+              <th class="px-6 py-4">Criticidad</th>
               <th class="px-6 py-4">Estado</th>
               <th class="px-6 py-4 text-right">Acciones</th>
             </tr>
@@ -43,11 +44,14 @@ import { getCatalogBadgeClasses } from '../../../core/utils/catalog-badge.util';
                   </div>
                 </td>
                 <td class="px-6 py-4 text-sm text-muted">
-                  {{ client.companyName || 'N/A' }}
+                  {{ client.personType === 'JURIDICA' ? 'Jurídica' : 'Natural' }}
                 </td>
-                <td class="px-6 py-4">
-                  <p class="text-sm text-text">{{ client.email }}</p>
-                  <p class="text-sm text-subtle">{{ client.phone || 'N/A' }}</p>
+                <td class="px-6 py-4 text-sm text-muted">
+                  @if (client.advisors && client.advisors.length > 0) {
+                    {{ formatAdvisors(client) }}
+                  } @else {
+                    <span class="text-subtle">Sin asignar</span>
+                  }
                 </td>
                 <td class="px-6 py-4">
                   <span
@@ -67,17 +71,17 @@ import { getCatalogBadgeClasses } from '../../../core/utils/catalog-badge.util';
                 </td>
                 <td class="px-6 py-4">
                   <div class="flex justify-end gap-2">
-                    <button
-                      *hasPermission="'clients.edit'"
-                      type="button"
-                      (click)="edit.emit(client)"
+                    <a
+                      *hasPermission="'clients.view'"
+                      [routerLink]="['/clientes', client.id]"
                       class="rounded-lg p-2 text-subtle hover:bg-surface-muted hover:text-text"
-                      title="Editar"
+                      title="Ver ficha"
                     >
                       <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 3.487 3.65 3.65a1 1 0 0 1 0 1.415L8.96 20.104a1 1 0 0 1-.708.292H4.5a.75.75 0 0 1-.75-.75v-3.752a1 1 0 0 1 .293-.707L15.447 3.487a1 1 0 0 1 1.415 0Z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
                       </svg>
-                    </button>
+                    </a>
                     <button
                       *hasPermission="['clients.activate', 'clients.deactivate']"
                       type="button"
@@ -125,19 +129,21 @@ import { getCatalogBadgeClasses } from '../../../core/utils/catalog-badge.util';
 
             <div class="mb-3 space-y-2 text-sm">
               <div>
-                <span class="text-xs font-medium text-subtle">Empresa:</span>
-                <span class="ml-2 text-xs text-muted">{{ client.companyName || 'N/A' }}</span>
+                <span class="text-xs font-medium text-subtle">Tipo:</span>
+                <span class="ml-2 text-xs text-muted">{{ client.personType === 'JURIDICA' ? 'Jurídica' : 'Natural' }}</span>
               </div>
               <div>
-                <span class="text-xs font-medium text-subtle">Email:</span>
-                <span class="ml-2 text-xs text-muted">{{ client.email }}</span>
+                <span class="text-xs font-medium text-subtle">Asesores:</span>
+                <span class="ml-2 text-xs text-muted">
+                  @if (client.advisors && client.advisors.length > 0) {
+                    {{ formatAdvisors(client) }}
+                  } @else {
+                    Sin asignar
+                  }
+                </span>
               </div>
               <div>
-                <span class="text-xs font-medium text-subtle">Teléfono:</span>
-                <span class="ml-2 text-xs text-muted">{{ client.phone || 'N/A' }}</span>
-              </div>
-              <div>
-                <span class="text-xs font-medium text-subtle">Riesgo:</span>
+                <span class="text-xs font-medium text-subtle">Criticidad:</span>
                 <span
                   class="ml-2 inline-flex rounded-full px-2 py-1 text-xs font-semibold"
                   [class]="getCatalogBadgeClasses(client.riskLevel?.color)"
@@ -148,14 +154,13 @@ import { getCatalogBadgeClasses } from '../../../core/utils/catalog-badge.util';
             </div>
 
             <div class="flex flex-wrap gap-2">
-              <button
-                *hasPermission="'clients.edit'"
-                type="button"
-                (click)="edit.emit(client)"
-                class="flex-1 rounded-md border border-default px-3 py-2 text-xs font-medium text-muted transition hover:bg-surface-muted"
+              <a
+                *hasPermission="'clients.view'"
+                [routerLink]="['/clientes', client.id]"
+                class="flex-1 rounded-md border border-default px-3 py-2 text-center text-xs font-medium text-muted transition hover:bg-surface-muted"
               >
-                Editar
-              </button>
+                Ver ficha
+              </a>
               <button
                 *hasPermission="['clients.activate', 'clients.deactivate']"
                 type="button"
@@ -176,8 +181,15 @@ export class ClientsTableComponent {
   clients = input.required<ClientResponse[]>();
   isLoading = input(false);
 
-  edit = output<ClientResponse>();
   toggleStatus = output<ClientResponse>();
 
   protected readonly getCatalogBadgeClasses = getCatalogBadgeClasses;
+
+  /** Angular templates no soportan arrow functions en expresiones — de ahí
+   * este método en vez del `.map(...).join(...)` inline que rompía el build. */
+  protected formatAdvisors(client: ClientResponse): string {
+    return (client.advisors ?? [])
+      .map((advisor) => `${advisor.firstName} ${advisor.lastName}`)
+      .join(', ');
+  }
 }

@@ -1,24 +1,28 @@
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
+import { provideRouter } from '@angular/router';
 import { ClientsTableComponent } from './clients-table.component';
 import { PermissionsService } from '../../../core/services/permissions.service';
-import { ClientResponse } from '../../../core/models/client-backend.model';
+import { ClientPersonType, ClientResponse } from '../../../core/models/client-backend.model';
 
+// F33 (2026-09-14): ClientResponse ya no trae companyName/phone/email/
+// assignedAdvisor (email/phone/companyName se movieron a ClientContact,
+// asignados quedaron en `advisors[]`) — este fixture refleja el modelo
+// actual, no el de antes de F33.
 function buildClient(overrides: Partial<ClientResponse> = {}): ClientResponse {
   return {
     id: 'c1',
     fullName: 'María González',
-    companyName: 'Corporación Legal S.A.S.',
-    phone: '3001234567',
-    email: 'maria@lexar.com',
+    personType: ClientPersonType.NATURAL,
     address: 'Calle 100',
     documentType: { id: 'd1', code: 'CC', label: 'Cédula', color: null },
     identificationNumber: '123456789',
     riskLevel: { id: 'r1', code: 'LOW', label: 'Bajo', color: '#22c55e' },
+    laftRisk: { id: 'l1', code: 'LOW', label: 'Bajo', color: '#22c55e' },
     isActive: true,
-    assignedAdvisor: null,
-    createdAt: new Date('2026-01-01'),
-    updatedAt: new Date('2026-01-01'),
+    createdAt: '2026-01-01T00:00:00.000Z',
+    contacts: [],
+    advisors: [],
     ...overrides,
   };
 }
@@ -28,6 +32,9 @@ describe('ClientsTableComponent', () => {
     TestBed.configureTestingModule({
       imports: [ClientsTableComponent],
       providers: [
+        // El link "Ver ficha" usa routerLink — necesita un Router real en
+        // el injector (NG0201 sin esto: RouterLink pide ActivatedRoute).
+        provideRouter([]),
         {
           provide: PermissionsService,
           useValue: {
@@ -62,39 +69,38 @@ describe('ClientsTableComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('No se encontraron clientes');
   });
 
-  it('con todos los permisos, muestra editar y cambiar estado', () => {
-    configure(['clients.edit', 'clients.activate', 'clients.deactivate']);
+  it('con clients.view, muestra el link "Ver ficha"', () => {
+    configure(['clients.view']);
+    const { fixture } = createComponent();
+
+    expect(fixture.nativeElement.querySelector('a[title="Ver ficha"]')).not.toBeNull();
+  });
+
+  it('sin clients.view, oculta el link "Ver ficha"', () => {
+    configure([]);
+    const { fixture } = createComponent();
+
+    expect(fixture.nativeElement.querySelector('a[title="Ver ficha"]')).toBeNull();
+    expect(fixture.nativeElement.textContent).not.toContain('Ver ficha');
+  });
+
+  it('con clients.activate/deactivate, muestra el botón de cambiar estado', () => {
+    configure(['clients.activate', 'clients.deactivate']);
     const { fixture } = createComponent();
 
     const titles = Array.from(fixture.nativeElement.querySelectorAll('button')).map((b) => (b as HTMLButtonElement).title);
 
-    expect(titles).toContain('Editar');
     expect(titles).toContain('Desactivar cliente');
   });
 
-  it('sin permisos, oculta editar y cambiar estado', () => {
+  it('sin clients.activate/deactivate, oculta el botón de cambiar estado', () => {
     configure([]);
     const { fixture } = createComponent();
 
     const titles = Array.from(fixture.nativeElement.querySelectorAll('button')).map((b) => (b as HTMLButtonElement).title);
 
-    expect(titles).not.toContain('Editar');
     expect(titles).not.toContain('Desactivar cliente');
-  });
-
-  it('emite edit al hacer click en editar con permiso', () => {
-    configure(['clients.edit']);
-    const client = buildClient();
-    const { fixture, component } = createComponent([client]);
-    const editSpy = jest.fn();
-    component.edit.subscribe(editSpy);
-
-    const editButton = Array.from(fixture.nativeElement.querySelectorAll('button')).find(
-      (b) => (b as HTMLButtonElement).title === 'Editar',
-    ) as HTMLButtonElement;
-    editButton.click();
-
-    expect(editSpy).toHaveBeenCalledWith(client);
+    expect(titles).not.toContain('Activar cliente');
   });
 
   it('emite toggleStatus al hacer click en activar/desactivar con permiso', () => {
@@ -112,10 +118,26 @@ describe('ClientsTableComponent', () => {
     expect(toggleSpy).toHaveBeenCalledWith(client);
   });
 
-  it('muestra N/A cuando faltan documentType, companyName o riskLevel', () => {
+  it('muestra "Sin asignar" cuando el cliente no tiene asesores', () => {
+    configure([]);
+    const { fixture } = createComponent([buildClient({ advisors: [] })]);
+
+    expect(fixture.nativeElement.textContent).toContain('Sin asignar');
+  });
+
+  it('muestra el nombre de los asesores asignados', () => {
     configure([]);
     const { fixture } = createComponent([
-      buildClient({ documentType: null, companyName: null, riskLevel: null }),
+      buildClient({ advisors: [{ id: 'a1', firstName: 'Juan', lastName: 'Pérez', email: 'juan@lexar.com' }] }),
+    ]);
+
+    expect(fixture.nativeElement.textContent).toContain('Juan Pérez');
+  });
+
+  it('muestra N/A cuando faltan documentType o riskLevel', () => {
+    configure([]);
+    const { fixture } = createComponent([
+      buildClient({ documentType: null, riskLevel: null }),
     ]);
 
     expect(fixture.nativeElement.textContent).toContain('N/A');
