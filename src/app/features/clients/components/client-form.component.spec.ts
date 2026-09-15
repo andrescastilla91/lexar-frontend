@@ -133,4 +133,44 @@ describe('ClientFormComponent', () => {
     expect(component.isJuridica()).toBe(true);
     expect(fixture.nativeElement.textContent).toContain('Razón social');
   });
+
+  // Gap de cobertura de branches detectado por el CI (2026-09-15): los
+  // fallbacks `?.`/`??`/`||` de advisorItems() y selectedAdvisorIds() nunca
+  // se ejercitaban con datos incompletos.
+  it('advisorItems usa fallback vacío cuando el asesor no trae user', () => {
+    TestBed.configureTestingModule({ imports: [ClientFormComponent] });
+    const fixture = TestBed.createComponent(ClientFormComponent);
+    const advisorSinUser: AdvisorResponse[] = [
+      { ...advisors[0], user: undefined },
+    ];
+    fixture.componentRef.setInput('form', buildForm());
+    fixture.componentRef.setInput('documentTypes', documentTypes);
+    fixture.componentRef.setInput('riskLevels', riskLevels);
+    fixture.componentRef.setInput('advisors', advisorSinUser);
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.advisorItems()[0].label).toBe('');
+  });
+
+  it('advisorItems usa "N/A" cuando el asesor no trae specialty', () => {
+    TestBed.configureTestingModule({ imports: [ClientFormComponent] });
+    const fixture = TestBed.createComponent(ClientFormComponent);
+    const advisorSinEspecialidad: AdvisorResponse[] = [
+      { ...advisors[0], specialty: null },
+    ];
+    fixture.componentRef.setInput('form', buildForm());
+    fixture.componentRef.setInput('documentTypes', documentTypes);
+    fixture.componentRef.setInput('riskLevels', riskLevels);
+    fixture.componentRef.setInput('advisors', advisorSinEspecialidad);
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.advisorItems()[0].description).toBe('N/A');
+  });
+
+  it('selectedAdvisorIds devuelve vacío cuando advisorIds no tiene valor', () => {
+    const { component } = createComponent();
+    component.form().get('advisorIds')?.setValue(null);
+
+    expect(component.selectedAdvisorIds()).toEqual([]);
+  });
 });

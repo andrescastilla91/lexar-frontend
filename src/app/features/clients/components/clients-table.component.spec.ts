@@ -134,6 +134,13 @@ describe('ClientsTableComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Juan Pérez');
   });
 
+  it('formatAdvisors devuelve vacío cuando advisors es undefined (fallback ??)', () => {
+    configure([]);
+    const { component } = createComponent([]);
+
+    expect(component['formatAdvisors'](buildClient({ advisors: undefined }))).toBe('');
+  });
+
   it('muestra N/A cuando faltan documentType o riskLevel', () => {
     configure([]);
     const { fixture } = createComponent([

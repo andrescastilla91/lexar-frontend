@@ -308,6 +308,50 @@ describe('ClientsComponent', () => {
     expect(component.filteredClients().map((c) => c.id)).toEqual(['c2']);
   });
 
+  // Gap de cobertura de branches detectado por el CI (2026-09-15): el guard
+  // defensivo `!Array.isArray` de filteredClients() y la rama status==='active'
+  // nunca se ejercitaban con este valor exacto (el 'inactive' sí, pero no
+  // 'active'; y clients() siempre llega como arreglo desde loadClients(), así
+  // que el guard solo se dispara forzando el signal directamente).
+  it('filteredClients queda vacío si clients() no es un arreglo (guard defensivo)', () => {
+    configure();
+    const { component } = createComponent();
+
+    component.clients.set(null as unknown as ClientResponse[]);
+
+    expect(component.filteredClients()).toEqual([]);
+  });
+
+  it('filteredClients filtra por estado "active"', () => {
+    configure();
+    clientsServiceMock.getClients.mockReturnValue(
+      of({
+        message: '',
+        clients: [
+          buildClient({ id: 'c1', isActive: true }),
+          buildClient({ id: 'c2', isActive: false }),
+        ],
+        total: 2,
+        page: 1,
+        limit: 10,
+      }),
+    );
+    const { component } = createComponent();
+
+    component.filterForm.patchValue({ status: 'active' });
+
+    expect(component.filteredClients().map((c) => c.id)).toEqual(['c1']);
+  });
+
+  it('onAdvisorIdsChange actualiza el campo advisorIds del formulario de alta', () => {
+    configure();
+    const { component } = createComponent();
+
+    component.onAdvisorIdsChange(['a1', 'a2']);
+
+    expect(component.clientForm.value.advisorIds).toEqual(['a1', 'a2']);
+  });
+
   it('los contadores reflejan la lista de clientes cargada', () => {
     configure();
     clientsServiceMock.getClients.mockReturnValue(

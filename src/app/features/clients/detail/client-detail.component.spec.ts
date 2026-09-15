@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter } from '@angular/router';
 import { signal } from '@angular/core';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { convertToParamMap } from '@angular/router';
 import { ClientDetailComponent } from './client-detail.component';
 import { ClientsService } from '../../../core/services/clients.service';
@@ -38,15 +38,20 @@ describe('ClientDetailComponent', () => {
     processes?: LegalProcessResponse[];
     tasks?: TaskResponse[];
     permissions?: string[];
+    routeId?: string | null;
+    getClientResult?: ReturnType<typeof of<ClientResponse>>;
+    getLegalProcessesResult?: unknown;
+    getForProcessResult?: unknown;
   } = {}) {
     clientsServiceMock = {
-      getClient: jest.fn().mockReturnValue(of(client)),
+      getClient: jest.fn().mockReturnValue(overrides.getClientResult ?? of(client)),
       updateClient: jest.fn().mockReturnValue(of(client)),
       updateClientCompliance: jest.fn().mockReturnValue(of(client)),
     };
     toastServiceMock = { success: jest.fn(), error: jest.fn() };
     const grantedPermissions =
       overrides.permissions ?? ['clients.edit', 'clients.edit-compliance'];
+    const routeId = overrides.routeId === undefined ? 'c1' : overrides.routeId;
 
     TestBed.configureTestingModule({
       imports: [ClientDetailComponent],
@@ -67,9 +72,16 @@ describe('ClientDetailComponent', () => {
         { provide: AdvisorsService, useValue: { getAdvisors: jest.fn().mockReturnValue(of({ advisors: [] })) } },
         {
           provide: LegalProcessesService,
-          useValue: { getLegalProcesses: jest.fn().mockReturnValue(of({ legalProcesses: overrides.processes ?? [] })) },
+          useValue: {
+            getLegalProcesses: jest.fn().mockReturnValue(
+              overrides.getLegalProcessesResult ?? of({ legalProcesses: overrides.processes ?? [] }),
+            ),
+          },
         },
-        { provide: TasksService, useValue: { getForProcess: jest.fn().mockReturnValue(of(overrides.tasks ?? [])) } },
+        {
+          provide: TasksService,
+          useValue: { getForProcess: jest.fn().mockReturnValue(overrides.getForProcessResult ?? of(overrides.tasks ?? [])) },
+        },
         { provide: ToastService, useValue: toastServiceMock },
         {
           provide: PermissionsService,
@@ -81,7 +93,9 @@ describe('ClientDetailComponent', () => {
         },
         {
           provide: ActivatedRoute,
-          useValue: { snapshot: { paramMap: convertToParamMap({ id: 'c1' }) } },
+          useValue: {
+            snapshot: { paramMap: convertToParamMap(routeId ? { id: routeId } : {}) },
+          },
         },
       ],
     });
@@ -237,5 +251,84 @@ describe('ClientDetailComponent', () => {
     const link = fixture.nativeElement.querySelector('a[href*="tareas"]') as HTMLAnchorElement;
     expect(link).toBeTruthy();
     expect(link.textContent).toContain('Tarea Uno');
+  });
+
+  // Gap de coverage detectado por el CI 2026-09-15 (branches por debajo del
+  // umbral) — estos casos nunca se habían ejercitado.
+  it('sin id en la ruta, no carga nada y deja isLoading en false', () => {
+    const { component } = configureAndCreate({ routeId: null });
+
+    expect(component.isLoading()).toBe(false);
+    expect(component.client()).toBeNull();
+    expect(clientsServiceMock.getClient).not.toHaveBeenCalled();
+  });
+
+  it('precarga advisorIds vacío cuando el cliente no trae advisors', () => {
+    const { component } = configureAndCreate({
+      getClientResult: of({ ...client, advisors: undefined }),
+    });
+
+    expect(component.editForm.get('advisorIds')?.value).toEqual([]);
+  });
+
+  it('si falla la carga del cliente, deja client() en null y isLoading en false', () => {
+    const { component } = configureAndCreate({
+      getClientResult: throwError(() => new Error('boom')),
+    });
+
+    expect(component.client()).toBeNull();
+    expect(component.isLoading()).toBe(false);
+  });
+
+  it('si falla la carga de procesos, deja processes() vacío e isLoadingProcesses en false', () => {
+    const { component } = configureAndCreate({
+      getLegalProcessesResult: throwError(() => new Error('boom')),
+    });
+
+    expect(component.processes()).toEqual([]);
+    expect(component.isLoadingProcesses()).toBe(false);
+  });
+
+  it('si falla la carga de tareas de un proceso, igual completa isLoadingTasks', () => {
+    const process = { id: 'p1', title: 'Proceso Uno' } as unknown as LegalProcessResponse;
+    const { component } = configureAndCreate({
+      processes: [process],
+      getForProcessResult: throwError(() => new Error('boom')),
+    });
+
+    expect(component.tasks()).toEqual([]);
+    expect(component.isLoadingTasks()).toBe(false);
+  });
+
+  it('saveClient no hace nada si aún no cargó el cliente', () => {
+    const { component } = configureAndCreate({
+      getClientResult: throwError(() => new Error('boom')),
+    });
+
+    component.saveClient();
+
+    expect(clientsServiceMock.updateClient).not.toHaveBeenCalled();
+    expect(clientsServiceMock.updateClientCompliance).not.toHaveBeenCalled();
+  });
+
+  it('saveClient no hace nada si ya está guardando', () => {
+    const { component } = configureAndCreate();
+    component.isSaving.set(true);
+
+    component.saveClient();
+
+    expect(clientsServiceMock.updateClient).not.toHaveBeenCalled();
+  });
+
+  it('muestra un toast de error si falla guardar Cumplimiento', () => {
+    const { component } = configureAndCreate();
+    clientsServiceMock.updateClientCompliance.mockReturnValue(
+      throwError(() => new Error('Error al actualizar cliente')),
+    );
+
+    component.activeTab.set('cumplimiento');
+    component.saveClient();
+
+    expect(toastServiceMock.error).toHaveBeenCalledWith('Error al actualizar cliente');
   });
 });
