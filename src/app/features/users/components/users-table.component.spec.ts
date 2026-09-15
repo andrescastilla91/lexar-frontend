@@ -15,6 +15,8 @@ function buildUser(overrides: Partial<UserBackend> = {}): UserBackend {
     createdAt: '2026-01-01',
     twoFactorEnabled: true,
     roles: [{ id: 'r1', name: 'Admin' }],
+    isAdvisor: false,
+    advisorProfile: null,
     ...overrides,
   };
 }
@@ -113,6 +115,22 @@ describe('UsersTableComponent', () => {
     editButton.click();
 
     expect(editSpy).toHaveBeenCalledWith(user);
+  });
+
+  // F35
+  it('muestra la insignia "Asesor" cuando el usuario tiene perfil profesional', () => {
+    configure([]);
+    const advisorUser = buildUser({ isAdvisor: true });
+    const { fixture } = createComponent([advisorUser]);
+
+    expect(fixture.nativeElement.textContent).toContain('Asesor');
+  });
+
+  it('no muestra la insignia "Asesor" para un usuario sin perfil profesional', () => {
+    configure([]);
+    const { fixture } = createComponent([buildUser({ isAdvisor: false })]);
+
+    expect(fixture.nativeElement.textContent).not.toContain('Asesor');
   });
 
   it('getUserInitials devuelve las iniciales en mayúscula', () => {

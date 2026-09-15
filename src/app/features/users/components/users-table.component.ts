@@ -74,6 +74,11 @@ import { UserBackend } from '../../../core/models/user-backend.model';
                         Invitación vencida
                       </span>
                     }
+                    @if (user.isAdvisor) {
+                      <span class="inline-flex rounded-full bg-navy-900/10 px-2 py-1 text-xs font-semibold text-navy-900">
+                        Asesor
+                      </span>
+                    }
                     @if (user.twoFactorResetRequestPending) {
                       <span
                         class="inline-flex rounded-full bg-danger-tint px-2 py-1 text-xs font-semibold text-danger"
@@ -189,6 +194,11 @@ import { UserBackend } from '../../../core/models/user-backend.model';
                 } @else if (user.invitationStatus === 'EXPIRED') {
                   <span class="inline-flex whitespace-nowrap rounded-full bg-warning-tint px-2 py-1 text-xs font-semibold text-warning">
                     Vencida
+                  </span>
+                }
+                @if (user.isAdvisor) {
+                  <span class="inline-flex whitespace-nowrap rounded-full bg-navy-900/10 px-2 py-1 text-xs font-semibold text-navy-900">
+                    Asesor
                   </span>
                 }
                 @if (user.twoFactorResetRequestPending) {

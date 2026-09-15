@@ -207,7 +207,7 @@ export class ClientFormComponent {
     this.advisors().map((advisor) => ({
       id: advisor.id,
       label: `${advisor.user?.firstName ?? ''} ${advisor.user?.lastName ?? ''}`.trim(),
-      description: advisor.specialty?.label || 'N/A',
+      description: advisor.specialties?.[0]?.label || 'N/A',
     })),
   );
 

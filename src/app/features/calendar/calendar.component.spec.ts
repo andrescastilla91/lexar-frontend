@@ -13,7 +13,7 @@ import { LegalProcessesService } from '../../core/services/legal-processes.servi
 import { ConfirmDialogService } from '../../core/services/confirm-dialog.service';
 import { ToastService } from '../../core/services/toast.service';
 import { AuthService } from '../../core/services/auth.service';
-import { AdvisorResponse, AdvisorStatus } from '../../core/models/advisor-backend.model';
+import { AdvisorResponse } from '../../core/models/advisor-backend.model';
 import { CatalogItem } from '../../core/models/catalog-backend.model';
 import { DeadlineResponse, DeadlineStatus } from '../../core/models/deadline.model';
 import { LegalProcessResponse, ProcessStatus } from '../../core/models/legal-process.model';
@@ -75,9 +75,10 @@ describe('CalendarComponent', () => {
   const advisor: AdvisorResponse = {
     id: 'adv-1',
     userId: 'user-1',
-    specialty: null,
+    specialties: [],
     phone: null,
-    status: AdvisorStatus.AVAILABLE,
+    professionalCard: null,
+    mobileSecondary: null,
     rating: null,
     experienceYears: 5,
     isActive: true,

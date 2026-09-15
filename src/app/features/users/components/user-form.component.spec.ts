@@ -28,6 +28,7 @@ describe('UserFormComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('form')).not.toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Nuevo usuario');
   });
 
   it('emite formCancel al hacer click en Cancelar', () => {
@@ -58,42 +59,6 @@ describe('UserFormComponent', () => {
     expect(spy).toHaveBeenCalled();
   });
 
-  it('explica el motivo y refleja el disabled real del FormControl cuando editingUserHasLoggedIn es true en edición', () => {
-    const { fixture, form } = createComponent();
-    fixture.componentRef.setInput('isOpen', true);
-    fixture.componentRef.setInput('isEditing', true);
-    fixture.componentRef.setInput('editingUserHasLoggedIn', true);
-
-    // BUG-14 (docs/06-bugs/BUG-14-email-usuario-no-queda-deshabilitado.md):
-    // el input combinaba formControlName con [disabled] en el mismo elemento
-    // — conflicto documentado por Angular donde el estado real del
-    // FormControl gana y el binding [disabled] queda sin efecto. El fix
-    // quitó el binding [disabled] del template: quien deshabilita el campo
-    // es SIEMPRE el FormControl real — en producción, UsersComponent.editUser()
-    // ya llama form.get('email')?.disable(). Este test reproduce esa misma
-    // responsabilidad del contenedor para probar que, sin binding en
-    // competencia, el input SÍ respeta el estado real del control.
-    form.get('email')?.disable();
-    fixture.detectChanges();
-
-    const emailInput: HTMLInputElement = fixture.nativeElement.querySelector('input[type="email"]');
-    expect(emailInput.disabled).toBe(true);
-    expect(fixture.nativeElement.textContent).toContain('El email no puede modificarse');
-  });
-
-  it('permite editar el email cuando editingUserHasLoggedIn es false en edición', () => {
-    const { fixture, form } = createComponent();
-    fixture.componentRef.setInput('isOpen', true);
-    fixture.componentRef.setInput('isEditing', true);
-    fixture.componentRef.setInput('editingUserHasLoggedIn', false);
-    fixture.detectChanges();
-
-    const emailInput: HTMLInputElement = fixture.nativeElement.querySelector('input[type="email"]');
-    expect(emailInput.disabled).toBe(false);
-    expect(form.get('email')?.disabled).toBe(false);
-    expect(fixture.nativeElement.textContent).toContain('El email puede modificarse');
-  });
-
   it('muestra el mensaje de error cuando errorMessage tiene contenido', () => {
     const { fixture } = createComponent();
     fixture.componentRef.setInput('isOpen', true);
@@ -111,12 +76,27 @@ describe('UserFormComponent', () => {
     const submitButton: HTMLButtonElement = fixture.nativeElement.querySelector('button[type="submit"]');
     expect(submitButton.disabled).toBe(true);
 
-    form.setValue({ firstName: 'Ana', lastName: 'Gómez', email: 'ana@lexar.com' });
+    form.setValue({
+      firstName: 'Ana',
+      lastName: 'Gómez',
+      email: 'ana@lexar.com',
+    });
     fixture.detectChanges();
     expect(submitButton.disabled).toBe(false);
 
     fixture.componentRef.setInput('isSubmitting', true);
     fixture.detectChanges();
     expect(submitButton.disabled).toBe(true);
+  });
+
+  // F35 rediseño 2026-09-15: el modal ya no incluye el perfil profesional
+  // (asesor legal) — eso vive ahora en la ficha del usuario.
+  it('no incluye el bloque de perfil profesional', () => {
+    const { fixture } = createComponent();
+    fixture.componentRef.setInput('isOpen', true);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('Es asesor legal');
+    expect(fixture.nativeElement.querySelector('input[formcontrolname="isAdvisor"]')).toBeNull();
   });
 });
