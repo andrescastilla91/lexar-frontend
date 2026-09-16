@@ -1,10 +1,11 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { startWith } from 'rxjs';
 import { UsersService } from '../../core/services/users.service';
 import { RolesService } from '../../core/services/roles.service';
-import { UserBackend, CreateUserRequest, UpdateUserRequest } from '../../core/models/user-backend.model';
+import { UserBackend, CreateUserRequest } from '../../core/models/user-backend.model';
 import { Role } from '../../core/models/role-backend.model';
 import { HasPermissionDirective } from '../../core/directives/has-permission.directive';
 import { PaginationComponent } from '../../core/components/pagination.component';
@@ -47,7 +48,25 @@ import { UsersTableComponent } from './components/users-table.component';
 
       <!-- Filtros compactos -->
       <div class="rounded-lg border border-default bg-surface p-6 shadow-card">
-        <form [formGroup]="filterForm" class="space-y-4">
+        <button
+          type="button"
+          class="flex w-full items-center justify-between py-2 text-sm font-medium text-muted sm:hidden"
+          [class.mb-4]="filtersOpen()"
+          (click)="filtersOpen.set(!filtersOpen())"
+        >
+          <span>Filtros y resumen</span>
+          <svg
+            class="h-4 w-4 transition-transform"
+            [class.rotate-180]="filtersOpen()"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            viewBox="0 0 24 24"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+          </svg>
+        </button>
+        <form [formGroup]="filterForm" class="space-y-4 sm:block" [class.hidden]="!filtersOpen()">
           <div class="flex flex-col gap-4 sm:flex-row">
             <label class="flex-1 text-sm text-muted">
               <span class="mb-2 block">Búsqueda</span>
@@ -69,20 +88,28 @@ import { UsersTableComponent } from './components/users-table.component';
                 <option value="inactive">Inactivos</option>
               </select>
             </label>
+            <label class="flex items-center gap-2 text-sm text-muted sm:self-end sm:pb-2.5">
+              <input
+                type="checkbox"
+                formControlName="advisorsOnly"
+                class="h-4 w-4 rounded border-strong text-navy-900 focus:ring-navy-900"
+              />
+              Solo asesores
+            </label>
           </div>
 
-          <div class="grid gap-4 sm:grid-cols-3">
-            <div class="rounded-md border border-default bg-surface-muted px-4 py-3">
+          <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
+            <div class="rounded-md border border-default bg-surface-muted px-3 py-2 sm:px-4 sm:py-3">
               <p class="text-xs text-subtle">Total usuarios</p>
-              <p class="text-2xl font-semibold text-text">{{ total() }}</p>
+              <p class="text-xl font-semibold text-text sm:text-2xl">{{ total() }}</p>
             </div>
-            <div class="rounded-md border border-default bg-surface-muted px-4 py-3">
+            <div class="rounded-md border border-default bg-surface-muted px-3 py-2 sm:px-4 sm:py-3">
               <p class="text-xs text-subtle">Activos</p>
-              <p class="text-2xl font-semibold text-success">{{ activeCount() }}</p>
+              <p class="text-xl font-semibold text-success sm:text-2xl">{{ activeCount() }}</p>
             </div>
-            <div class="rounded-md border border-default bg-surface-muted px-4 py-3">
+            <div class="rounded-md border border-default bg-surface-muted px-3 py-2 sm:px-4 sm:py-3">
               <p class="text-xs text-subtle">Inactivos</p>
-              <p class="text-2xl font-semibold text-muted">{{ inactiveCount() }}</p>
+              <p class="text-xl font-semibold text-muted sm:text-2xl">{{ inactiveCount() }}</p>
             </div>
           </div>
         </form>
@@ -91,11 +118,9 @@ import { UsersTableComponent } from './components/users-table.component';
       <app-user-form
         [form]="userForm"
         [isOpen]="panelOpen()"
-        [isEditing]="!!editingUser()"
         [isSubmitting]="isSubmitting()"
         [errorMessage]="errorMessage()"
-        [editingUserHasLoggedIn]="editingUserHasLoggedIn()"
-        (formCancel)="cancelEdit()"
+        (formCancel)="cancelCreate()"
         (formSubmit)="submitUser()"
       />
 
@@ -143,6 +168,8 @@ export class UsersComponent implements OnInit {
   private readonly rolesService = inject(RolesService);
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly toastService = inject(ToastService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
 
   readonly users = signal<UserBackend[]>([]);
   readonly availableRoles = signal<Role[]>([]);
@@ -151,7 +178,10 @@ export class UsersComponent implements OnInit {
   readonly isSubmitting = signal(false);
   readonly errorMessage = signal<string | null>(null);
   readonly panelOpen = signal(false);
-  readonly editingUser = signal<UserBackend | null>(null);
+  // QA 2026-09-15: mismo patrón mobile de clients.component.ts (F33 ronda
+  // 2) — "Filtros y resumen" colapsado por defecto en mobile (sm:hidden en
+  // el botón, formulario+métricas ocultos hasta expandir).
+  readonly filtersOpen = signal(false);
   readonly showRolesModal = signal(false);
   readonly selectedUser = signal<UserBackend | null>(null);
   readonly currentPage = signal(1);
@@ -161,8 +191,14 @@ export class UsersComponent implements OnInit {
   readonly filterForm = this.fb.nonNullable.group({
     search: [''],
     status: ['all'],
+    advisorsOnly: [false],
   });
 
+  /**
+   * F35 rediseño 2026-09-15: este modal ya es solo de alta (invitación) —
+   * la edición (incl. perfil profesional y roles y permisos de solo lectura)
+   * vive en la ficha del usuario (`UserDetailComponent`, /usuarios/:id).
+   */
   readonly userForm = this.fb.nonNullable.group({
     firstName: ['', [Validators.required, Validators.minLength(2)]],
     lastName: ['', [Validators.required, Validators.minLength(2)]],
@@ -194,14 +230,16 @@ export class UsersComponent implements OnInit {
       filtered = filtered.filter((u) => !u.isActive);
     }
 
+    if (this.filterValues().advisorsOnly) {
+      filtered = filtered.filter((u) => u.isAdvisor);
+    }
+
     return filtered;
   });
 
   readonly activeCount = computed(() => this.users().filter((u) => u.isActive).length);
   readonly inactiveCount = computed(() => this.users().filter((u) => !u.isActive).length);
   readonly totalPages = computed(() => Math.ceil(this.total() / this.pageSize));
-
-  readonly editingUserHasLoggedIn = computed(() => !!this.editingUser()?.lastLoginAt);
 
   readonly selectedUserFullName = computed(() => {
     const user = this.selectedUser();
@@ -219,6 +257,17 @@ export class UsersComponent implements OnInit {
   ngOnInit(): void {
     this.loadUsers();
     this.loadRoles();
+    this.redirectFromQueryParam();
+  }
+
+  /** F18/F35 — al llegar desde un resultado de búsqueda global (?openId=),
+   * navega directo a la ficha de ese usuario (mismo patrón que Clientes). */
+  private redirectFromQueryParam(): void {
+    const openId = this.route.snapshot.queryParamMap.get('openId');
+    if (!openId) {
+      return;
+    }
+    this.router.navigate(['/usuarios', openId]);
   }
 
   loadUsers(): void {
@@ -250,41 +299,17 @@ export class UsersComponent implements OnInit {
   togglePanel(): void {
     this.panelOpen.update((open) => !open);
     if (!this.panelOpen()) {
-      this.cancelEdit();
+      this.cancelCreate();
     }
   }
 
+  /** F35 rediseño: "Editar" ya no abre un panel inline — navega a la ficha. */
   editUser(user: UserBackend): void {
-    this.usersService.getUserById(user.id).subscribe({
-      next: (response) => {
-        const freshUser = response.user;
-        this.editingUser.set(freshUser);
-        this.userForm.patchValue({
-          firstName: freshUser.firstName,
-          lastName: freshUser.lastName,
-          email: freshUser.email,
-        });
-        if (freshUser.lastLoginAt) {
-          this.userForm.get('email')?.disable();
-        } else {
-          this.userForm.get('email')?.enable();
-        }
-        this.panelOpen.set(true);
-      },
-      error: (error) => {
-        // BUG-20 ola 3: error.message ya es el mensaje real y seguro que
-        // calculó error.interceptor.ts (BUG-19) — error.error?.message lee
-        // el body crudo, sin sus reglas de seguridad (los demás error: de
-        // este componente comparten el mismo fix).
-        this.toastService.error(error.message || 'Error al cargar el usuario');
-      },
-    });
+    this.router.navigate(['/usuarios', user.id]);
   }
 
-  cancelEdit(): void {
-    this.editingUser.set(null);
+  cancelCreate(): void {
     this.userForm.reset({ firstName: '', lastName: '', email: '' });
-    this.userForm.get('email')?.enable();
     this.errorMessage.set(null);
     this.panelOpen.set(false);
   }
@@ -303,50 +328,29 @@ export class UsersComponent implements OnInit {
     this.errorMessage.set(null);
 
     const formValue = this.userForm.getRawValue();
+    const createData: CreateUserRequest = {
+      firstName: formValue.firstName,
+      lastName: formValue.lastName,
+      email: formValue.email,
+    };
 
-    if (this.editingUser()) {
-      const updateData: UpdateUserRequest = {
-        firstName: formValue.firstName,
-        lastName: formValue.lastName,
-        email: formValue.email,
-      };
-
-      this.usersService.updateUser(this.editingUser()!.id, updateData).subscribe({
-        next: () => {
-          this.loadUsers();
-          this.toastService.success('Usuario actualizado exitosamente');
-          this.cancelEdit();
-          this.isSubmitting.set(false);
-        },
-        error: (error) => {
-          const message = error.message || 'Error al actualizar usuario';
-          this.errorMessage.set(message);
-          this.toastService.error(message);
-          this.isSubmitting.set(false);
-        },
-      });
-    } else {
-      const createData: CreateUserRequest = {
-        firstName: formValue.firstName,
-        lastName: formValue.lastName,
-        email: formValue.email,
-      };
-
-      this.usersService.createUser(createData).subscribe({
-        next: (response) => {
-          this.loadUsers();
-          this.toastService.success(response.message || `Invitación enviada a ${formValue.email}`);
-          this.cancelEdit();
-          this.isSubmitting.set(false);
-        },
-        error: (error) => {
-          const message = error.message || 'Error al enviar la invitación';
-          this.errorMessage.set(message);
-          this.toastService.error(message);
-          this.isSubmitting.set(false);
-        },
-      });
-    }
+    this.usersService.createUser(createData).subscribe({
+      next: (response) => {
+        this.toastService.success(response.message || `Invitación enviada a ${formValue.email}`);
+        this.cancelCreate();
+        this.isSubmitting.set(false);
+        // F35 rediseño 2026-09-15: "Modal mínimo → ficha" — tras crear, se
+        // navega directo a la ficha del nuevo usuario para completar el
+        // perfil profesional (asesor legal) y, luego, asignar roles.
+        this.router.navigate(['/usuarios', response.user.id]);
+      },
+      error: (error) => {
+        const message = error.message || 'Error al enviar la invitación';
+        this.errorMessage.set(message);
+        this.toastService.error(message);
+        this.isSubmitting.set(false);
+      },
+    });
   }
 
   async toggleUserStatus(user: UserBackend): Promise<void> {

@@ -32,6 +32,7 @@ import {
   TaskTemplateResponse,
 } from '../../core/models/task.model';
 import { TaskStatusResponse } from '../../core/models/task-status.model';
+import { PermissionsService } from '../../core/services/permissions.service';
 import { PaginationComponent } from '../../core/components/pagination.component';
 import { FilePreviewModalComponent } from '../../core/components/file-preview-modal.component';
 import { forkJoin, of, Subscription } from 'rxjs';
@@ -286,6 +287,7 @@ import {
       <app-processes-table
         [processes]="processes()"
         [isLoading]="isLoading()"
+        [hasFullAccess]="hasFullProcessAccess()"
         (edit)="editProcess($event)"
         (changeStatus)="openStatusModal($event)"
         (viewHistory)="openHistoryModal($event)"
@@ -328,6 +330,14 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   private readonly toast = inject(ToastService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly permissionsService = inject(PermissionsService);
+
+  /** F36 (ola 5): si el usuario tiene legal_processes.view.all — gobierna el
+   * texto explicativo en app-processes-table para quien no lo tiene, mismo
+   * patrón que DocumentsComponent (F30). */
+  readonly hasFullProcessAccess = computed(() =>
+    this.permissionsService.hasPermission('legal_processes.view.all'),
+  );
 
   private fileDeletedSubscription?: Subscription;
 

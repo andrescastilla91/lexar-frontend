@@ -341,13 +341,6 @@ export class MainLayoutComponent {
       permissions: ['roles.list'],
     },
     {
-      label: 'Asesores',
-      description: 'Talento y asignaciones activas',
-      icon: 'M16.5 7.5 21 12l-4.5 4.5M8.25 7.5 3 12l5.25 4.5',
-      route: '/asesores',
-      permissions: ['users.list'],
-    },
-    {
       label: 'Clientes',
       description: 'Portafolio y riesgos asociados',
       icon: 'M3 7.5l9 4.5 9-4.5M3 15l9 4.5 9-4.5',

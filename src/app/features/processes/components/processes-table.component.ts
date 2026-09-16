@@ -15,6 +15,12 @@ import { getCatalogBadgeClasses } from '../../../core/utils/catalog-badge.util';
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    @if (!hasFullAccess()) {
+      <p class="mb-4 rounded-md border border-default bg-surface-muted px-4 py-2.5 text-sm text-subtle">
+        Ves los procesos a tu cargo.
+      </p>
+    }
+
     @if (isLoading()) {
       <div class="flex items-center justify-center py-12">
         <div class="h-8 w-8 animate-spin rounded-full border-4 border-default border-t-navy-900"></div>
@@ -348,6 +354,10 @@ import { getCatalogBadgeClasses } from '../../../core/utils/catalog-badge.util';
 export class ProcessesTableComponent {
   processes = input.required<LegalProcessResponse[]>();
   isLoading = input(false);
+  /** F36 (ola 5): si el usuario tiene legal_processes.view.all — gobierna el
+   * texto explicativo para quien no lo tiene, mismo patrón que
+   * DocumentsListComponent (F30). */
+  hasFullAccess = input(false);
 
   edit = output<LegalProcessResponse>();
   changeStatus = output<LegalProcessResponse>();

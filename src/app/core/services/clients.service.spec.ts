@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ClientsService } from './clients.service';
-import { ClientResponse } from '../models/client-backend.model';
+import { ClientContactResponse, ClientPersonType, ClientResponse } from '../models/client-backend.model';
 import { environment } from '../../../environments/environment';
 
 import { errorInterceptor } from '../interceptors/error.interceptor';
@@ -12,21 +12,36 @@ describe('ClientsService', () => {
   let service: ClientsService;
   let httpMock: HttpTestingController;
   const apiUrl = `${environment.apiUrl}/clients`;
+  const contactsApiUrl = `${environment.apiUrl}/client-contacts`;
 
+  // F33 (2026-09-14): ClientResponse ya no trae companyName/phone/email/
+  // assignedAdvisor/updatedAt (email/phone/companyName se movieron a
+  // ClientContact) — este fixture refleja el modelo actual.
   const client: ClientResponse = {
     id: 'client-1',
     fullName: 'Industria Midas S.A.',
-    companyName: 'Industria Midas S.A.',
-    phone: '3001234567',
-    email: 'juridica@midas.com',
+    personType: ClientPersonType.JURIDICA,
     address: null,
     documentType: null,
     identificationNumber: '900123456',
     riskLevel: null,
+    laftRisk: null,
     isActive: true,
-    assignedAdvisor: null,
-    createdAt: new Date('2026-01-01'),
-    updatedAt: new Date('2026-01-01'),
+    createdAt: '2026-01-01T00:00:00.000Z',
+  };
+
+  const contact: ClientContactResponse = {
+    id: 'contact-1',
+    clientId: 'client-1',
+    name: 'Ana Pérez',
+    role: 'Representante legal',
+    email: 'ana@midas.com',
+    phone: '3009876543',
+    mobile: null,
+    isPrimary: true,
+    notes: null,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
   };
 
   beforeEach(() => {
@@ -99,7 +114,7 @@ describe('ClientsService', () => {
 
   it('createClient hace POST y extrae el cliente creado', () => {
     let result: ClientResponse | undefined;
-    service.createClient({ fullName: 'Nuevo Cliente', email: 'n@x.com', identificationNumber: '111' }).subscribe((r) => (result = r));
+    service.createClient({ fullName: 'Nuevo Cliente', identificationNumber: '111' }).subscribe((r) => (result = r));
 
     const req = httpMock.expectOne(apiUrl);
     expect(req.request.method).toBe('POST');
@@ -110,7 +125,7 @@ describe('ClientsService', () => {
 
   it('createClient en error propaga el mensaje del backend', () => {
     let error: Error | undefined;
-    service.createClient({ fullName: 'X', email: 'x@x.com', identificationNumber: '1' }).subscribe({ error: (e) => (error = e) });
+    service.createClient({ fullName: 'X', identificationNumber: '1' }).subscribe({ error: (e) => (error = e) });
 
     httpMock.expectOne(apiUrl).flush({ message: 'Documento duplicado' }, { status: 409, statusText: 'Conflict' });
 
@@ -156,5 +171,120 @@ describe('ClientsService', () => {
     httpMock.expectOne(`${apiUrl}/client-1/toggle-active`).flush('error', { status: 500, statusText: 'Server Error' });
 
     expect(error?.message).toBe('Error interno del servidor');
+  });
+
+  // RBAC 2026-09-14: separado de updateClient — requiere clients.edit-compliance.
+  it('updateClientCompliance hace PATCH a /compliance y extrae el cliente', () => {
+    let result: ClientResponse | undefined;
+    service
+      .updateClientCompliance('client-1', { riskLevelId: 'r1', laftRiskId: 'l1' })
+      .subscribe((r) => (result = r));
+
+    const req = httpMock.expectOne(`${apiUrl}/client-1/compliance`);
+    expect(req.request.method).toBe('PATCH');
+    expect(req.request.body).toEqual({ riskLevelId: 'r1', laftRiskId: 'l1' });
+    req.flush({ message: 'ok', client });
+
+    expect(result).toEqual(client);
+  });
+
+  it('updateClientCompliance en error propaga el mensaje del backend', () => {
+    let error: Error | undefined;
+    service.updateClientCompliance('client-1', {}).subscribe({ error: (e) => (error = e) });
+
+    httpMock.expectOne(`${apiUrl}/client-1/compliance`).flush('error', { status: 500, statusText: 'Server Error' });
+
+    expect(error?.message).toBe('Error interno del servidor');
+  });
+
+  // F33 §2: contactos — estos 4 métodos y sus catch nunca habían tenido
+  // tests (gap real detectado por la caída de coverage de branches del CI,
+  // 2026-09-15).
+  it('getContacts hace GET a /client-contacts filtrando por clientId', () => {
+    let result: unknown;
+    service.getContacts('client-1').subscribe((r) => (result = r));
+
+    const req = httpMock.expectOne(
+      (request) => request.url === contactsApiUrl && request.params.get('clientId') === 'client-1',
+    );
+    expect(req.request.method).toBe('GET');
+    req.flush({ message: 'ok', contacts: [contact] });
+
+    expect(result).toEqual([contact]);
+  });
+
+  it('getContacts en error propaga el mensaje del backend', () => {
+    // error.interceptor.ts fuerza el genérico en TODO 500 (ver buildErrorMessage) —
+    // se usa 403 aquí, como en el resto de este archivo, para que el mensaje real
+    // del backend sí se propague.
+    let error: Error | undefined;
+    service.getContacts('client-1').subscribe({ error: (e) => (error = e) });
+
+    httpMock.expectOne(() => true).flush({ message: 'No se pudo cargar' }, { status: 403, statusText: 'Forbidden' });
+
+    expect(error?.message).toBe('No se pudo cargar');
+  });
+
+  it('createContact hace POST y extrae el contacto creado', () => {
+    let result: unknown;
+    service
+      .createContact({ clientId: 'client-1', name: 'Ana Pérez', isPrimary: true })
+      .subscribe((r) => (result = r));
+
+    const req = httpMock.expectOne(contactsApiUrl);
+    expect(req.request.method).toBe('POST');
+    req.flush({ message: 'ok', contact });
+
+    expect(result).toEqual(contact);
+  });
+
+  it('createContact en error propaga el mensaje del backend', () => {
+    let error: Error | undefined;
+    service.createContact({ clientId: 'client-1', name: 'X' }).subscribe({ error: (e) => (error = e) });
+
+    httpMock.expectOne(contactsApiUrl).flush('error', { status: 500, statusText: 'Server Error' });
+
+    expect(error?.message).toBe('Error interno del servidor');
+  });
+
+  it('updateContact hace PATCH a /client-contacts/:id y extrae el contacto actualizado', () => {
+    let result: unknown;
+    service.updateContact('contact-1', { name: 'Ana P. actualizada' }).subscribe((r) => (result = r));
+
+    const req = httpMock.expectOne(`${contactsApiUrl}/contact-1`);
+    expect(req.request.method).toBe('PATCH');
+    expect(req.request.body).toEqual({ name: 'Ana P. actualizada' });
+    req.flush({ message: 'ok', contact });
+
+    expect(result).toEqual(contact);
+  });
+
+  it('updateContact en error propaga el mensaje del backend', () => {
+    let error: Error | undefined;
+    service.updateContact('contact-1', {}).subscribe({ error: (e) => (error = e) });
+
+    httpMock.expectOne(`${contactsApiUrl}/contact-1`).flush('error', { status: 500, statusText: 'Server Error' });
+
+    expect(error?.message).toBe('Error interno del servidor');
+  });
+
+  it('removeContact hace DELETE a /client-contacts/:id', () => {
+    let completed = false;
+    service.removeContact('contact-1').subscribe({ complete: () => (completed = true) });
+
+    const req = httpMock.expectOne(`${contactsApiUrl}/contact-1`);
+    expect(req.request.method).toBe('DELETE');
+    req.flush(null);
+
+    expect(completed).toBe(true);
+  });
+
+  it('removeContact en error propaga el mensaje del backend', () => {
+    let error: Error | undefined;
+    service.removeContact('contact-1').subscribe({ error: (e) => (error = e) });
+
+    httpMock.expectOne(`${contactsApiUrl}/contact-1`).flush({ message: 'No se pudo eliminar' }, { status: 409, statusText: 'Conflict' });
+
+    expect(error?.message).toBe('No se pudo eliminar');
   });
 });

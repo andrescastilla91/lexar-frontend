@@ -2,7 +2,16 @@
  * Backend Catalog DTOs and Interfaces (F25 — catálogos configurables por tenant)
  */
 
-export type CatalogType = 'document_type' | 'risk_level' | 'process_stage' | 'advisor_specialty' | 'deadline_type';
+export type CatalogType =
+  | 'document_type'
+  | 'risk_level'
+  | 'process_stage'
+  | 'advisor_specialty'
+  | 'deadline_type'
+  | 'laft_risk';
+
+/** F33 §1: solo relevante para `document_type`. `null` = aplica a ambos. */
+export type CatalogPersonTypeScope = 'NATURAL' | 'JURIDICA';
 
 export interface CatalogItem {
   id: string;
@@ -13,6 +22,7 @@ export interface CatalogItem {
   sortOrder: number;
   isActive: boolean;
   isSystem: boolean;
+  personTypeScope: CatalogPersonTypeScope | null;
   usageCount?: number;
 }
 

@@ -20,6 +20,8 @@ describe('UsersService', () => {
     createdAt: '2026-01-01T00:00:00.000Z',
     twoFactorEnabled: false,
     roles: [{ id: 'role-1', name: 'Coordinador' }],
+    isAdvisor: false,
+    advisorProfile: null,
   };
 
   beforeEach(() => {

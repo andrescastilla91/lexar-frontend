@@ -118,7 +118,12 @@
   }
 
   h1, h2 {
-    font-family: var(--font-display);
+    /* Ajuste 2026-09-15: h1/h2 usaban --font-display (serif "Source Serif
+       4"), distinto del resto de la UI (Inter). Se detectó como
+       inconsistencia visual en la ficha de usuario (F35) frente al resto
+       del chrome de la app — decisión del propietario: unificar todos los
+       encabezados a --font-sans en vez de mantener el contraste serif. */
+    font-family: var(--font-sans);
     font-weight: 600;
     line-height: 1.2;
   }

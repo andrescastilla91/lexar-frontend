@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
+import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { UsersComponent } from './users.component';
 import { UsersService } from '../../core/services/users.service';
@@ -21,9 +22,17 @@ function buildUser(overrides: Partial<UserBackend> = {}): UserBackend {
     createdAt: '2026-01-01',
     twoFactorEnabled: false,
     roles: [],
+    isAdvisor: false,
+    advisorProfile: null,
     ...overrides,
   };
 }
+
+const USER_FORM_VALUE = {
+  firstName: 'Ana',
+  lastName: 'Gómez',
+  email: 'ana@lexar.com',
+};
 
 describe('UsersComponent', () => {
   let usersServiceMock: {
@@ -39,6 +48,7 @@ describe('UsersComponent', () => {
   let rolesServiceMock: { getRoles: jest.Mock };
   let confirmDialogMock: { confirm: jest.Mock };
   let toastServiceMock: { success: jest.Mock; error: jest.Mock };
+  let routerMock: { navigate: jest.Mock };
 
   const usersResponse: UsersListResponse = {
     message: 'ok',
@@ -53,7 +63,7 @@ describe('UsersComponent', () => {
     total: 1,
   };
 
-  function configure(): void {
+  function configure(queryParamMap: Record<string, string> = {}): void {
     usersServiceMock = {
       getUsers: jest.fn().mockReturnValue(of(usersResponse)),
       getUserById: jest.fn(),
@@ -67,6 +77,7 @@ describe('UsersComponent', () => {
     rolesServiceMock = { getRoles: jest.fn().mockReturnValue(of(rolesResponse)) };
     confirmDialogMock = { confirm: jest.fn().mockResolvedValue(true) };
     toastServiceMock = { success: jest.fn(), error: jest.fn() };
+    routerMock = { navigate: jest.fn() };
 
     TestBed.configureTestingModule({
       imports: [UsersComponent],
@@ -75,6 +86,13 @@ describe('UsersComponent', () => {
         { provide: RolesService, useValue: rolesServiceMock },
         { provide: ConfirmDialogService, useValue: confirmDialogMock },
         { provide: ToastService, useValue: toastServiceMock },
+        { provide: Router, useValue: routerMock },
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            snapshot: { queryParamMap: convertToParamMap(queryParamMap) },
+          },
+        },
         {
           provide: PermissionsService,
           useValue: {
@@ -144,51 +162,81 @@ describe('UsersComponent', () => {
     expect(component.inactiveCount()).toBe(1);
   });
 
-  it('togglePanel abre el panel y al cerrarlo limpia la edición', () => {
+  it('filteredUsers filtra por "Solo asesores"', () => {
+    configure();
+    const advisorUser = buildUser({ id: 'u1', isAdvisor: true });
+    const regularUser = buildUser({ id: 'u2', isAdvisor: false });
+    usersServiceMock.getUsers.mockReturnValue(
+      of({ ...usersResponse, users: [advisorUser, regularUser], total: 2 }),
+    );
+    const { component } = createComponent();
+
+    component.filterForm.patchValue({ advisorsOnly: true });
+
+    expect(component.filteredUsers()).toEqual([advisorUser]);
+  });
+
+  it('togglePanel abre y cierra el panel de creación', () => {
     configure();
     const { component } = createComponent();
 
     component.togglePanel();
     expect(component.panelOpen()).toBe(true);
 
-    component.editingUser.set(buildUser());
     component.togglePanel();
     expect(component.panelOpen()).toBe(false);
-    expect(component.editingUser()).toBeNull();
   });
 
-  it('editUser con usuario que ya inició sesión deshabilita el email', () => {
+  // QA 2026-09-15: mismo patrón mobile que clients.component.ts (F33 ronda
+  // 2) — "Filtros y resumen" arranca colapsado y se alterna con un botón.
+  it('filtersOpen arranca colapsado y se alterna', () => {
     configure();
-    const freshUser = buildUser({ lastLoginAt: '2026-01-05' });
-    usersServiceMock.getUserById.mockReturnValue(of({ message: 'ok', user: freshUser }));
     const { component } = createComponent();
 
-    component.editUser(buildUser());
+    expect(component.filtersOpen()).toBe(false);
 
-    expect(component.editingUser()).toEqual(freshUser);
-    expect(component.userForm.get('email')?.disabled).toBe(true);
-    expect(component.panelOpen()).toBe(true);
+    component.filtersOpen.set(true);
+    expect(component.filtersOpen()).toBe(true);
   });
 
-  it('editUser con usuario que nunca inició sesión permite editar el email', () => {
+  it('el formulario de filtros queda oculto (clase hidden) hasta expandir "Filtros y resumen" en mobile', () => {
     configure();
-    const freshUser = buildUser({ lastLoginAt: null });
-    usersServiceMock.getUserById.mockReturnValue(of({ message: 'ok', user: freshUser }));
-    const { component } = createComponent();
+    const { fixture, component } = createComponent();
 
-    component.editUser(buildUser());
+    const form: HTMLFormElement = fixture.nativeElement.querySelector('form');
+    expect(form.classList.contains('hidden')).toBe(true);
 
-    expect(component.userForm.get('email')?.disabled).toBe(false);
+    component.filtersOpen.set(true);
+    fixture.detectChanges();
+
+    expect(form.classList.contains('hidden')).toBe(false);
   });
 
-  it('editUser en error muestra el toast con el mensaje del backend', () => {
+  // F35 rediseño 2026-09-15: "Editar" ya no abre un panel inline — navega a
+  // la ficha del usuario (/usuarios/:id).
+  it('editUser navega a la ficha del usuario', () => {
     configure();
-    usersServiceMock.getUserById.mockReturnValue(throwError(() => ({ message: 'Usuario no encontrado' })));
     const { component } = createComponent();
 
-    component.editUser(buildUser());
+    component.editUser(buildUser({ id: 'u9' }));
 
-    expect(toastServiceMock.error).toHaveBeenCalledWith('Usuario no encontrado');
+    expect(routerMock.navigate).toHaveBeenCalledWith(['/usuarios', 'u9']);
+  });
+
+  // F18/F35 rediseño: ?openId= desde la búsqueda global navega a la ficha
+  // en vez de abrir el panel inline (mismo patrón que Clientes).
+  it('ngOnInit navega a la ficha cuando llega ?openId= desde la búsqueda global', () => {
+    configure({ openId: 'u7' });
+    createComponent();
+
+    expect(routerMock.navigate).toHaveBeenCalledWith(['/usuarios', 'u7']);
+  });
+
+  it('ngOnInit no navega si no hay ?openId=', () => {
+    configure();
+    createComponent();
+
+    expect(routerMock.navigate).not.toHaveBeenCalled();
   });
 
   it('submitUser no llama al servicio si el formulario es inválido', () => {
@@ -204,7 +252,7 @@ describe('UsersComponent', () => {
   it('submitUser ignora llamadas repetidas mientras isSubmitting está activo', () => {
     configure();
     const { component } = createComponent();
-    component.userForm.setValue({ firstName: 'Ana', lastName: 'Gómez', email: 'ana@lexar.com' });
+    component.userForm.setValue(USER_FORM_VALUE);
     component.isSubmitting.set(true);
 
     component.submitUser();
@@ -212,46 +260,39 @@ describe('UsersComponent', () => {
     expect(usersServiceMock.createUser).not.toHaveBeenCalled();
   });
 
-  it('submitUser crea un usuario, notifica éxito y cierra el panel', () => {
+  it('submitUser crea un usuario, notifica éxito y navega a su ficha', () => {
     configure();
-    usersServiceMock.createUser.mockReturnValue(of({ message: 'Invitación enviada', user: buildUser() }));
+    const created = buildUser({ id: 'u42' });
+    usersServiceMock.createUser.mockReturnValue(of({ message: 'Invitación enviada', user: created }));
     const { component } = createComponent();
 
-    component.userForm.setValue({ firstName: 'Ana', lastName: 'Gómez', email: 'ana@lexar.com' });
+    component.userForm.setValue(USER_FORM_VALUE);
     component.submitUser();
 
-    expect(usersServiceMock.createUser).toHaveBeenCalledWith({ firstName: 'Ana', lastName: 'Gómez', email: 'ana@lexar.com' });
+    expect(usersServiceMock.createUser).toHaveBeenCalledWith({
+      firstName: 'Ana',
+      lastName: 'Gómez',
+      email: 'ana@lexar.com',
+    });
     expect(toastServiceMock.success).toHaveBeenCalledWith('Invitación enviada');
     expect(component.panelOpen()).toBe(false);
     expect(component.isSubmitting()).toBe(false);
+    expect(routerMock.navigate).toHaveBeenCalledWith(['/usuarios', 'u42']);
   });
 
-  it('submitUser en error de creación expone el mensaje y no cierra el panel', () => {
+  it('submitUser en error de creación expone el mensaje y no navega', () => {
     configure();
     usersServiceMock.createUser.mockReturnValue(throwError(() => ({ message: 'Email ya registrado' })));
     const { component } = createComponent();
 
-    component.userForm.setValue({ firstName: 'Ana', lastName: 'Gómez', email: 'ana@lexar.com' });
+    component.userForm.setValue(USER_FORM_VALUE);
     component.togglePanel();
     component.submitUser();
 
     expect(component.errorMessage()).toBe('Email ya registrado');
     expect(toastServiceMock.error).toHaveBeenCalledWith('Email ya registrado');
     expect(component.isSubmitting()).toBe(false);
-  });
-
-  it('submitUser actualiza un usuario existente', () => {
-    configure();
-    const editing = buildUser({ id: 'u9' });
-    usersServiceMock.updateUser.mockReturnValue(of({ message: 'ok', user: editing }));
-    const { component } = createComponent();
-
-    component.editingUser.set(editing);
-    component.userForm.setValue({ firstName: 'Ana', lastName: 'Gómez', email: 'ana@lexar.com' });
-    component.submitUser();
-
-    expect(usersServiceMock.updateUser).toHaveBeenCalledWith('u9', { firstName: 'Ana', lastName: 'Gómez', email: 'ana@lexar.com' });
-    expect(toastServiceMock.success).toHaveBeenCalledWith('Usuario actualizado exitosamente');
+    expect(routerMock.navigate).not.toHaveBeenCalled();
   });
 
   it('toggleUserStatus activa/desactiva tras confirmar', async () => {

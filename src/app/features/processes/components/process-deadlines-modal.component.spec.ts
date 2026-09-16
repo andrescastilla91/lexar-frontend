@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { FormBuilder, Validators } from '@angular/forms';
 import { ProcessDeadlinesModalComponent } from './process-deadlines-modal.component';
-import { AdvisorResponse, AdvisorStatus } from '../../../core/models/advisor-backend.model';
+import { AdvisorResponse } from '../../../core/models/advisor-backend.model';
 import { DeadlineResponse, DeadlineStatus } from '../../../core/models/deadline.model';
 
 describe('ProcessDeadlinesModalComponent', () => {
@@ -21,9 +21,10 @@ describe('ProcessDeadlinesModalComponent', () => {
   const advisor: AdvisorResponse = {
     id: 'adv1',
     userId: 'u1',
-    specialty: null,
+    specialties: [],
     phone: null,
-    status: AdvisorStatus.AVAILABLE,
+    professionalCard: null,
+    mobileSecondary: null,
     rating: null,
     experienceYears: 3,
     isActive: true,

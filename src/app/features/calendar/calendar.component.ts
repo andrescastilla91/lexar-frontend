@@ -18,6 +18,7 @@ import { LegalProcessesService } from '../../core/services/legal-processes.servi
 import { ConfirmDialogService } from '../../core/services/confirm-dialog.service';
 import { ToastService } from '../../core/services/toast.service';
 import { AuthService } from '../../core/services/auth.service';
+import { PermissionsService } from '../../core/services/permissions.service';
 import { AdvisorResponse } from '../../core/models/advisor-backend.model';
 import { CatalogItem } from '../../core/models/catalog-backend.model';
 import {
@@ -156,6 +157,12 @@ import { formatDate } from '../processes/utils/process-format.utils';
           </select>
         </label>
       </form>
+
+      @if (!hasFullDeadlineAccess()) {
+        <p class="rounded-md border border-default bg-surface-muted px-4 py-2.5 text-sm text-subtle">
+          Ves los plazos y audiencias a tu cargo.
+        </p>
+      }
 
       <!-- Calendario -->
       <div class="rounded-lg border border-default bg-surface p-4 shadow-card">
@@ -411,6 +418,14 @@ export class CalendarComponent {
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly toast = inject(ToastService);
   private readonly authService = inject(AuthService);
+  private readonly permissionsService = inject(PermissionsService);
+
+  /** F36 (ola 5): si el usuario tiene deadlines.view.all — gobierna el texto
+   * explicativo para quien no lo tiene, mismo patrón que DocumentsComponent
+   * (F30). */
+  readonly hasFullDeadlineAccess = computed(() =>
+    this.permissionsService.hasPermission('deadlines.view.all'),
+  );
 
   readonly advisors = signal<AdvisorResponse[]>([]);
   readonly deadlineTypes = signal<CatalogItem[]>([]);

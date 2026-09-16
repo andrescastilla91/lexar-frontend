@@ -6,6 +6,10 @@ import {
   ClientResponse,
   CreateClientRequest,
   UpdateClientRequest,
+  UpdateClientComplianceRequest,
+  ClientContactResponse,
+  CreateClientContactRequest,
+  UpdateClientContactRequest,
 } from '../models/client-backend.model';
 
 interface ClientsListResponse {
@@ -21,12 +25,23 @@ interface ClientItemResponse {
   client: ClientResponse;
 }
 
+interface ClientContactsListResponse {
+  message: string;
+  contacts: ClientContactResponse[];
+}
+
+interface ClientContactItemResponse {
+  message: string;
+  contact: ClientContactResponse;
+}
+
 // BUG-20 ola 2: lee error.message — no error.error?.message — ver el
 // comentario en deadlines.service.ts.
 @Injectable({ providedIn: 'root' })
 export class ClientsService {
   private readonly http = inject(HttpClient);
   private readonly apiUrl = `${environment.apiUrl}/clients`;
+  private readonly contactsApiUrl = `${environment.apiUrl}/client-contacts`;
 
   /**
    * Obtener todos los clientes de la empresa
@@ -82,6 +97,23 @@ export class ClientsService {
   }
 
   /**
+   * QA F33 2026-09-14: actualizar el nivel de criticidad o el riesgo LA/FT
+   * de un cliente — endpoint separado, gateado por clients.edit-compliance.
+   */
+  updateClientCompliance(
+    id: string,
+    data: UpdateClientComplianceRequest,
+  ): Observable<ClientResponse> {
+    return this.http.patch<ClientItemResponse>(`${this.apiUrl}/${id}/compliance`, data).pipe(
+      map(response => response.client),
+      catchError((error) => {
+        console.error('Error al actualizar cumplimiento del cliente:', error);
+        return throwError(() => new Error(error.message || 'Error al actualizar cumplimiento del cliente'));
+      })
+    );
+  }
+
+  /**
    * Activar/Desactivar un cliente
    */
   toggleActive(id: string): Observable<ClientResponse> {
@@ -91,6 +123,56 @@ export class ClientsService {
         console.error('Error al cambiar estado del cliente:', error);
         return throwError(() => new Error(error.message || 'Error al cambiar estado del cliente'));
       })
+    );
+  }
+
+  // ── F33: contactos ──────────────────────────────────────────────
+
+  getContacts(clientId: string): Observable<ClientContactResponse[]> {
+    return this.http
+      .get<ClientContactsListResponse>(this.contactsApiUrl, {
+        params: { clientId },
+      })
+      .pipe(
+        map((response) => response.contacts),
+        catchError((error) => {
+          console.error('Error al obtener contactos:', error);
+          return throwError(() => new Error(error.message || 'Error al cargar contactos'));
+        }),
+      );
+  }
+
+  createContact(data: CreateClientContactRequest): Observable<ClientContactResponse> {
+    return this.http.post<ClientContactItemResponse>(this.contactsApiUrl, data).pipe(
+      map((response) => response.contact),
+      catchError((error) => {
+        console.error('Error al crear contacto:', error);
+        return throwError(() => new Error(error.message || 'Error al crear contacto'));
+      }),
+    );
+  }
+
+  updateContact(
+    id: string,
+    data: UpdateClientContactRequest,
+  ): Observable<ClientContactResponse> {
+    return this.http
+      .patch<ClientContactItemResponse>(`${this.contactsApiUrl}/${id}`, data)
+      .pipe(
+        map((response) => response.contact),
+        catchError((error) => {
+          console.error('Error al actualizar contacto:', error);
+          return throwError(() => new Error(error.message || 'Error al actualizar contacto'));
+        }),
+      );
+  }
+
+  removeContact(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.contactsApiUrl}/${id}`).pipe(
+      catchError((error) => {
+        console.error('Error al eliminar contacto:', error);
+        return throwError(() => new Error(error.message || 'Error al eliminar contacto'));
+      }),
     );
   }
 }

@@ -123,7 +123,7 @@ async function readInvitationToken(email: string): Promise<string> {
  */
 async function setupNonApproverUser(
   adminApi: APIRequestContext,
-): Promise<{ email: string; password: string; displayName: string }> {
+): Promise<{ email: string; password: string; displayName: string; userId: string }> {
   const permissionsResponse = await adminApi.get('/api/roles/permissions');
   if (!permissionsResponse.ok()) {
     throw new Error(
@@ -181,7 +181,7 @@ async function setupNonApproverUser(
     );
   }
 
-  return { email, password, displayName: 'Redactor E2E' };
+  return { email, password, displayName: 'Redactor E2E', userId: user.id };
 }
 
 /** F28 — crea, desde Configuración > Estados de tareas, un estado sin
@@ -304,6 +304,32 @@ test.describe('Tareas: tablero drag y flujo de aprobación (F14)', () => {
       );
     }
     const requester = await setupNonApproverUser(adminApi);
+
+    // F36 ola 3 (TaskScopeService): la tarea la creó el admin, sin asesor
+    // ni proceso asociado — bajo alcance por responsabilidad, "Redactor
+    // E2E" (sin tasks.view.all) no vería la tarea en absoluto y el drag
+    // nunca encontraría la tarjeta. Se la asigna aquí para que el
+    // requester alcance la tarea por ser su responsable, igual que se hizo
+    // en search.e2e-spec.ts (F36 ola 4) para el mismo tipo de brecha.
+    const tasksListResponse = await adminApi.get('/api/tasks');
+    if (!tasksListResponse.ok()) {
+      throw new Error(
+        `No se pudo listar tareas para ubicar "${taskTitle}": ${tasksListResponse.status()} ${await tasksListResponse.text()}`,
+      );
+    }
+    const { tasks } = (await tasksListResponse.json()) as { tasks: { id: string; title: string }[] };
+    const createdTask = tasks.find((t) => t.title === taskTitle);
+    if (!createdTask) {
+      throw new Error(`No se encontró la tarea recién creada "${taskTitle}" en /api/tasks.`);
+    }
+    const assignResponse = await adminApi.patch(`/api/tasks/${createdTask.id}`, {
+      data: { assigneeUserId: requester.userId },
+    });
+    if (!assignResponse.ok()) {
+      throw new Error(
+        `No se pudo asignar la tarea al requester: ${assignResponse.status()} ${await assignResponse.text()}`,
+      );
+    }
     await adminApi.dispose();
 
     // El segundo usuario (sin tasks.approve) intenta mover la tarea al

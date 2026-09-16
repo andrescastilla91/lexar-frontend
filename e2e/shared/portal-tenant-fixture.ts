@@ -158,15 +158,13 @@ export const test = base.extend<{ tenant: TestTenant; portalTenant: PortalReadyT
 
     const suffix = uniqueSuffix();
     const clientFullName = `Cliente Portal E2E ${suffix}`;
-    // `email` e `identificationNumber` son opcionales en CreateClientDto pero
-    // las columnas `clients.email` y `clients.identification_number` en BD
-    // tienen NOT NULL (deuda de esquema, Bug 14 — ver BACKLOG-BUGS.md). El
-    // email de aquí es el de contacto del cliente, no el que recibe la
-    // invitación al portal (eso lo maneja el spec por separado, vía UI).
+    // `fullName` e `identificationNumber` son los únicos campos requeridos de
+    // CreateClientDto — F33 eliminó `email` del modelo Client (reemplazado
+    // por ClientContact), así que ya no se envía aquí. El email que recibe
+    // la invitación al portal lo maneja el spec por separado, vía UI.
     const clientResponse = await api.post('/api/clients', {
       data: {
         fullName: clientFullName,
-        email: `cliente.portal.e2e.${suffix}@lexar-test.com`,
         identificationNumber: suffix,
       },
     });
