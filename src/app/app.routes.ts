@@ -182,6 +182,12 @@ export const routes: Routes = [
 				loadComponent: () => import('./features/users/users.component').then((m) => m.UsersComponent),
 			},
 			{
+				path: 'usuarios/:id',
+				title: 'Ficha de usuario',
+				loadComponent: () =>
+					import('./features/users/detail/user-detail.component').then((m) => m.UserDetailComponent),
+			},
+			{
 				path: 'roles',
 				title: 'Roles',
 				loadComponent: () => import('./features/roles/roles.component').then((m) => m.RolesComponent),
@@ -192,14 +198,15 @@ export const routes: Routes = [
 				loadComponent: () => import('./features/settings/settings.component').then((m) => m.SettingsComponent),
 			},
 			{
-				path: 'asesores',
-				title: 'Asesores',
-				loadComponent: () => import('./features/advisors/advisors.component').then((m) => m.AdvisorsComponent),
-			},
-			{
 				path: 'clientes',
 				title: 'Clientes',
 				loadComponent: () => import('./features/clients/clients.component').then((m) => m.ClientsComponent),
+			},
+			{
+				path: 'clientes/:id',
+				title: 'Ficha de cliente',
+				loadComponent: () =>
+					import('./features/clients/detail/client-detail.component').then((m) => m.ClientDetailComponent),
 			},
 			{
 				path: 'procesos',

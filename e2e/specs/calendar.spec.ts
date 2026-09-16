@@ -46,17 +46,12 @@ async function createLegalProcessViaApi(
   }
 
   const suffix = `${Date.now()}${Math.floor(Math.random() * 10_000)}`;
-  // `email` e `identificationNumber` son opcionales en CreateClientDto pero
-  // las columnas `clients.email` y `clients.identification_number` en BD
-  // tienen NOT NULL (deuda de esquema — Bug 14, ver BACKLOG-BUGS.md). La UI
-  // real nunca expone el hueco porque el formulario marca ambos como
-  // requeridos (Validators.required en client-form.component.ts), así que
-  // enviarlos aquí también refleja el único payload que la app realmente
-  // produce.
+  // `fullName` e `identificationNumber` son los únicos campos requeridos de
+  // CreateClientDto — F33 eliminó `email` del modelo Client (reemplazado
+  // por ClientContact), así que ya no se envía aquí.
   const clientResponse = await api.post('/api/clients', {
     data: {
       fullName: `Cliente E2E ${suffix}`,
-      email: `cliente.e2e.${suffix}@lexar-test.com`,
       identificationNumber: suffix,
     },
   });

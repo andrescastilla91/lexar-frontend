@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { AdvisorsService } from './advisors.service';
-import { AdvisorResponse, AdvisorStatus } from '../models/advisor-backend.model';
+import { AdvisorResponse } from '../models/advisor-backend.model';
 import { environment } from '../../../environments/environment';
 import { errorInterceptor } from '../interceptors/error.interceptor';
 import { PlanUpgradeService } from './plan-upgrade.service';
@@ -15,9 +15,10 @@ describe('AdvisorsService', () => {
   const advisor: AdvisorResponse = {
     id: 'adv-1',
     userId: 'user-1',
-    specialty: { id: 'spec-1', code: 'civil', label: 'Civil', color: null },
+    specialties: [{ id: 'spec-1', code: 'civil', label: 'Civil', color: null }],
     phone: '3001234567',
-    status: AdvisorStatus.AVAILABLE,
+    professionalCard: null,
+    mobileSecondary: null,
     rating: 4.5,
     experienceYears: 5,
     isActive: true,
@@ -61,15 +62,14 @@ describe('AdvisorsService', () => {
     expect(result).toEqual({ message: 'ok', advisors: [advisor], total: 1, page: 1, limit: 10 });
   });
 
-  it('getAdvisors agrega filtros de status, isActive y search a los params', () => {
-    service.getAdvisors(2, 20, { status: AdvisorStatus.BUSY, isActive: false, search: 'laura' }).subscribe();
+  it('getAdvisors agrega filtros de isActive y search a los params', () => {
+    service.getAdvisors(2, 20, { isActive: false, search: 'laura' }).subscribe();
 
     const req = httpMock.expectOne(
       (request) =>
         request.url === apiUrl &&
         request.params.get('page') === '2' &&
         request.params.get('limit') === '20' &&
-        request.params.get('status') === AdvisorStatus.BUSY &&
         request.params.get('isActive') === 'false' &&
         request.params.get('search') === 'laura',
     );

@@ -89,11 +89,12 @@ test.describe('CRUD de proceso con documentos', () => {
     const clientFullName = `Cliente Proceso E2E ${suffix}`;
     await clientsPage.createClient({
       fullName: clientFullName,
-      email: `cliente.proceso.e2e.${suffix}@lexar-test.com`,
       documentTypeLabel: 'Cédula de Ciudadanía',
       identificationNumber: String(Date.now()).slice(-8),
     });
-    await expect(clientsPage.row(clientFullName)).toBeVisible();
+    // F33: crear un cliente por UI redirige directo a su ficha
+    // (/clientes/:id) en vez de dejar al usuario en la lista.
+    await expect(clientsPage.fichaHeading(clientFullName)).toBeVisible();
 
     const processesPage = new ProcessesPage(page);
     await processesPage.goto();

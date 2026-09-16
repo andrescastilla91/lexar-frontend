@@ -74,10 +74,12 @@ async function createLegalProcessViaApi(tenant: TestTenant): Promise<{ processTi
   }
 
   const suffix = `${Date.now()}${Math.floor(Math.random() * 10_000)}`;
+  // `fullName` e `identificationNumber` son los únicos campos requeridos de
+  // CreateClientDto — F33 eliminó `email` del modelo Client (reemplazado
+  // por ClientContact), así que ya no se envía aquí.
   const clientResponse = await api.post('/api/clients', {
     data: {
       fullName: `Cliente E2E Chat ${suffix}`,
-      email: `cliente.e2e.chat.${suffix}@lexar-test.com`,
       identificationNumber: suffix,
     },
   });

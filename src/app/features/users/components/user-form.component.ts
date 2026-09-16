@@ -1,6 +1,14 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { FormGroup, ReactiveFormsModule } from '@angular/forms';
 
+/**
+ * F35 rediseño 2026-09-15: este modal deja de ser el formulario de
+ * alta+edición unificado (crecía sin límite cada vez que se pedía un dato
+ * profesional nuevo). Ahora es SOLO el modal de alta — Nombre/Apellido/Email,
+ * invitación por correo. El perfil profesional (asesor legal) y los roles y
+ * permisos (solo lectura) viven en la ficha del usuario (`UserDetailComponent`,
+ * /usuarios/:id), a la que se navega automáticamente tras crear.
+ */
 @Component({
   selector: 'app-user-form',
   standalone: true,
@@ -16,9 +24,7 @@ import { FormGroup, ReactiveFormsModule } from '@angular/forms';
           (ngSubmit)="formSubmit.emit()"
         >
           <div class="mb-4 flex items-center justify-between">
-            <h3 class="text-lg font-semibold text-text">
-              {{ isEditing() ? 'Editar usuario' : 'Nuevo usuario' }}
-            </h3>
+            <h3 class="text-lg font-semibold text-text">Nuevo usuario</h3>
             <button
               type="button"
               (click)="formCancel.emit()"
@@ -65,36 +71,20 @@ import { FormGroup, ReactiveFormsModule } from '@angular/forms';
                 type="email"
                 autocomplete="off"
                 placeholder="usuario@empresa.com"
-                class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30 disabled:bg-surface-muted disabled:text-subtle disabled:cursor-not-allowed"
+                class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
               />
               @if (form().get('email')?.touched && form().get('email')?.invalid) {
                 <p class="mt-1 text-xs text-danger">Email inválido</p>
               }
-              @if (isEditing() && editingUserHasLoggedIn()) {
-                <p class="mt-1 text-xs text-subtle">
-                  <svg class="inline h-3 w-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
-                  </svg>
-                  El email no puede modificarse porque el usuario ya inició sesión (es su identificador de acceso)
-                </p>
-              } @else if (isEditing() && !editingUserHasLoggedIn()) {
-                <p class="mt-1 text-xs text-success">
-                  <svg class="inline h-3 w-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                  </svg>
-                  El email puede modificarse porque el usuario aún no ha iniciado sesión
-                </p>
-              }
             </label>
 
-            @if (!isEditing()) {
-              <div class="rounded-md border border-default bg-surface-muted p-4">
-                <p class="text-sm font-semibold text-text">Se enviará una invitación por correo</p>
-                <p class="text-xs text-subtle mt-0.5">
-                  El usuario recibirá un enlace para crear su propia contraseña y activar su cuenta.
-                </p>
-              </div>
-            }
+            <div class="rounded-md border border-default bg-surface-muted p-4">
+              <p class="text-sm font-semibold text-text">Se enviará una invitación por correo</p>
+              <p class="text-xs text-subtle mt-0.5">
+                El usuario recibirá un enlace para crear su propia contraseña y activar su cuenta. Al crearlo
+                entrarás directo a su ficha para completar el perfil profesional y asignar roles.
+              </p>
+            </div>
           </div>
 
           @if (errorMessage()) {
@@ -116,7 +106,7 @@ import { FormGroup, ReactiveFormsModule } from '@angular/forms';
               class="flex-1 rounded-md bg-navy-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-navy-950 disabled:bg-strong"
               [disabled]="isSubmitting() || form().invalid"
             >
-              {{ isEditing() ? 'Actualizar' : 'Enviar invitación' }}
+              Enviar invitación
             </button>
           </div>
         </form>
@@ -127,10 +117,8 @@ import { FormGroup, ReactiveFormsModule } from '@angular/forms';
 export class UserFormComponent {
   form = input.required<FormGroup>();
   isOpen = input(false);
-  isEditing = input(false);
   isSubmitting = input(false);
   errorMessage = input<string | null>(null);
-  editingUserHasLoggedIn = input(false);
 
   formCancel = output<void>();
   formSubmit = output<void>();

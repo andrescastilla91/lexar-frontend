@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { FormBuilder, Validators } from '@angular/forms';
 import { ProcessFormComponent } from './process-form.component';
 import { ProcessStatus } from '../../../core/models/legal-process.model';
-import { AdvisorResponse, AdvisorStatus } from '../../../core/models/advisor-backend.model';
+import { AdvisorResponse } from '../../../core/models/advisor-backend.model';
 import { ClientResponse } from '../../../core/models/client-backend.model';
 
 describe('ProcessFormComponent', () => {
@@ -27,9 +27,10 @@ describe('ProcessFormComponent', () => {
   const advisor: AdvisorResponse = {
     id: 'adv1',
     userId: 'u1',
-    specialty: null,
+    specialties: [],
     phone: null,
-    status: AdvisorStatus.AVAILABLE,
+    professionalCard: null,
+    mobileSecondary: null,
     rating: null,
     experienceYears: 3,
     isActive: true,

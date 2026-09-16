@@ -65,11 +65,12 @@ tenantTest.describe('F27 — política de visibilidad configurable del portal', 
       const clientFullName = `Cliente Visibilidad E2E ${suffix}`;
       await clientsPage.createClient({
         fullName: clientFullName,
-        email: `cliente.visibilidad.e2e.${suffix}@lexar-test.com`,
         documentTypeLabel: 'Cédula de Ciudadanía',
         identificationNumber: String(Date.now()).slice(-8),
       });
-      await expect(clientsPage.row(clientFullName)).toBeVisible();
+      // F33: crear un cliente por UI redirige directo a su ficha
+      // (/clientes/:id) en vez de dejar al usuario en la lista.
+      await expect(clientsPage.fichaHeading(clientFullName)).toBeVisible();
 
       const processesPage = new ProcessesPage(page);
       await processesPage.goto();
@@ -151,10 +152,9 @@ portalTest.describe('F27 — anotaciones visibles por defecto en el portal del c
       // portal-cliente.spec.ts (flujo 1 de HU-FE-E2E-2).
       const clientsPage = new ClientsPage(page);
       await clientsPage.goto();
-      await clientsPage.openEdit(portalTenant.clientFullName);
+      await clientsPage.openPortalPanel(portalTenant.clientFullName);
       await clientsPage.inviteToPortal(portalEmail);
       await expect(clientsPage.invitationRow(portalEmail)).toContainText('Pendiente de activación');
-      await clientsPage.closeEditPanel();
 
       const activationToken = await extractTokenFromMailpit(portalEmail);
       const activarCuentaPage = new PortalActivarCuentaPage(page);

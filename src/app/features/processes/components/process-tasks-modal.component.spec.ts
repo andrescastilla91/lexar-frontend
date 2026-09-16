@@ -7,7 +7,7 @@ import { ProcessTasksModalComponent } from './process-tasks-modal.component';
 import { TaskStatusControlComponent } from '../../../shared/components/task-status-control/task-status-control.component';
 import { TaskPriority, TaskResponse, TaskTemplateResponse } from '../../../core/models/task.model';
 import { TaskStatusResponse } from '../../../core/models/task-status.model';
-import { AdvisorResponse, AdvisorStatus } from '../../../core/models/advisor-backend.model';
+import { AdvisorResponse } from '../../../core/models/advisor-backend.model';
 
 describe('ProcessTasksModalComponent', () => {
   const fb = new FormBuilder();
@@ -62,9 +62,10 @@ describe('ProcessTasksModalComponent', () => {
   const advisor: AdvisorResponse = {
     id: 'adv1',
     userId: 'u1',
-    specialty: null,
+    specialties: [],
     phone: null,
-    status: AdvisorStatus.AVAILABLE,
+    professionalCard: null,
+    mobileSecondary: null,
     rating: null,
     experienceYears: 3,
     isActive: true,

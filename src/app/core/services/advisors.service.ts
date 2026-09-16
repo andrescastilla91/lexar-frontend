@@ -6,7 +6,6 @@ import {
   AdvisorResponse,
   CreateAdvisorRequest,
   UpdateAdvisorRequest,
-  AdvisorStatus,
 } from '../models/advisor-backend.model';
 
 interface AdvisorsListResponse {
@@ -31,7 +30,6 @@ export class AdvisorsService {
     page: number = 1,
     limit: number = 10,
     filters?: {
-      status?: AdvisorStatus;
       isActive?: boolean;
       search?: string;
     }
@@ -39,7 +37,6 @@ export class AdvisorsService {
     let params: any = { page: page.toString(), limit: limit.toString() };
 
     if (filters) {
-      if (filters.status) params.status = filters.status;
       if (filters.isActive !== undefined) params.isActive = filters.isActive.toString();
       if (filters.search) params.search = filters.search;
     }

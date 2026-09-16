@@ -1,12 +1,5 @@
 import { CatalogRef } from './catalog-backend.model';
 
-export enum AdvisorStatus {
-  AVAILABLE = 'AVAILABLE',
-  IN_HEARING = 'IN_HEARING',
-  IN_MEETING = 'IN_MEETING',
-  BUSY = 'BUSY',
-}
-
 export interface AdvisorUser {
   id: string;
   firstName: string;
@@ -15,12 +8,20 @@ export interface AdvisorUser {
   avatarUrl?: string | null;
 }
 
+/**
+ * F35: unificación de usuarios y asesores — el "estado operativo" manual
+ * (AdvisorStatus: disponible/en audiencia/en reunión/ocupado) se eliminó
+ * porque nadie lo mantenía actualizado; `isActive` ya cubre lo necesario.
+ * `specialty` (única) fue reemplazada por `specialties` (M2M) — un asesor
+ * puede tener varias especialidades del catálogo `advisor_specialty`.
+ */
 export interface AdvisorResponse {
   id: string;
   userId: string;
-  specialty: CatalogRef | null;
+  specialties: CatalogRef[];
   phone: string | null;
-  status: AdvisorStatus;
+  professionalCard: string | null;
+  mobileSecondary: string | null;
   rating: number | null;
   experienceYears: number;
   isActive: boolean;
@@ -32,17 +33,19 @@ export interface AdvisorResponse {
 
 export interface CreateAdvisorRequest {
   userId: string;
-  specialtyId?: string;
+  specialtyIds?: string[];
   phone?: string;
-  status?: AdvisorStatus;
+  professionalCard?: string;
+  mobileSecondary?: string;
   rating?: number;
   experienceYears?: number;
 }
 
 export interface UpdateAdvisorRequest {
-  specialtyId?: string;
+  specialtyIds?: string[];
   phone?: string;
-  status?: AdvisorStatus;
+  professionalCard?: string;
+  mobileSecondary?: string;
   rating?: number;
   experienceYears?: number;
   isActive?: boolean;
