@@ -143,4 +143,22 @@ describe('ProcessesTableComponent', () => {
 
     expect(fixture.nativeElement.textContent).toContain('Sin asesores asignados');
   });
+
+  it('F36: sin hasFullAccess muestra el texto explicativo de alcance', () => {
+    const fixture = createComponent();
+    fixture.componentRef.setInput('processes', [buildProcess()]);
+    fixture.componentRef.setInput('hasFullAccess', false);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Ves los procesos a tu cargo.');
+  });
+
+  it('F36: con hasFullAccess no muestra el texto explicativo de alcance', () => {
+    const fixture = createComponent();
+    fixture.componentRef.setInput('processes', [buildProcess()]);
+    fixture.componentRef.setInput('hasFullAccess', true);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('Ves los procesos a tu cargo.');
+  });
 });

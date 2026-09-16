@@ -15,6 +15,7 @@ import { TaskStatusesService } from '../../core/services/task-statuses.service';
 import { ConfirmDialogService } from '../../core/services/confirm-dialog.service';
 import { ToastService } from '../../core/services/toast.service';
 import { PortalVisibilityPolicyService } from '../../core/services/portal-visibility-policy.service';
+import { PermissionsService } from '../../core/services/permissions.service';
 import { LegalProcessResponse, ProcessStatus } from '../../core/models/legal-process.model';
 import { ProcessEvent, ProcessEventType } from '../../core/models/process-event.model';
 import { PortalEventVisibilityMode, PortalEventVisibilityPolicy } from '../../core/models/portal-visibility-policy.model';
@@ -58,6 +59,7 @@ describe('ProcessesComponent', () => {
   let visibilityPolicyServiceMock: { getAll: jest.Mock };
   let confirmDialogMock: { confirm: jest.Mock };
   let toastMock: { success: jest.Mock; error: jest.Mock };
+  let permissionsServiceMock: { hasPermission: jest.Mock; hasAnyPermission: jest.Mock };
   let queryParamId: string | null;
   let navigateSpy: jest.SpyInstance;
 
@@ -174,6 +176,7 @@ describe('ProcessesComponent', () => {
     visibilityPolicies?: PortalEventVisibilityPolicy[];
     confirmResolves?: boolean;
     queryParamId?: string | null;
+    hasFullProcessAccess?: boolean;
   } = {}) {
     queryParamId = overrides.queryParamId ?? null;
 
@@ -243,6 +246,13 @@ describe('ProcessesComponent', () => {
 
     confirmDialogMock = { confirm: jest.fn().mockResolvedValue(overrides.confirmResolves ?? true) };
     toastMock = { success: jest.fn(), error: jest.fn() };
+    // F36 (ola 5): mock directo del servicio (no de AuthService) — mismo
+    // patrón que documents.component.spec.ts, evita tener que levantar todo
+    // el árbol de dependencias reales de AuthService en este spec.
+    permissionsServiceMock = {
+      hasPermission: jest.fn().mockReturnValue(overrides.hasFullProcessAccess ?? false),
+      hasAnyPermission: jest.fn().mockReturnValue(overrides.hasFullProcessAccess ?? false),
+    };
 
     const activatedRouteMock = {
       snapshot: { queryParamMap: { get: () => queryParamId } },
@@ -270,6 +280,7 @@ describe('ProcessesComponent', () => {
         { provide: ConfirmDialogService, useValue: confirmDialogMock },
         { provide: ToastService, useValue: toastMock },
         { provide: ActivatedRoute, useValue: activatedRouteMock },
+        { provide: PermissionsService, useValue: permissionsServiceMock },
       ],
     })
       .compileComponents()
@@ -1187,6 +1198,27 @@ describe('ProcessesComponent', () => {
 
       expect(processEventsServiceMock.getProcessHistory).not.toHaveBeenCalled();
       expect(component.historyModalOpen()).toBe(false);
+    });
+  });
+
+  describe('F36 (ola 5): alcance en la tabla de procesos', () => {
+    it('sin permiso legal_processes.view.all, pasa hasFullAccess=false a la tabla', async () => {
+      await configure({ hasFullProcessAccess: false });
+      const fixture = TestBed.createComponent(ProcessesComponent);
+      fixture.detectChanges();
+
+      expect(permissionsServiceMock.hasPermission).toHaveBeenCalledWith('legal_processes.view.all');
+      expect(fixture.componentInstance.hasFullProcessAccess()).toBe(false);
+      expect(fixture.nativeElement.textContent).toContain('Ves los procesos a tu cargo.');
+    });
+
+    it('con permiso legal_processes.view.all, pasa hasFullAccess=true a la tabla', async () => {
+      await configure({ hasFullProcessAccess: true });
+      const fixture = TestBed.createComponent(ProcessesComponent);
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.hasFullProcessAccess()).toBe(true);
+      expect(fixture.nativeElement.textContent).not.toContain('Ves los procesos a tu cargo.');
     });
   });
 

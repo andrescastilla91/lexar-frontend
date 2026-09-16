@@ -1,3 +1,4 @@
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
@@ -9,6 +10,7 @@ import { LegalProcessesService } from '../../core/services/legal-processes.servi
 import { ConfirmDialogService } from '../../core/services/confirm-dialog.service';
 import { ToastService } from '../../core/services/toast.service';
 import { AuthService } from '../../core/services/auth.service';
+import { PermissionsService } from '../../core/services/permissions.service';
 import { TaskApprovalsService } from '../../core/services/task-approvals.service';
 import { FilesService } from '../../core/services/files.service';
 import { AuthUser } from '../../core/models/auth.model';
@@ -29,6 +31,11 @@ describe('TasksComponent', () => {
   let confirmDialogMock: { confirm: jest.Mock };
   let toastMock: { success: jest.Mock; error: jest.Mock };
   let authServiceMock: { currentUser: jest.Mock };
+  let permissionsServiceMock: {
+    hasPermission: jest.Mock;
+    hasAnyPermission: jest.Mock;
+    userPermissions: ReturnType<typeof signal<string[]>>;
+  };
   let navigateSpy: jest.SpyInstance;
 
   const statusTodo: TaskStatusResponse = {
@@ -109,6 +116,7 @@ describe('TasksComponent', () => {
     queryOpenId?: string | null;
     currentUser?: AuthUser | null;
     tasksOverrides?: Partial<typeof tasksServiceMock>;
+    hasFullTaskAccess?: boolean;
   } = {}) {
     tasksServiceMock = {
       getAll: jest.fn().mockReturnValue(of([buildTask()])),
@@ -142,6 +150,17 @@ describe('TasksComponent', () => {
           : ({ id: 'user-1', email: 'x@lexar.com', roles: [], permissions: [] } as AuthUser),
       ),
     };
+    // F36 (ola 5): mock directo del servicio (no de AuthService), mismo
+    // patrón que processes.component.spec.ts. tasks.component.ts también usa
+    // *hasPermission="'tasks.approve'"` en su template (preexistente, no F36)
+    // — HasPermissionDirective llama a userPermissions() dentro de un
+    // effect(), así que el mock necesita ese signal además de los métodos,
+    // igual que documents-list.component.spec.ts (F30).
+    permissionsServiceMock = {
+      hasPermission: jest.fn().mockReturnValue(options.hasFullTaskAccess ?? false),
+      hasAnyPermission: jest.fn().mockReturnValue(options.hasFullTaskAccess ?? false),
+      userPermissions: signal<string[]>([]),
+    };
 
     const activatedRouteMock = {
       snapshot: { queryParamMap: { get: () => options.queryOpenId ?? null } },
@@ -158,6 +177,7 @@ describe('TasksComponent', () => {
         { provide: ConfirmDialogService, useValue: confirmDialogMock },
         { provide: ToastService, useValue: toastMock },
         { provide: AuthService, useValue: authServiceMock },
+        { provide: PermissionsService, useValue: permissionsServiceMock },
         { provide: TaskApprovalsService, useValue: { listPending: jest.fn().mockReturnValue(of([])) } },
         { provide: FilesService, useValue: { downloadFile: jest.fn().mockReturnValue(of(undefined)) } },
         { provide: ActivatedRoute, useValue: activatedRouteMock },
@@ -723,6 +743,27 @@ describe('TasksComponent', () => {
       expect(groups[4].tasks).toEqual([noDate]);
       const allGroupedIds = groups.flatMap((g) => g.tasks.map((t) => t.id));
       expect(allGroupedIds).not.toContain('terminal');
+    });
+  });
+
+  describe('F36 (ola 5): banner de alcance', () => {
+    it('sin permiso tasks.view.all, muestra el texto explicativo de alcance', async () => {
+      await configure({ hasFullTaskAccess: false });
+      const fixture = TestBed.createComponent(TasksComponent);
+      fixture.detectChanges();
+
+      expect(permissionsServiceMock.hasPermission).toHaveBeenCalledWith('tasks.view.all');
+      expect(fixture.componentInstance.hasFullTaskAccess()).toBe(false);
+      expect(fixture.nativeElement.textContent).toContain('Ves las tareas a tu cargo.');
+    });
+
+    it('con permiso tasks.view.all, no muestra el texto explicativo de alcance', async () => {
+      await configure({ hasFullTaskAccess: true });
+      const fixture = TestBed.createComponent(TasksComponent);
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.hasFullTaskAccess()).toBe(true);
+      expect(fixture.nativeElement.textContent).not.toContain('Ves las tareas a tu cargo.');
     });
   });
 });

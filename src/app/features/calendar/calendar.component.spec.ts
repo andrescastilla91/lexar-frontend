@@ -13,6 +13,7 @@ import { LegalProcessesService } from '../../core/services/legal-processes.servi
 import { ConfirmDialogService } from '../../core/services/confirm-dialog.service';
 import { ToastService } from '../../core/services/toast.service';
 import { AuthService } from '../../core/services/auth.service';
+import { PermissionsService } from '../../core/services/permissions.service';
 import { AdvisorResponse } from '../../core/models/advisor-backend.model';
 import { CatalogItem } from '../../core/models/catalog-backend.model';
 import { DeadlineResponse, DeadlineStatus } from '../../core/models/deadline.model';
@@ -69,6 +70,7 @@ describe('CalendarComponent', () => {
   let confirmDialogServiceMock: { confirm: jest.Mock };
   let toastServiceMock: { success: jest.Mock; error: jest.Mock };
   let authServiceMock: { currentUser: jest.Mock };
+  let permissionsServiceMock: { hasPermission: jest.Mock; hasAnyPermission: jest.Mock };
   let consoleErrorSpy: jest.SpyInstance;
   let navigateSpy: jest.SpyInstance;
 
@@ -134,7 +136,9 @@ describe('CalendarComponent', () => {
     updatedAt: '2026-08-01T00:00:00Z',
   };
 
-  function configure(options: { openId?: string | null; currentUser?: AuthUser | null } = {}) {
+  function configure(
+    options: { openId?: string | null; currentUser?: AuthUser | null; hasFullDeadlineAccess?: boolean } = {},
+  ) {
     const { openId = null, currentUser = { id: 'user-1', email: 'a@x.com', roles: [], permissions: [] } } = options;
 
     deadlinesServiceMock = {
@@ -156,6 +160,12 @@ describe('CalendarComponent', () => {
     confirmDialogServiceMock = { confirm: jest.fn().mockResolvedValue(true) };
     toastServiceMock = { success: jest.fn(), error: jest.fn() };
     authServiceMock = { currentUser: jest.fn().mockReturnValue(currentUser) };
+    // F36 (ola 5): mock directo del servicio (no de AuthService), mismo
+    // patrón que processes.component.spec.ts / tasks.component.spec.ts.
+    permissionsServiceMock = {
+      hasPermission: jest.fn().mockReturnValue(options.hasFullDeadlineAccess ?? false),
+      hasAnyPermission: jest.fn().mockReturnValue(options.hasFullDeadlineAccess ?? false),
+    };
 
     const activatedRouteMock = {
       snapshot: { queryParamMap: { get: () => openId } },
@@ -172,6 +182,7 @@ describe('CalendarComponent', () => {
         { provide: ConfirmDialogService, useValue: confirmDialogServiceMock },
         { provide: ToastService, useValue: toastServiceMock },
         { provide: AuthService, useValue: authServiceMock },
+        { provide: PermissionsService, useValue: permissionsServiceMock },
         { provide: ActivatedRoute, useValue: activatedRouteMock },
       ],
     })
@@ -533,5 +544,24 @@ describe('CalendarComponent', () => {
 
     expect(toastServiceMock.error).toHaveBeenCalledWith('No se pudo eliminar');
     expect(consoleErrorSpy).toHaveBeenCalled();
+  });
+
+  describe('F36 (ola 5): banner de alcance', () => {
+    it('sin permiso deadlines.view.all, muestra el texto explicativo de alcance', async () => {
+      await configure({ hasFullDeadlineAccess: false });
+      const { component, fixture } = createComponent();
+
+      expect(permissionsServiceMock.hasPermission).toHaveBeenCalledWith('deadlines.view.all');
+      expect(component.hasFullDeadlineAccess()).toBe(false);
+      expect(fixture.nativeElement.textContent).toContain('Ves los plazos y audiencias a tu cargo.');
+    });
+
+    it('con permiso deadlines.view.all, no muestra el texto explicativo de alcance', async () => {
+      await configure({ hasFullDeadlineAccess: true });
+      const { component, fixture } = createComponent();
+
+      expect(component.hasFullDeadlineAccess()).toBe(true);
+      expect(fixture.nativeElement.textContent).not.toContain('Ves los plazos y audiencias a tu cargo.');
+    });
   });
 });
