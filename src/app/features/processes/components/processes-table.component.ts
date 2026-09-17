@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { LegalProcessResponse, ProcessStatus } from '../../../core/models/legal-process.model';
+import { ClientMatterStatus } from '../../../core/models/client-backend.model';
 import {
   formatDate,
   getStatusClasses,
@@ -9,6 +10,8 @@ import {
   isProcessEditable,
 } from '../utils/process-format.utils';
 import { getCatalogBadgeClasses } from '../../../core/utils/catalog-badge.util';
+// F34-b: mismo badge de vigencia que ya usa la pestaña Asuntos del cliente.
+import { matterStatusClasses, matterStatusLabel } from '../../../core/utils/matter-format.util';
 
 @Component({
   selector: 'app-processes-table',
@@ -138,6 +141,26 @@ import { getCatalogBadgeClasses } from '../../../core/utils/catalog-badge.util';
                 <div>
                   <p class="text-xs font-medium text-subtle uppercase tracking-wide">Cliente</p>
                   <p class="mt-1 text-sm font-medium text-text">{{ process.client.fullName || 'Sin cliente' }}</p>
+                  <!-- F34-b: asunto vinculado, visible sin abrir el proceso -->
+                  @if (process.matter) {
+                    <p class="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-subtle">
+                      <span>{{ process.matter.name }}</span>
+                      @if (process.matter.isDeleted) {
+                        <span class="rounded-full bg-surface-muted px-1.5 py-0.5 text-[10px] font-semibold text-subtle">
+                          Eliminado
+                        </span>
+                      } @else if (process.matter.status === ClientMatterStatus.VENCIDO) {
+                        <span
+                          class="rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
+                          [class]="matterStatusClasses(process.matter.status)"
+                        >
+                          {{ matterStatusLabel(process.matter.status) }}
+                        </span>
+                      }
+                    </p>
+                  } @else {
+                    <p class="mt-0.5 text-xs text-subtle">Sin asunto</p>
+                  }
                 </div>
 
                 <!-- Estado -->
@@ -375,4 +398,7 @@ export class ProcessesTableComponent {
   protected readonly getCatalogBadgeClasses = getCatalogBadgeClasses;
   protected readonly isProcessEditable = isProcessEditable;
   protected readonly getValidNextStatuses = getValidNextStatuses;
+  protected readonly ClientMatterStatus = ClientMatterStatus;
+  protected readonly matterStatusLabel = matterStatusLabel;
+  protected readonly matterStatusClasses = matterStatusClasses;
 }

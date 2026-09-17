@@ -4,6 +4,7 @@
 
 import { AdvisorResponse } from './advisor-backend.model';
 import { CatalogRef } from './catalog-backend.model';
+import { ClientMatterStatus } from './client-backend.model';
 
 export enum ProcessStatus {
   DRAFT = 'DRAFT', // Borrador
@@ -45,6 +46,8 @@ export interface LegalProcessResponse {
     id: string;
     name: string;
     contractType: CatalogRef | null;
+    /** F34-b: para pintar el mismo badge "Vencido" que ya usa la pestaña Asuntos del cliente. */
+    status: ClientMatterStatus;
     isDeleted: boolean;
   } | null;
   createdAt: Date;

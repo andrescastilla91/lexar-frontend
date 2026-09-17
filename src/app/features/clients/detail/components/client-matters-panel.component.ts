@@ -7,33 +7,9 @@ import { CatalogItem } from '../../../../core/models/catalog-backend.model';
 import { HasPermissionDirective } from '../../../../core/directives/has-permission.directive';
 import { ConfirmDialogService } from '../../../../core/services/confirm-dialog.service';
 import { ToastService } from '../../../../core/services/toast.service';
-
-/** F34 §2: vigencia visible en la lista de asuntos. */
-function matterStatusLabel(status: ClientMatterStatus): string {
-  switch (status) {
-    case ClientMatterStatus.VIGENTE:
-      return 'Vigente';
-    case ClientMatterStatus.VENCIDO:
-      return 'Vencido';
-    case ClientMatterStatus.TERMINADO:
-      return 'Terminado';
-    default:
-      return status;
-  }
-}
-
-function matterStatusClasses(status: ClientMatterStatus): string {
-  switch (status) {
-    case ClientMatterStatus.VIGENTE:
-      return 'bg-success-tint text-success';
-    case ClientMatterStatus.VENCIDO:
-      return 'bg-danger-tint text-danger';
-    case ClientMatterStatus.TERMINADO:
-      return 'bg-surface-muted text-subtle';
-    default:
-      return 'bg-surface-muted text-muted';
-  }
-}
+// F34-b: extraído a util compartido — ahora también lo usan la pestaña
+// "Procesos" de la ficha del cliente y la card de /procesos.
+import { matterStatusClasses, matterStatusLabel } from '../../../../core/utils/matter-format.util';
 
 /**
  * F34 §2/§4: pestaña Asuntos de la ficha del cliente. CRUD completo contra

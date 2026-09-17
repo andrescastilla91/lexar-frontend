@@ -11,6 +11,7 @@ import { TasksService } from '../../../core/services/tasks.service';
 import {
   ClientResponse,
   ClientPersonType,
+  ClientMatterStatus,
   UpdateClientRequest,
   UpdateClientComplianceRequest,
 } from '../../../core/models/client-backend.model';
@@ -28,6 +29,8 @@ import { identificationNumberValidator } from '../utils/identification-number.va
 import { ClientContactsPanelComponent } from './components/client-contacts-panel.component';
 import { ClientMattersPanelComponent } from './components/client-matters-panel.component';
 import { getStatusClasses, getStatusLabel } from '../../processes/utils/process-format.utils';
+// F34-b: mismo badge de vigencia que ya usa la pestaña Asuntos.
+import { matterStatusClasses, matterStatusLabel } from '../../../core/utils/matter-format.util';
 
 type ClientDetailTab =
   | 'datos'
@@ -273,6 +276,26 @@ type ClientDetailTab =
                           {{ process.title }}
                         </a>
                         <p class="text-xs text-subtle">{{ process.caseNumber || 'Sin radicado' }}</p>
+                        <!-- F34-b: asunto vinculado, visible sin abrir el proceso -->
+                        @if (process.matter) {
+                          <p class="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-subtle">
+                            <span>{{ process.matter.name }}</span>
+                            @if (process.matter.isDeleted) {
+                              <span class="rounded-full bg-surface-muted px-1.5 py-0.5 text-[10px] font-semibold text-subtle">
+                                Eliminado
+                              </span>
+                            } @else if (process.matter.status === ClientMatterStatus.VENCIDO) {
+                              <span
+                                class="rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
+                                [class]="matterStatusClasses(process.matter.status)"
+                              >
+                                {{ matterStatusLabel(process.matter.status) }}
+                              </span>
+                            }
+                          </p>
+                        } @else {
+                          <p class="mt-0.5 text-xs text-subtle">Sin asunto</p>
+                        }
                       </div>
                       <span
                         class="inline-flex shrink-0 rounded-full px-2 py-1 text-xs font-semibold"
@@ -365,6 +388,9 @@ export class ClientDetailComponent implements OnInit {
 
   protected readonly getStatusLabel = getStatusLabel;
   protected readonly getStatusClasses = getStatusClasses;
+  protected readonly matterStatusLabel = matterStatusLabel;
+  protected readonly matterStatusClasses = matterStatusClasses;
+  protected readonly ClientMatterStatus = ClientMatterStatus;
 
   readonly editForm = this.fb.nonNullable.group(
     {

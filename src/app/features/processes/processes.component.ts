@@ -21,7 +21,6 @@ import { AdvisorResponse } from '../../core/models/advisor-backend.model';
 import {
   ClientResponse,
   ClientMatterResponse,
-  ClientMatterStatus,
 } from '../../core/models/client-backend.model';
 import { CatalogsService } from '../../core/services/catalogs.service';
 import { CatalogItem } from '../../core/models/catalog-backend.model';
@@ -124,7 +123,7 @@ import {
           [formGroup]="filterForm"
           (ngSubmit)="applyFilters()"
         >
-          <div class="grid gap-4 md:grid-cols-4">
+          <div class="grid gap-4 md:grid-cols-5">
             <label class="flex flex-col gap-2 text-sm text-muted md:col-span-2">
               Búsqueda
               <input
@@ -161,6 +160,22 @@ import {
                 <option [value]="null">Todos</option>
                 @for (client of clients(); track client.id) {
                   <option [value]="client.id">{{ client.fullName }}</option>
+                }
+              </select>
+            </label>
+            <!-- F34-b (rediseño 2026-09-17): el filtro por asunto concreto exigía
+                 elegir cliente primero (los asuntos son por cliente) — se
+                 reemplaza por el catálogo "Tipo de vinculación" (F25),
+                 transversal a toda la empresa, sin esa dependencia. -->
+            <label class="flex flex-col gap-2 text-sm text-muted">
+              Tipo de vinculación
+              <select
+                formControlName="contractTypeId"
+                class="rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
+              >
+                <option [value]="null">Todos</option>
+                @for (contractType of contractTypes(); track contractType.id) {
+                  <option [value]="contractType.id">{{ contractType.label }}</option>
                 }
               </select>
             </label>
@@ -357,6 +372,10 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   // F34 §3: asuntos del cliente actualmente seleccionado en el formulario —
   // se recarga cada vez que cambia processForm.clientId (ver constructor).
   readonly matters = signal<ClientMatterResponse[]>([]);
+  // F34-b: catálogo "Tipo de vinculación" (F25) para el filtro de /procesos —
+  // transversal a toda la empresa, no depende de elegir un cliente primero
+  // (a diferencia del asunto concreto, que sí es por cliente).
+  readonly contractTypes = signal<CatalogItem[]>([]);
   readonly stages = signal<CatalogItem[]>([]);
   readonly riskLevels = signal<CatalogItem[]>([]);
   readonly deadlineTypes = signal<CatalogItem[]>([]); // F13
@@ -446,6 +465,7 @@ export class ProcessesComponent implements OnInit, OnDestroy {
     search: [''],
     status: [null as ProcessStatus | null],
     clientId: [null as string | null],
+    contractTypeId: [null as string | null],
   });
 
   readonly processForm = this.fb.nonNullable.group({
@@ -565,6 +585,10 @@ export class ProcessesComponent implements OnInit, OnDestroy {
     this.catalogsService
       .getActiveCatalog('deadline_type')
       .subscribe((items) => this.deadlineTypes.set(items));
+    // F34-b (rediseño): catálogo para el filtro "Tipo de vinculación".
+    this.catalogsService
+      .getActiveCatalog('contract_type')
+      .subscribe((items) => this.contractTypes.set(items));
   }
 
   loadProcesses(): void {
@@ -575,6 +599,7 @@ export class ProcessesComponent implements OnInit, OnDestroy {
       .getLegalProcesses(this.currentPage(), this.pageSize, {
         status: filters.status || undefined,
         clientId: filters.clientId || undefined,
+        contractTypeId: filters.contractTypeId || undefined,
         search: filters.search || undefined,
       })
       .subscribe({
@@ -619,6 +644,7 @@ export class ProcessesComponent implements OnInit, OnDestroy {
       search: '',
       status: null,
       clientId: null,
+      contractTypeId: null,
     });
     this.applyFilters();
   }
@@ -777,6 +803,12 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   // LegalProcessesService.findOne()). Se sintetiza una entrada a partir de
   // process.matter — solo se usa para mostrar/preseleccionar, nunca se
   // manda de vuelta al backend como una opción de alta.
+  //
+  // F34-b: `status` ya no se hardcodea a TERMINADO — el mapper del backend
+  // expone el status real que tenía el asunto antes de eliminarse
+  // (`legal-process.mapper.ts`), así que se usa ese. Antes de F34-b
+  // `LegalProcessResponse.matter` no traía `status`, por eso quedó fijo;
+  // era deuda técnica, no una decisión de negocio.
   private buildDeletedMatterEntry(
     process: LegalProcessResponse,
   ): ClientMatterResponse | undefined {
@@ -791,7 +823,7 @@ export class ProcessesComponent implements OnInit, OnDestroy {
       description: null,
       startDate: null,
       endDate: null,
-      status: ClientMatterStatus.TERMINADO,
+      status: process.matter.status,
       processCount: 0,
       createdAt: '',
       updatedAt: '',

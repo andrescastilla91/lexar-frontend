@@ -17,6 +17,7 @@ import { ToastService } from '../../core/services/toast.service';
 import { PortalVisibilityPolicyService } from '../../core/services/portal-visibility-policy.service';
 import { PermissionsService } from '../../core/services/permissions.service';
 import { LegalProcessResponse, ProcessStatus } from '../../core/models/legal-process.model';
+import { ClientMatterStatus } from '../../core/models/client-backend.model';
 import { ProcessEvent, ProcessEventType } from '../../core/models/process-event.model';
 import { PortalEventVisibilityMode, PortalEventVisibilityPolicy } from '../../core/models/portal-visibility-policy.model';
 import { DeadlineResponse, DeadlineStatus } from '../../core/models/deadline.model';
@@ -696,14 +697,50 @@ describe('ProcessesComponent', () => {
           id: 'm-eliminado',
           name: 'Asunto eliminado',
           contractType: null,
+          status: ClientMatterStatus.TERMINADO,
           isDeleted: true,
         },
       });
 
       expect(component.matters()).toEqual([
-        expect.objectContaining({ id: 'm-eliminado', name: 'Asunto eliminado', isDeleted: true }),
+        expect.objectContaining({
+          id: 'm-eliminado',
+          name: 'Asunto eliminado',
+          isDeleted: true,
+          status: ClientMatterStatus.TERMINADO,
+        }),
       ]);
       expect(component.processForm.value.matterId).toBe('m-eliminado');
+    });
+
+    // F34-b: antes de esta HU, `status` quedaba hardcodeado a TERMINADO
+    // porque LegalProcessResponse.matter no traía el status real. Ahora que
+    // el backend lo expone, la entrada sintetizada debe reflejarlo tal cual
+    // (acá con VENCIDO, distinto del hardcode anterior, para probar que no
+    // quedó un valor fijo disfrazado).
+    it('sintetiza el asunto eliminado con su status real, no un valor fijo', async () => {
+      await configure();
+      clientsServiceMock.getMatters.mockReturnValue(of([]));
+      const component = createComponent();
+
+      component.editProcess({
+        ...process,
+        matterId: 'm-eliminado-vencido',
+        matter: {
+          id: 'm-eliminado-vencido',
+          name: 'Asunto vencido y eliminado',
+          contractType: null,
+          status: ClientMatterStatus.VENCIDO,
+          isDeleted: true,
+        },
+      });
+
+      expect(component.matters()).toEqual([
+        expect.objectContaining({
+          id: 'm-eliminado-vencido',
+          status: ClientMatterStatus.VENCIDO,
+        }),
+      ]);
     });
 
     it('editProcess no sintetiza nada cuando el asunto vinculado sigue vigente (isDeleted false)', async () => {
@@ -727,7 +764,7 @@ describe('ProcessesComponent', () => {
       component.editProcess({
         ...process,
         matterId: 'm1',
-        matter: { id: 'm1', name: 'Asunto vigente', contractType: null, isDeleted: false },
+        matter: { id: 'm1', name: 'Asunto vigente', contractType: null, status: ClientMatterStatus.VIGENTE, isDeleted: false },
       });
 
       expect(component.matters()).toEqual([vigente]);
@@ -758,6 +795,7 @@ describe('ProcessesComponent', () => {
           id: 'm-eliminado',
           name: 'Asunto eliminado',
           contractType: null,
+          status: ClientMatterStatus.TERMINADO,
           isDeleted: true,
         },
       });
