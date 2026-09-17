@@ -35,6 +35,14 @@ export class ClientsPage {
   readonly portalInviteEmailInput: Locator;
   readonly portalInviteButton: Locator;
 
+  // F34 §2/§4: pestaña "Asuntos" de la ficha del cliente.
+  readonly mattersPanel: Locator;
+  readonly addMatterButton: Locator;
+  readonly matterNameInput: Locator;
+  readonly matterContractTypeSelect: Locator;
+  readonly matterEndDateInput: Locator;
+  readonly saveMatterButton: Locator;
+
   constructor(private readonly page: Page) {
     this.newClientButton = page.getByRole('button', { name: 'Nuevo cliente' });
     this.fullNameInput = page.locator('input[formcontrolname="fullName"]');
@@ -45,6 +53,16 @@ export class ClientsPage {
     this.portalPanel = page.locator('app-client-portal-invitations');
     this.portalInviteEmailInput = this.portalPanel.locator('input[name="portalInviteEmail"]');
     this.portalInviteButton = this.portalPanel.getByRole('button', { name: 'Invitar', exact: true });
+
+    this.mattersPanel = page.locator('app-client-matters-panel');
+    this.addMatterButton = this.mattersPanel.getByRole('button', { name: '+ Agregar asunto' });
+    // Escopados al modal del formulario (fixed inset-0), no al panel de
+    // lista: name/contractTypeId no existen fuera de él.
+    const matterFormScope = page.locator('app-client-matters-panel form');
+    this.matterNameInput = matterFormScope.locator('input[formcontrolname="name"]');
+    this.matterContractTypeSelect = matterFormScope.locator('select[formcontrolname="contractTypeId"]');
+    this.matterEndDateInput = matterFormScope.locator('input[formcontrolname="endDate"]');
+    this.saveMatterButton = matterFormScope.getByRole('button', { name: 'Guardar' });
   }
 
   async goto(): Promise<void> {
@@ -95,5 +113,88 @@ export class ClientsPage {
   async inviteToPortal(email: string): Promise<void> {
     await this.portalInviteEmailInput.fill(email);
     await this.portalInviteButton.click();
+  }
+
+  // F34 §2/§4: navega de la lista a la ficha del cliente y abre la pestaña
+  // "Asuntos" — mismo patrón que openPortalPanel(). Requiere estar en
+  // /clientes (la lista) antes de llamarlo — ver openMattersTab() para el
+  // caso en que ya estás en la ficha (p. ej. justo después de
+  // createClient(), que navega directo ahí — ver comentario de la clase).
+  async openMattersPanel(clientFullName: string): Promise<void> {
+    await this.viewFichaButton(clientFullName).click();
+    await this.fichaHeading(clientFullName).waitFor();
+    await this.openMattersTab();
+  }
+
+  // BUG QA 2026-09-17 (fallo real de e2e, no del código de producto):
+  // openMattersPanel() asume que arranca desde /clientes y hace clic en
+  // "Ver ficha" — pero createClient() ya deja al usuario parado en la ficha
+  // (/clientes/:id), así que llamar a openMattersPanel() justo después de
+  // crear un cliente busca un link "Ver ficha" que no existe en esa página
+  // y el test cuelga hasta el timeout. Este helper asume que YA estás en la
+  // ficha y solo cambia de pestaña.
+  async openMattersTab(): Promise<void> {
+    await this.page.getByRole('button', { name: 'Asuntos', exact: true }).click();
+    await this.mattersPanel.waitFor();
+  }
+
+  async createMatter(data: { name: string; contractTypeLabel?: string; endDate?: string }): Promise<void> {
+    await this.addMatterButton.click();
+    await this.matterNameInput.fill(data.name);
+    if (data.contractTypeLabel) {
+      await this.matterContractTypeSelect.selectOption({ label: data.contractTypeLabel });
+    }
+    if (data.endDate) {
+      await this.matterEndDateInput.fill(data.endDate);
+    }
+    await this.saveMatterButton.click();
+  }
+
+  matterRow(matterName: string): Locator {
+    return this.mattersPanel.locator('li').filter({ hasText: matterName });
+  }
+
+  matterStatusBadge(matterName: string): Locator {
+    return this.matterRow(matterName).locator('span.rounded-full');
+  }
+
+  // BUG-27 (ajuste 2026-09-17): el `title` del botón "Eliminar" cambia según
+  // si el asunto tiene procesos vinculados o no — "Eliminar" cuando puede
+  // borrarse, "No se puede eliminar: ..." cuando está bloqueado (ver
+  // client-matters-panel.component.ts). Este locator matchea ambos casos
+  // (case-insensitive sobre "liminar") para poder comprobar el estado
+  // `disabled` sin depender del texto exacto del title.
+  matterDeleteButton(matterName: string): Locator {
+    return this.matterRow(matterName).locator('button[title*="liminar" i]');
+  }
+
+  matterCloseEarlyButton(matterName: string): Locator {
+    return this.matterRow(matterName).locator('button[title="Cerrar anticipadamente"]');
+  }
+
+  // BUG QA 2026-09-17 (F34): elimina (soft delete) el asunto de la fila —
+  // el botón es un icon-button sin texto visible, su accessible name viene
+  // del `title="Eliminar"` (ver client-matters-panel.component.ts). El
+  // ConfirmDialogComponent global personaliza confirmLabel a "Eliminar"
+  // también (mismo texto), así que hay que escopar el botón del modal a
+  // `app-confirm-dialog` para no ambigüedad con el botón de la fila.
+  // Solo funciona sobre un asunto SIN procesos vinculados — desde el ajuste
+  // de BUG-27 el botón queda deshabilitado en cualquier otro caso.
+  async removeMatter(matterName: string): Promise<void> {
+    await this.matterRow(matterName).locator('button[title="Eliminar"]').click();
+    await this.page
+      .locator('app-confirm-dialog')
+      .getByRole('button', { name: 'Eliminar' })
+      .click();
+  }
+
+  // BUG-27 (ajuste 2026-09-17): vía alternativa para un asunto con procesos
+  // vinculados — preserva la relación intacta en vez de eliminarla.
+  async closeMatterEarly(matterName: string): Promise<void> {
+    await this.matterCloseEarlyButton(matterName).click();
+    await this.page
+      .locator('app-confirm-dialog')
+      .getByRole('button', { name: 'Cerrar asunto' })
+      .click();
   }
 }

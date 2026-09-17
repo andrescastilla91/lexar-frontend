@@ -23,6 +23,10 @@ export class ProcessesPage {
   readonly titleInput: Locator;
   readonly descriptionInput: Locator;
   readonly clientSelect: Locator;
+  // F34 §3: el <select> de asunto se recarga vía Angular al cambiar de
+  // cliente (valueChanges de clientId) — hay que esperar a que la opción
+  // exista, no basta con seleccionarla inmediatamente tras elegir cliente.
+  readonly matterSelect: Locator;
   readonly stageSelect: Locator;
   readonly riskLevelSelect: Locator;
   readonly caseNumberInput: Locator;
@@ -54,6 +58,7 @@ export class ProcessesPage {
     this.titleInput = formScope.locator('input[formcontrolname="title"]');
     this.descriptionInput = formScope.locator('textarea[formcontrolname="description"]');
     this.clientSelect = formScope.locator('select[formcontrolname="clientId"]');
+    this.matterSelect = formScope.locator('select[formcontrolname="matterId"]');
     this.stageSelect = formScope.locator('select[formcontrolname="stageId"]');
     this.riskLevelSelect = formScope.locator('select[formcontrolname="riskLevelId"]');
     this.caseNumberInput = formScope.locator('input[formcontrolname="caseNumber"]');
@@ -138,6 +143,26 @@ export class ProcessesPage {
       await this.advisorCheckbox(data.advisorFullName).check();
     }
     await this.saveProcessButton.click();
+  }
+
+  // F34 §3: selecciona un asunto en el <select> del formulario — espera a
+  // que la opción exista porque matters() se recarga asíncronamente vía
+  // ClientsService.getMatters() tras elegir cliente (ver process-form.component.ts).
+  //
+  // BUG QA 2026-09-17 (e2e real, no del código de producto): waitFor() sin
+  // `state` espera 'visible' por defecto, y Playwright/Chromium calculan la
+  // geometría de un <option> dentro de un <select> CERRADO como oculta (no
+  // hay bounding box real hasta que el dropdown nativo se abre) — el propio
+  // error-context.md de la corrida en rojo muestra el <option> ya presente
+  // con el texto correcto en el árbol de accesibilidad, solo que nunca
+  // "visible" en 30s. Lo único que este wait necesita garantizar es que la
+  // opción ya EXISTE en el DOM (que matters() terminó de cargar) — no que
+  // esté pintada, algo que selectOption() no requiere (actúa sobre el value,
+  // no sobre clicks reales). state: 'attached' expresa esa precondición real
+  // sin depender del cálculo de visibilidad, inconsistente para <option>.
+  async selectMatter(matterName: string): Promise<void> {
+    await this.matterSelect.locator('option', { hasText: matterName }).waitFor({ state: 'attached' });
+    await this.matterSelect.selectOption({ label: matterName });
   }
 
   // Card de escritorio: title="Editar proceso" es el nombre accesible del

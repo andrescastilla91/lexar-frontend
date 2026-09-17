@@ -35,6 +35,18 @@ export interface LegalProcessResponse {
     email: string;
   };
   advisors?: AdvisorResponse[];
+  /** F34 §3: nulo en procesos preexistentes o creados sin asunto — "Decisión
+   * de transición" explícita, nunca retroactivamente obligatorio. */
+  matterId: string | null;
+  /** `isDeleted` (bug QA 2026-09-17): el asunto fue eliminado (soft delete)
+   * pero el proceso conserva la referencia — el backend lo hidrata aparte
+   * (`withDeleted: true`) para que esta relación nunca "desaparezca". */
+  matter: {
+    id: string;
+    name: string;
+    contractType: CatalogRef | null;
+    isDeleted: boolean;
+  } | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -51,6 +63,7 @@ export interface CreateLegalProcessRequest {
   endDate?: string;
   clientId: string;
   advisorIds?: string[];
+  matterId?: string;
 }
 
 export interface UpdateLegalProcessRequest {
@@ -65,6 +78,7 @@ export interface UpdateLegalProcessRequest {
   endDate?: string;
   clientId?: string;
   advisorIds?: string[];
+  matterId?: string;
 }
 
 export interface UpdateProcessStatusRequest {

@@ -18,7 +18,11 @@ import { DeadlinesService } from '../../core/services/deadlines.service';
 import { TasksService } from '../../core/services/tasks.service';
 import { TaskStatusesService } from '../../core/services/task-statuses.service';
 import { AdvisorResponse } from '../../core/models/advisor-backend.model';
-import { ClientResponse } from '../../core/models/client-backend.model';
+import {
+  ClientResponse,
+  ClientMatterResponse,
+  ClientMatterStatus,
+} from '../../core/models/client-backend.model';
 import { CatalogsService } from '../../core/services/catalogs.service';
 import { CatalogItem } from '../../core/models/catalog-backend.model';
 import {
@@ -192,10 +196,12 @@ import {
         [advisors]="advisors()"
         [stages]="stages()"
         [riskLevels]="riskLevels()"
+        [matters]="matters()"
         (close)="togglePanel()"
         (submit)="submitProcess()"
         (advisorIdsChange)="setAdvisorIds($event)"
         (generateCaseNumber)="generateCaseNumber()"
+        (clientChange)="onClientChanged($event)"
       />
 
       <!-- Status Update Modal (HU-14) -->
@@ -348,6 +354,9 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   readonly processes = signal<LegalProcessResponse[]>([]);
   readonly advisors = signal<AdvisorResponse[]>([]);
   readonly clients = signal<ClientResponse[]>([]);
+  // F34 §3: asuntos del cliente actualmente seleccionado en el formulario —
+  // se recarga cada vez que cambia processForm.clientId (ver constructor).
+  readonly matters = signal<ClientMatterResponse[]>([]);
   readonly stages = signal<CatalogItem[]>([]);
   readonly riskLevels = signal<CatalogItem[]>([]);
   readonly deadlineTypes = signal<CatalogItem[]>([]); // F13
@@ -451,6 +460,7 @@ export class ProcessesComponent implements OnInit, OnDestroy {
     caseNumber: [''],
     startDate: [''],
     endDate: [''],
+    matterId: [''],
   });
 
   readonly statusForm = this.fb.nonNullable.group({
@@ -490,6 +500,51 @@ export class ProcessesComponent implements OnInit, OnDestroy {
     this.loadTaskTemplates();
     this.loadTaskStatuses();
     this.loadVisibilityPolicies();
+
+    // F34 §3: se recargan los asuntos cada vez que cambia clientId — tanto
+    // por selección manual del usuario (clientChange en process-form) como
+    // por patchValue programático (editProcess()). No limpia matterId acá:
+    // eso solo ocurre en onClientChanged(), disparado por interacción real.
+    this.processForm.get('clientId')!.valueChanges.subscribe((clientId) => {
+      this.loadMattersForClient(clientId || null);
+    });
+  }
+
+  // F34 §3: recarga la lista de asuntos disponibles para el cliente actual
+  // del formulario — vacía la lista (no deja asuntos de otro cliente
+  // seleccionable) cuando no hay cliente elegido.
+  //
+  // BUG QA 2026-09-17 (F34) — `syntheticMatter`: solo lo pasa editProcess()
+  // cuando el proceso está vinculado a un asunto ya soft-eliminado (ver
+  // mergeDeletedMatterIfNeeded más abajo). Tiene que mergearse DENTRO del
+  // `next` del propio Observable — si se mergeara antes de llamar a este
+  // método (p. ej. justo después de invocarlo), la respuesta real del
+  // backend llegaría después y lo pisaría, porque /client-matters nunca
+  // incluye asuntos eliminados.
+  loadMattersForClient(
+    clientId: string | null,
+    syntheticMatter?: ClientMatterResponse,
+  ): void {
+    if (!clientId) {
+      this.matters.set(syntheticMatter ? [syntheticMatter] : []);
+      return;
+    }
+    this.clientsService.getMatters(clientId).subscribe({
+      next: (matters) =>
+        this.matters.set(
+          syntheticMatter && !matters.some((m) => m.id === syntheticMatter.id)
+            ? [...matters, syntheticMatter]
+            : matters,
+        ),
+      error: () => this.matters.set(syntheticMatter ? [syntheticMatter] : []),
+    });
+  }
+
+  // F34 §3: solo se invoca desde el evento nativo `change` del <select> de
+  // cliente en process-form.component.ts — nunca desde editProcess(), que
+  // ya patchea el matterId correcto del proceso y no debe perderlo.
+  onClientChanged(_clientId: string): void {
+    this.processForm.patchValue({ matterId: '' });
   }
 
   // F27: política de visibilidad del portal por tipo de evento.
@@ -598,6 +653,7 @@ export class ProcessesComponent implements OnInit, OnDestroy {
         caseNumber: '',
         startDate: '',
         endDate: '',
+        matterId: '',
       });
       // Habilitar todos los campos para nuevo proceso
       Object.keys(this.processForm.controls).forEach((key) => {
@@ -637,6 +693,7 @@ export class ProcessesComponent implements OnInit, OnDestroy {
       clientId: formValue.clientId,
       // Se envía siempre el array real: omitirlo cuando queda vacío hace que el backend nunca toque la relación.
       advisorIds: formValue.advisorIds,
+      matterId: formValue.matterId || undefined,
     };
 
     // El estado solo se incluye al crear (siempre DRAFT)
@@ -676,25 +733,70 @@ export class ProcessesComponent implements OnInit, OnDestroy {
 
   editProcess(process: LegalProcessResponse): void {
     this.editingProcess.set(process);
-    this.processForm.patchValue({
-      title: process.title,
-      description: process.description || '',
-      clientId: process.clientId,
-      advisorIds: process.advisors?.map((a) => a.id) || [],
-      status: process.status,
-      stageId: process.stage?.id || '',
-      riskLevelId: process.riskLevel?.id || '',
-      court: process.court || '',
-      caseNumber: process.caseNumber || '',
-      startDate: process.startDate
-        ? new Date(process.startDate).toISOString().slice(0, 10)
-        : '',
-      endDate: process.endDate
-        ? new Date(process.endDate).toISOString().slice(0, 10)
-        : '',
-    });
+    // BUG QA 2026-09-17 (F34): { emitEvent: false } evita que este patchValue
+    // dispare la suscripción a clientId.valueChanges (loadMattersForClient
+    // async) — de lo contrario esa recarga llegaría *después* de mergear el
+    // asunto eliminado sintético de abajo y lo pisaría con la lista real
+    // (que nunca incluye asuntos soft-eliminados). Se llama a
+    // loadMattersForClient() explícitamente a continuación, en el mismo
+    // orden que antes, solo que ya no depende de la carrera del Observable.
+    this.processForm.patchValue(
+      {
+        title: process.title,
+        description: process.description || '',
+        clientId: process.clientId,
+        advisorIds: process.advisors?.map((a) => a.id) || [],
+        status: process.status,
+        stageId: process.stage?.id || '',
+        riskLevelId: process.riskLevel?.id || '',
+        court: process.court || '',
+        caseNumber: process.caseNumber || '',
+        startDate: process.startDate
+          ? new Date(process.startDate).toISOString().slice(0, 10)
+          : '',
+        endDate: process.endDate
+          ? new Date(process.endDate).toISOString().slice(0, 10)
+          : '',
+        matterId: process.matterId || '',
+      },
+      { emitEvent: false },
+    );
+    this.loadMattersForClient(
+      process.clientId || null,
+      this.buildDeletedMatterEntry(process),
+    );
     this.configureEditableFields(process.status);
     this.panelOpen.set(true);
+  }
+
+  // BUG QA 2026-09-17 (F34): /client-matters excluye asuntos soft-eliminados
+  // (comportamiento correcto para el alta de nuevos vínculos), así que si el
+  // proceso está enlazado a uno ya eliminado, el <select> de
+  // ProcessFormComponent no tendría ninguna opción que preseleccionar y se
+  // vería "vacío" pese a que el backend conserva matterId (ver
+  // LegalProcessesService.findOne()). Se sintetiza una entrada a partir de
+  // process.matter — solo se usa para mostrar/preseleccionar, nunca se
+  // manda de vuelta al backend como una opción de alta.
+  private buildDeletedMatterEntry(
+    process: LegalProcessResponse,
+  ): ClientMatterResponse | undefined {
+    if (!process.matter?.isDeleted) {
+      return undefined;
+    }
+    return {
+      id: process.matter.id,
+      clientId: process.clientId,
+      contractType: process.matter.contractType,
+      name: process.matter.name,
+      description: null,
+      startDate: null,
+      endDate: null,
+      status: ClientMatterStatus.TERMINADO,
+      processCount: 0,
+      createdAt: '',
+      updatedAt: '',
+      isDeleted: true,
+    };
   }
 
   openStatusModal(process: LegalProcessResponse): void {
@@ -1237,10 +1339,21 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   }
 
   // Workflow helpers
+  //
+  // BUG QA 2026-09-17 (F34 §3, hallazgo durante fix de matterId sintético):
+  // enable()/disable() de un FormControl emiten valueChanges por defecto,
+  // aunque el valor no cambie. Si este método corre sin { emitEvent: false }
+  // después de editProcess(), el enable() de 'clientId' aquí abajo reactiva
+  // la suscripción del constructor (línea ~508) y vuelve a llamar
+  // loadMattersForClient(clientId) — esta vez SIN el asunto eliminado
+  // sintético — pisando la lista que editProcess() acababa de construir. Por
+  // eso todo enable()/disable() de este método usa { emitEvent: false }: es
+  // reconfiguración interna de permisos de edición por estado, no una
+  // interacción real del usuario sobre el cliente.
   configureEditableFields(status: ProcessStatus): void {
     // Habilitar todos los campos primero
     Object.keys(this.processForm.controls).forEach((key) => {
-      this.processForm.get(key)?.enable();
+      this.processForm.get(key)?.enable({ emitEvent: false });
     });
 
     // Configurar restricciones según el estado
@@ -1251,22 +1364,22 @@ export class ProcessesComponent implements OnInit, OnDestroy {
 
       case ProcessStatus.ACTIVE:
         // En activo, no se puede cambiar el número de caso ni el cliente
-        this.processForm.get('caseNumber')?.disable();
-        this.processForm.get('clientId')?.disable();
+        this.processForm.get('caseNumber')?.disable({ emitEvent: false });
+        this.processForm.get('clientId')?.disable({ emitEvent: false });
         break;
 
       case ProcessStatus.UNDER_REVIEW:
         // En revisión, no se puede cambiar caso, cliente (más restrictivo que activo)
-        this.processForm.get('caseNumber')?.disable();
-        this.processForm.get('clientId')?.disable();
-        this.processForm.get('status')?.disable(); // Evitar cambio directo de estado
+        this.processForm.get('caseNumber')?.disable({ emitEvent: false });
+        this.processForm.get('clientId')?.disable({ emitEvent: false });
+        this.processForm.get('status')?.disable({ emitEvent: false }); // Evitar cambio directo de estado
         break;
 
       case ProcessStatus.SUSPENDED:
         // Suspendido, no se puede cambiar caso, cliente, ni etapa
-        this.processForm.get('caseNumber')?.disable();
-        this.processForm.get('clientId')?.disable();
-        this.processForm.get('stageId')?.disable();
+        this.processForm.get('caseNumber')?.disable({ emitEvent: false });
+        this.processForm.get('clientId')?.disable({ emitEvent: false });
+        this.processForm.get('stageId')?.disable({ emitEvent: false });
         break;
 
       case ProcessStatus.COMPLETED:
@@ -1274,7 +1387,7 @@ export class ProcessesComponent implements OnInit, OnDestroy {
       case ProcessStatus.ARCHIVED:
         // Procesos finalizados no son editables
         Object.keys(this.processForm.controls).forEach((key) => {
-          this.processForm.get(key)?.disable();
+          this.processForm.get(key)?.disable({ emitEvent: false });
         });
         break;
     }

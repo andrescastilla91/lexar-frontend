@@ -26,6 +26,7 @@ import { ToastService } from '../../../core/services/toast.service';
 import { MultiSelectComponent, MultiSelectItem } from '../../../shared/components/multi-select/multi-select.component';
 import { identificationNumberValidator } from '../utils/identification-number.validator';
 import { ClientContactsPanelComponent } from './components/client-contacts-panel.component';
+import { ClientMattersPanelComponent } from './components/client-matters-panel.component';
 import { getStatusClasses, getStatusLabel } from '../../processes/utils/process-format.utils';
 
 type ClientDetailTab =
@@ -39,10 +40,9 @@ type ClientDetailTab =
   | 'cumplimiento';
 
 /**
- * F33 §6: ficha del cliente con pestañas. Datos/Cumplimiento comparten un
- * único formulario (misma entidad `Client`); Contactos, Procesos, Tareas y
- * Documentos cargan su propia fuente de datos. Asuntos queda como
- * placeholder hasta F34.
+ * F33 §6/F34 §4: ficha del cliente con pestañas. Datos/Cumplimiento
+ * comparten un único formulario (misma entidad `Client`); Contactos,
+ * Asuntos, Procesos, Tareas y Documentos cargan su propia fuente de datos.
  */
 @Component({
   selector: 'app-client-detail',
@@ -55,6 +55,7 @@ type ClientDetailTab =
     EntityFilesComponent,
     ClientPortalInvitationsComponent,
     ClientContactsPanelComponent,
+    ClientMattersPanelComponent,
   ],
   template: `
     @if (isLoading()) {
@@ -253,9 +254,7 @@ type ClientDetailTab =
             <app-client-contacts-panel [clientId]="client()!.id" />
           }
           @case ('asuntos') {
-            <div class="rounded-lg border border-default bg-surface p-12 text-center">
-              <p class="text-subtle">Los asuntos y el tipo de vinculación llegan con F34.</p>
-            </div>
+            <app-client-matters-panel [clientId]="client()!.id" />
           }
           @case ('procesos') {
             <div class="rounded-lg border border-default bg-surface shadow-card">

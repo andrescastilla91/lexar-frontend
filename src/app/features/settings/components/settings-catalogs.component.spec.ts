@@ -80,6 +80,19 @@ describe('SettingsCatalogsComponent', () => {
     expect(component.isLoading()).toBe(false);
   });
 
+  // F34 §1: nueva pestaña "Tipos de vinculación" (contract_type).
+  it('incluye la pestaña "Tipos de vinculación" (contract_type) y permite seleccionarla', () => {
+    catalogsServiceMock.getCatalog.mockReturnValue(of([]));
+    const component = createComponent();
+
+    expect(component.tabs.find((t) => t.id === 'contract_type')?.label).toBe('Tipos de vinculación');
+
+    component.selectType('contract_type');
+
+    expect(component.activeType()).toBe('contract_type');
+    expect(catalogsServiceMock.getCatalog).toHaveBeenCalledWith('contract_type');
+  });
+
   it('selectType cambia el tipo activo y recarga; no hace nada si ya está activo', () => {
     const component = createComponent();
     catalogsServiceMock.getCatalog.mockClear();

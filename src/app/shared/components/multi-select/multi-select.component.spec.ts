@@ -99,6 +99,34 @@ describe('MultiSelectComponent (BUG-06 etapa 1)', () => {
     expect(component.isSelected('a2')).toBe(true);
   });
 
+  // BUG QA 2026-09-17: <app-multi-select> es un elemento custom sin display
+  // propio del navegador (default inline), así que el margin-top que
+  // Tailwind's space-y-4 aplicaba al botón "Guardar cambios" siguiente se
+  // colapsaba en cualquier formulario que usara este componente. jsdom no
+  // calcula geometría real (getBoundingClientRect siempre da 0), así que
+  // medir separación visual no es una vía confiable en este entorno de test.
+  //
+  // Ajuste 2026-09-17 (fix real, no solo diagnóstico): la primera versión
+  // de este test leía el metadato compilado ɵcmp.styles directamente — en
+  // este pipeline de Jest (jest-preset-angular, JIT) esa propiedad interna
+  // del compilador de Ivy llega vacía en tiempo de test pese a que el
+  // decorador declara styles correctamente (confirmado con el código fuente
+  // y el diff, no es un builder desactualizado). Es un detalle de
+  // implementación no garantizado entre versiones, no el comportamiento que
+  // el bug realmente pedía verificar. Se reemplaza por una verificación de
+  // caja negra: jsdom sí resuelve getComputedStyle() contra las hojas de
+  // estilo insertadas en tiempo real por el renderer de Angular (aunque no
+  // calcule layout/geometría), así que comprobar el display computado del
+  // host tras detectChanges() prueba directamente que la regla ':host'
+  // quedó aplicada — que es lo único que le importa a este bug.
+  it('define :host { display: block; } para que el margin-top de los hermanos no colapse', () => {
+    const { fixture } = createComponent();
+
+    const computed = getComputedStyle(fixture.nativeElement);
+
+    expect(computed.display).toBe('block');
+  });
+
   // Elevado a scope de módulo (antes vivía solo dentro de 'teclado') porque
   // el describe 'desplegable' agregado en el ajuste de UX del 2026-09-03
   // también necesita simular Escape.

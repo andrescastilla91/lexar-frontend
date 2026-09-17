@@ -16,6 +16,7 @@ const CATALOG_TABS: { id: CatalogType; label: string }[] = [
   { id: 'advisor_specialty', label: 'Especialidades de asesor' },
   { id: 'deadline_type', label: 'Tipos de plazo' },
   { id: 'laft_risk', label: 'Riesgo LA/FT' },
+  { id: 'contract_type', label: 'Tipos de vinculación' },
 ];
 
 const COLOR_OPTIONS: { value: string; label: string }[] = [

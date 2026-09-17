@@ -3,7 +3,7 @@ import { FormBuilder, Validators } from '@angular/forms';
 import { ProcessFormComponent } from './process-form.component';
 import { ProcessStatus } from '../../../core/models/legal-process.model';
 import { AdvisorResponse } from '../../../core/models/advisor-backend.model';
-import { ClientResponse } from '../../../core/models/client-backend.model';
+import { ClientResponse, ClientMatterResponse, ClientMatterStatus } from '../../../core/models/client-backend.model';
 
 describe('ProcessFormComponent', () => {
   const fb = new FormBuilder();
@@ -21,6 +21,7 @@ describe('ProcessFormComponent', () => {
       caseNumber: [''],
       startDate: [''],
       endDate: [''],
+      matterId: [''],
     });
   }
 
@@ -54,6 +55,27 @@ describe('ProcessFormComponent', () => {
     assignedAdvisor: null,
     createdAt: new Date('2026-01-01'),
     updatedAt: new Date('2026-01-01'),
+  };
+
+  const matterVigente: ClientMatterResponse = {
+    id: 'm1',
+    clientId: 'cl1',
+    contractType: null,
+    name: 'Asesoría permanente',
+    description: null,
+    startDate: null,
+    endDate: null,
+    status: ClientMatterStatus.VIGENTE,
+    processCount: 0,
+    createdAt: '2026-01-01',
+    updatedAt: '2026-01-01',
+  };
+
+  const matterVencido: ClientMatterResponse = {
+    ...matterVigente,
+    id: 'm2',
+    name: 'Litigio vencido',
+    status: ClientMatterStatus.VENCIDO,
   };
 
   function createComponent() {
@@ -203,5 +225,89 @@ describe('ProcessFormComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('Editar proceso');
+  });
+
+  // F34 §3: selector de asunto + advertencia no bloqueante para asuntos
+  // vencidos + aviso de clasificación pendiente en procesos existentes.
+  it('selectedMatter refleja el asunto seleccionado por matterId', () => {
+    const fixture = createComponent();
+    const form = buildForm();
+    form.patchValue({ matterId: 'm2' });
+    fixture.componentRef.setInput('form', form);
+    fixture.componentRef.setInput('isOpen', true);
+    fixture.componentRef.setInput('matters', [matterVigente, matterVencido]);
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.selectedMatter()).toEqual(matterVencido);
+  });
+
+  it('muestra advertencia no bloqueante cuando el asunto seleccionado está vencido', () => {
+    const fixture = createComponent();
+    const form = buildForm();
+    form.patchValue({ matterId: 'm2' });
+    fixture.componentRef.setInput('form', form);
+    fixture.componentRef.setInput('isOpen', true);
+    fixture.componentRef.setInput('matters', [matterVigente, matterVencido]);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Este asunto está vencido');
+    // No bloquea el envío — el botón sigue habilitado.
+    const submitBtn: HTMLButtonElement = fixture.nativeElement.querySelector('button[type="submit"]');
+    expect(submitBtn.disabled).toBe(false);
+  });
+
+  // BUG QA 2026-09-17 (F34): asunto eliminado (soft delete) pero la
+  // referencia se conserva en el proceso — aviso no bloqueante, nunca el de
+  // "vencido" (isDeleted se revisa primero en la cadena @if/@else if).
+  it('muestra aviso no bloqueante cuando el asunto seleccionado fue eliminado', () => {
+    const matterEliminado: ClientMatterResponse = {
+      ...matterVigente,
+      id: 'm3',
+      name: 'Asunto eliminado',
+      isDeleted: true,
+    };
+    const fixture = createComponent();
+    const form = buildForm();
+    form.patchValue({ matterId: 'm3' });
+    fixture.componentRef.setInput('form', form);
+    fixture.componentRef.setInput('isOpen', true);
+    fixture.componentRef.setInput('matters', [matterVigente, matterEliminado]);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain(
+      'Este asunto fue eliminado. Se mantiene la referencia en el proceso.',
+    );
+    expect(fixture.nativeElement.textContent).not.toContain('Este asunto está vencido');
+    const submitBtn: HTMLButtonElement = fixture.nativeElement.querySelector('button[type="submit"]');
+    expect(submitBtn.disabled).toBe(false);
+  });
+
+  it('muestra aviso de clasificación pendiente en un proceso existente sin asunto', () => {
+    const fixture = createComponent();
+    fixture.componentRef.setInput('form', buildForm());
+    fixture.componentRef.setInput('isOpen', true);
+    fixture.componentRef.setInput('isEditing', true);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Clasificación pendiente');
+  });
+
+  it('emite clientChange solo ante la interacción real del usuario con el select de cliente', () => {
+    const fixture = createComponent();
+    fixture.componentRef.setInput('form', buildForm());
+    fixture.componentRef.setInput('isOpen', true);
+    fixture.componentRef.setInput('clients', [client]);
+    fixture.detectChanges();
+
+    const spy = jest.fn();
+    fixture.componentInstance.clientChange.subscribe(spy);
+
+    const clientSelect: HTMLSelectElement = fixture.nativeElement.querySelector(
+      'select[formcontrolname="clientId"]',
+    );
+    clientSelect.value = 'cl1';
+    clientSelect.dispatchEvent(new Event('change'));
+
+    expect(spy).toHaveBeenCalledWith('cl1');
   });
 });

@@ -10,6 +10,9 @@ import {
   ClientContactResponse,
   CreateClientContactRequest,
   UpdateClientContactRequest,
+  ClientMatterResponse,
+  CreateClientMatterRequest,
+  UpdateClientMatterRequest,
 } from '../models/client-backend.model';
 
 interface ClientsListResponse {
@@ -35,6 +38,16 @@ interface ClientContactItemResponse {
   contact: ClientContactResponse;
 }
 
+interface ClientMattersListResponse {
+  message: string;
+  matters: ClientMatterResponse[];
+}
+
+interface ClientMatterItemResponse {
+  message: string;
+  matter: ClientMatterResponse;
+}
+
 // BUG-20 ola 2: lee error.message — no error.error?.message — ver el
 // comentario en deadlines.service.ts.
 @Injectable({ providedIn: 'root' })
@@ -42,6 +55,7 @@ export class ClientsService {
   private readonly http = inject(HttpClient);
   private readonly apiUrl = `${environment.apiUrl}/clients`;
   private readonly contactsApiUrl = `${environment.apiUrl}/client-contacts`;
+  private readonly mattersApiUrl = `${environment.apiUrl}/client-matters`;
 
   /**
    * Obtener todos los clientes de la empresa
@@ -172,6 +186,51 @@ export class ClientsService {
       catchError((error) => {
         console.error('Error al eliminar contacto:', error);
         return throwError(() => new Error(error.message || 'Error al eliminar contacto'));
+      }),
+    );
+  }
+
+  // ── F34: asuntos (matters) ──────────────────────────────────────
+
+  getMatters(clientId: string): Observable<ClientMatterResponse[]> {
+    return this.http
+      .get<ClientMattersListResponse>(this.mattersApiUrl, {
+        params: { clientId },
+      })
+      .pipe(
+        map((response) => response.matters),
+        catchError((error) => {
+          console.error('Error al obtener asuntos:', error);
+          return throwError(() => new Error(error.message || 'Error al cargar asuntos'));
+        }),
+      );
+  }
+
+  createMatter(data: CreateClientMatterRequest): Observable<ClientMatterResponse> {
+    return this.http.post<ClientMatterItemResponse>(this.mattersApiUrl, data).pipe(
+      map((response) => response.matter),
+      catchError((error) => {
+        console.error('Error al crear asunto:', error);
+        return throwError(() => new Error(error.message || 'Error al crear asunto'));
+      }),
+    );
+  }
+
+  updateMatter(id: string, data: UpdateClientMatterRequest): Observable<ClientMatterResponse> {
+    return this.http.patch<ClientMatterItemResponse>(`${this.mattersApiUrl}/${id}`, data).pipe(
+      map((response) => response.matter),
+      catchError((error) => {
+        console.error('Error al actualizar asunto:', error);
+        return throwError(() => new Error(error.message || 'Error al actualizar asunto'));
+      }),
+    );
+  }
+
+  removeMatter(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.mattersApiUrl}/${id}`).pipe(
+      catchError((error) => {
+        console.error('Error al eliminar asunto:', error);
+        return throwError(() => new Error(error.message || 'Error al eliminar asunto'));
       }),
     );
   }

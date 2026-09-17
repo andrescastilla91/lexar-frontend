@@ -116,6 +116,9 @@ describe('CalendarComponent', () => {
     companyId: 'company-1',
     clientId: 'client-1',
     client: { id: 'client-1', fullName: 'Cliente Uno', email: 'cliente@x.com' },
+    // F34 §3: campos obligatorios (nullable) del modelo.
+    matterId: null,
+    matter: null,
     createdAt: new Date('2026-01-01'),
     updatedAt: new Date('2026-01-01'),
   };

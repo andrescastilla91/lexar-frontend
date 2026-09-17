@@ -2,7 +2,13 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ClientsService } from './clients.service';
-import { ClientContactResponse, ClientPersonType, ClientResponse } from '../models/client-backend.model';
+import {
+  ClientContactResponse,
+  ClientMatterResponse,
+  ClientMatterStatus,
+  ClientPersonType,
+  ClientResponse,
+} from '../models/client-backend.model';
 import { environment } from '../../../environments/environment';
 
 import { errorInterceptor } from '../interceptors/error.interceptor';
@@ -13,6 +19,7 @@ describe('ClientsService', () => {
   let httpMock: HttpTestingController;
   const apiUrl = `${environment.apiUrl}/clients`;
   const contactsApiUrl = `${environment.apiUrl}/client-contacts`;
+  const mattersApiUrl = `${environment.apiUrl}/client-matters`;
 
   // F33 (2026-09-14): ClientResponse ya no trae companyName/phone/email/
   // assignedAdvisor/updatedAt (email/phone/companyName se movieron a
@@ -40,6 +47,20 @@ describe('ClientsService', () => {
     mobile: null,
     isPrimary: true,
     notes: null,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  };
+
+  const matter: ClientMatterResponse = {
+    id: 'matter-1',
+    clientId: 'client-1',
+    contractType: null,
+    name: 'Asesoría permanente',
+    description: null,
+    startDate: null,
+    endDate: null,
+    status: ClientMatterStatus.VIGENTE,
+    processCount: 0,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
   };
@@ -284,6 +305,103 @@ describe('ClientsService', () => {
     service.removeContact('contact-1').subscribe({ error: (e) => (error = e) });
 
     httpMock.expectOne(`${contactsApiUrl}/contact-1`).flush({ message: 'No se pudo eliminar' }, { status: 409, statusText: 'Conflict' });
+
+    expect(error?.message).toBe('No se pudo eliminar');
+  });
+
+  // F34 §2: asuntos (matters) — mismo patrón que contactos, sin tests hasta ahora.
+  it('getMatters hace GET a /client-matters filtrando por clientId', () => {
+    let result: unknown;
+    service.getMatters('client-1').subscribe((r) => (result = r));
+
+    const req = httpMock.expectOne(
+      (request) => request.url === mattersApiUrl && request.params.get('clientId') === 'client-1',
+    );
+    expect(req.request.method).toBe('GET');
+    req.flush({ message: 'ok', matters: [matter] });
+
+    expect(result).toEqual([matter]);
+  });
+
+  it('getMatters en error propaga el mensaje del backend', () => {
+    let error: Error | undefined;
+    service.getMatters('client-1').subscribe({ error: (e) => (error = e) });
+
+    httpMock.expectOne(() => true).flush({ message: 'No se pudo cargar' }, { status: 403, statusText: 'Forbidden' });
+
+    expect(error?.message).toBe('No se pudo cargar');
+  });
+
+  it('createMatter hace POST y extrae el asunto creado', () => {
+    let result: unknown;
+    service.createMatter({ clientId: 'client-1', name: 'Asesoría permanente' }).subscribe((r) => (result = r));
+
+    const req = httpMock.expectOne(mattersApiUrl);
+    expect(req.request.method).toBe('POST');
+    req.flush({ message: 'ok', matter });
+
+    expect(result).toEqual(matter);
+  });
+
+  it('createMatter en error propaga el mensaje del backend', () => {
+    let error: Error | undefined;
+    service.createMatter({ clientId: 'client-1', name: 'X' }).subscribe({ error: (e) => (error = e) });
+
+    httpMock.expectOne(mattersApiUrl).flush('error', { status: 500, statusText: 'Server Error' });
+
+    expect(error?.message).toBe('Error interno del servidor');
+  });
+
+  it('updateMatter hace PATCH a /client-matters/:id y extrae el asunto actualizado', () => {
+    let result: unknown;
+    service.updateMatter('matter-1', { name: 'Renombrado' }).subscribe((r) => (result = r));
+
+    const req = httpMock.expectOne(`${mattersApiUrl}/matter-1`);
+    expect(req.request.method).toBe('PATCH');
+    expect(req.request.body).toEqual({ name: 'Renombrado' });
+    req.flush({ message: 'ok', matter });
+
+    expect(result).toEqual(matter);
+  });
+
+  it('updateMatter con status TERMINADO envía el status en el body (cierre anticipado)', () => {
+    let result: unknown;
+    service
+      .updateMatter('matter-1', { status: ClientMatterStatus.TERMINADO })
+      .subscribe((r) => (result = r));
+
+    const req = httpMock.expectOne(`${mattersApiUrl}/matter-1`);
+    expect(req.request.body).toEqual({ status: ClientMatterStatus.TERMINADO });
+    req.flush({ message: 'ok', matter: { ...matter, status: ClientMatterStatus.TERMINADO } });
+
+    expect((result as ClientMatterResponse).status).toBe(ClientMatterStatus.TERMINADO);
+  });
+
+  it('updateMatter en error propaga el mensaje del backend', () => {
+    let error: Error | undefined;
+    service.updateMatter('matter-1', {}).subscribe({ error: (e) => (error = e) });
+
+    httpMock.expectOne(`${mattersApiUrl}/matter-1`).flush('error', { status: 500, statusText: 'Server Error' });
+
+    expect(error?.message).toBe('Error interno del servidor');
+  });
+
+  it('removeMatter hace DELETE a /client-matters/:id', () => {
+    let completed = false;
+    service.removeMatter('matter-1').subscribe({ complete: () => (completed = true) });
+
+    const req = httpMock.expectOne(`${mattersApiUrl}/matter-1`);
+    expect(req.request.method).toBe('DELETE');
+    req.flush(null);
+
+    expect(completed).toBe(true);
+  });
+
+  it('removeMatter en error propaga el mensaje del backend', () => {
+    let error: Error | undefined;
+    service.removeMatter('matter-1').subscribe({ error: (e) => (error = e) });
+
+    httpMock.expectOne(`${mattersApiUrl}/matter-1`).flush({ message: 'No se pudo eliminar' }, { status: 409, statusText: 'Conflict' });
 
     expect(error?.message).toBe('No se pudo eliminar');
   });

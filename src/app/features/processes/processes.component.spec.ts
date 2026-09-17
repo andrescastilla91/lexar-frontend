@@ -39,7 +39,7 @@ describe('ProcessesComponent', () => {
     setEventVisibility: jest.Mock;
   };
   let advisorsServiceMock: { getAdvisors: jest.Mock };
-  let clientsServiceMock: { getClients: jest.Mock };
+  let clientsServiceMock: { getClients: jest.Mock; getMatters: jest.Mock };
   let catalogsServiceMock: { getActiveCatalog: jest.Mock };
   let filesServiceMock: {
     uploadFile: jest.Mock;
@@ -79,6 +79,10 @@ describe('ProcessesComponent', () => {
     clientId: 'cl1',
     client: { id: 'cl1', fullName: 'Cliente Uno', email: 'cliente@lexar.com' },
     advisors: [],
+    // F34 §3: campos obligatorios (nullable) del modelo — este fixture
+    // representa un proceso preexistente sin asunto asignado.
+    matterId: null,
+    matter: null,
     createdAt: new Date('2026-01-01'),
     updatedAt: new Date('2026-01-01'),
   };
@@ -205,6 +209,10 @@ describe('ProcessesComponent', () => {
 
     clientsServiceMock = {
       getClients: jest.fn().mockReturnValue(of({ message: 'ok', clients: [], total: 0, page: 1, limit: 100 })),
+      // F34 §3: se dispara en cada cambio de processForm.clientId (incluido
+      // el patchValue de editProcess()), así que el mock lo necesita aunque
+      // el spec en sí no pruebe asuntos.
+      getMatters: jest.fn().mockReturnValue(of([])),
     };
 
     catalogsServiceMock = {
@@ -472,6 +480,42 @@ describe('ProcessesComponent', () => {
       expect(toastMock.error).toHaveBeenCalledWith('Cliente inválido');
       expect(component.isLoading()).toBe(false);
     });
+
+    // F34 §3: matterId es opcional — se envía como undefined si no se eligió.
+    it('envía matterId cuando se seleccionó un asunto', async () => {
+      await configure();
+      const component = createComponent();
+      component.processForm.patchValue({
+        title: 'Nuevo proceso',
+        clientId: 'cl1',
+        stageId: 'st1',
+        riskLevelId: 'rl1',
+        matterId: 'm1',
+      });
+
+      component.submitProcess();
+
+      expect(legalProcessesServiceMock.createLegalProcess).toHaveBeenCalledWith(
+        expect.objectContaining({ matterId: 'm1' }),
+      );
+    });
+
+    it('envía matterId undefined cuando no se seleccionó ningún asunto', async () => {
+      await configure();
+      const component = createComponent();
+      component.processForm.patchValue({
+        title: 'Nuevo proceso',
+        clientId: 'cl1',
+        stageId: 'st1',
+        riskLevelId: 'rl1',
+      });
+
+      component.submitProcess();
+
+      expect(legalProcessesServiceMock.createLegalProcess).toHaveBeenCalledWith(
+        expect.objectContaining({ matterId: undefined }),
+      );
+    });
   });
 
   describe('editProcess y configureEditableFields', () => {
@@ -525,6 +569,200 @@ describe('ProcessesComponent', () => {
       Object.keys(component.processForm.controls).forEach((key) => {
         expect(component.processForm.get(key)?.disabled).toBe(true);
       });
+    });
+
+    // F34 §3: editProcess() patchea matterId junto con clientId — el
+    // patchValue programático NO debe disparar onClientChanged (eso solo
+    // ocurre con el evento nativo `change`, ver describe de abajo).
+    it('precarga matterId del proceso sin limpiarlo', async () => {
+      await configure();
+      const component = createComponent();
+
+      component.editProcess({ ...process, matterId: 'm1' });
+
+      expect(component.processForm.value.matterId).toBe('m1');
+    });
+
+    it('precarga matterId vacío cuando el proceso no tiene asunto asignado', async () => {
+      await configure();
+      const component = createComponent();
+
+      component.editProcess({ ...process, matterId: null });
+
+      expect(component.processForm.value.matterId).toBe('');
+    });
+  });
+
+  // F34 §3: recarga de asuntos disponibles al cambiar de cliente, y limpieza
+  // de matterId solo ante interacción real del usuario (clientChange).
+  describe('asuntos del cliente seleccionado (F34 §3)', () => {
+    it('al construirse con clientId ya en el formulario, no carga asuntos (sin cliente aún)', async () => {
+      await configure();
+      createComponent();
+
+      expect(clientsServiceMock.getMatters).not.toHaveBeenCalled();
+    });
+
+    it('loadMattersForClient consulta los asuntos del cliente y los expone en matters()', async () => {
+      const matter = {
+        id: 'm1',
+        clientId: 'cl1',
+        contractType: null,
+        name: 'Asesoría permanente',
+        description: null,
+        startDate: null,
+        endDate: null,
+        status: 'VIGENTE',
+        processCount: 0,
+        createdAt: '2026-01-01',
+        updatedAt: '2026-01-01',
+      };
+      await configure();
+      clientsServiceMock.getMatters.mockReturnValue(of([matter]));
+      const component = createComponent();
+
+      component.loadMattersForClient('cl1');
+
+      expect(clientsServiceMock.getMatters).toHaveBeenCalledWith('cl1');
+      expect(component.matters()).toEqual([matter]);
+    });
+
+    it('loadMattersForClient con clientId null vacía la lista sin llamar al servicio', async () => {
+      await configure();
+      const component = createComponent();
+      clientsServiceMock.getMatters.mockClear();
+
+      component.loadMattersForClient(null);
+
+      expect(clientsServiceMock.getMatters).not.toHaveBeenCalled();
+      expect(component.matters()).toEqual([]);
+    });
+
+    it('loadMattersForClient en error del backend vacía la lista sin lanzar', async () => {
+      await configure();
+      clientsServiceMock.getMatters.mockReturnValue(throwError(() => new Error('falló')));
+      const component = createComponent();
+
+      component.loadMattersForClient('cl1');
+
+      expect(component.matters()).toEqual([]);
+    });
+
+    it('cambiar clientId en el formulario (patchValue) recarga los asuntos automáticamente', async () => {
+      await configure();
+      const component = createComponent();
+      clientsServiceMock.getMatters.mockClear();
+
+      component.processForm.patchValue({ clientId: 'cl1' });
+
+      expect(clientsServiceMock.getMatters).toHaveBeenCalledWith('cl1');
+    });
+
+    it('onClientChanged limpia matterId (solo se invoca ante interacción real del usuario)', async () => {
+      await configure();
+      const component = createComponent();
+      component.processForm.patchValue({ matterId: 'm1' });
+
+      component.onClientChanged('cl2');
+
+      expect(component.processForm.value.matterId).toBe('');
+    });
+
+    it('editProcess (patchValue programático) NO limpia matterId — solo onClientChanged lo hace', async () => {
+      await configure();
+      const component = createComponent();
+
+      component.editProcess({ ...process, matterId: 'm1' });
+
+      // El patchValue de editProcess() dispara loadMattersForClient() vía la
+      // suscripción a valueChanges, pero nunca onClientChanged() — matterId
+      // debe seguir siendo el del proceso, no vaciarse.
+      expect(component.processForm.value.matterId).toBe('m1');
+    });
+
+    // BUG QA 2026-09-17 (F34): /client-matters excluye asuntos
+    // soft-eliminados — si no se sintetiza una entrada, el <select> del
+    // formulario no tendría ninguna opción para el matterId ya guardado y
+    // se vería "vacío" pese a que el backend conserva la relación.
+    it('editProcess sintetiza una entrada en matters() cuando el asunto vinculado fue eliminado', async () => {
+      await configure();
+      clientsServiceMock.getMatters.mockReturnValue(of([]));
+      const component = createComponent();
+
+      component.editProcess({
+        ...process,
+        matterId: 'm-eliminado',
+        matter: {
+          id: 'm-eliminado',
+          name: 'Asunto eliminado',
+          contractType: null,
+          isDeleted: true,
+        },
+      });
+
+      expect(component.matters()).toEqual([
+        expect.objectContaining({ id: 'm-eliminado', name: 'Asunto eliminado', isDeleted: true }),
+      ]);
+      expect(component.processForm.value.matterId).toBe('m-eliminado');
+    });
+
+    it('editProcess no sintetiza nada cuando el asunto vinculado sigue vigente (isDeleted false)', async () => {
+      await configure();
+      const vigente = {
+        id: 'm1',
+        clientId: 'cl1',
+        contractType: null,
+        name: 'Asunto vigente',
+        description: null,
+        startDate: null,
+        endDate: null,
+        status: 'VIGENTE',
+        processCount: 1,
+        createdAt: '2026-01-01',
+        updatedAt: '2026-01-01',
+      };
+      clientsServiceMock.getMatters.mockReturnValue(of([vigente]));
+      const component = createComponent();
+
+      component.editProcess({
+        ...process,
+        matterId: 'm1',
+        matter: { id: 'm1', name: 'Asunto vigente', contractType: null, isDeleted: false },
+      });
+
+      expect(component.matters()).toEqual([vigente]);
+    });
+
+    it('editProcess no duplica la entrada si el asunto eliminado ya viniera en la lista real', async () => {
+      await configure();
+      const yaListado = {
+        id: 'm-eliminado',
+        clientId: 'cl1',
+        contractType: null,
+        name: 'Asunto eliminado',
+        description: null,
+        startDate: null,
+        endDate: null,
+        status: 'TERMINADO',
+        processCount: 0,
+        createdAt: '2026-01-01',
+        updatedAt: '2026-01-01',
+      };
+      clientsServiceMock.getMatters.mockReturnValue(of([yaListado]));
+      const component = createComponent();
+
+      component.editProcess({
+        ...process,
+        matterId: 'm-eliminado',
+        matter: {
+          id: 'm-eliminado',
+          name: 'Asunto eliminado',
+          contractType: null,
+          isDeleted: true,
+        },
+      });
+
+      expect(component.matters()).toEqual([yaListado]);
     });
   });
 

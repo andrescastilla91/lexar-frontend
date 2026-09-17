@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, input, output } from '@an
 import { FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { ProcessStatus } from '../../../core/models/legal-process.model';
 import { AdvisorResponse } from '../../../core/models/advisor-backend.model';
-import { ClientResponse } from '../../../core/models/client-backend.model';
+import { ClientResponse, ClientMatterResponse, ClientMatterStatus } from '../../../core/models/client-backend.model';
 import { CatalogItem } from '../../../core/models/catalog-backend.model';
 import { MultiSelectComponent, MultiSelectItem } from '../../../shared/components/multi-select/multi-select.component';
 
@@ -55,6 +55,7 @@ import { MultiSelectComponent, MultiSelectItem } from '../../../shared/component
               Cliente *
               <select
                 formControlName="clientId"
+                (change)="clientChange.emit($any($event.target).value)"
                 class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
               >
                 <option value="">Seleccionar cliente</option>
@@ -62,6 +63,29 @@ import { MultiSelectComponent, MultiSelectItem } from '../../../shared/component
                   <option [value]="client.id">{{ client.fullName }}</option>
                 }
               </select>
+            </label>
+            <label class="text-sm text-muted">
+              Asunto
+              <select
+                formControlName="matterId"
+                class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
+              >
+                <option value="">Sin asunto</option>
+                @for (matter of matters(); track matter.id) {
+                  <option [value]="matter.id">{{ matter.name }}</option>
+                }
+              </select>
+              @if (selectedMatter()?.isDeleted) {
+                <p class="mt-1 text-xs text-warning">
+                  Este asunto fue eliminado. Se mantiene la referencia en el proceso.
+                </p>
+              } @else if (selectedMatter()?.status === ClientMatterStatus.VENCIDO) {
+                <p class="mt-1 text-xs text-warning">
+                  Este asunto está vencido. Puedes vincularlo igual — considera renovarlo o cerrarlo desde la ficha del cliente.
+                </p>
+              } @else if (isEditing() && !selectedMatterId()) {
+                <p class="mt-1 text-xs text-subtle">Clasificación pendiente: este proceso no tiene un asunto asignado.</p>
+              }
             </label>
             <div class="text-sm text-muted">
               <!--
@@ -197,6 +221,9 @@ export class ProcessFormComponent {
   advisors = input<AdvisorResponse[]>([]);
   stages = input<CatalogItem[]>([]);
   riskLevels = input<CatalogItem[]>([]);
+  /** F34 §3/§4: asuntos del cliente actualmente seleccionado — el contenedor
+   * (processes.component.ts) los recarga cada vez que cambia `clientId`. */
+  matters = input<ClientMatterResponse[]>([]);
 
   close = output<void>();
   submit = output<void>();
@@ -206,6 +233,11 @@ export class ProcessFormComponent {
   // de calcular el diff él mismo.
   advisorIdsChange = output<string[]>();
   generateCaseNumber = output<void>();
+  // F34 §3: solo se emite en interacción real del usuario (evento nativo
+  // `change` del <select>), nunca en un patchValue programático — así el
+  // contenedor puede limpiar `matterId` al cambiar de cliente sin pisar el
+  // valor que `editProcess()` acaba de precargar.
+  clientChange = output<string>();
 
   protected readonly ProcessStatus = ProcessStatus;
 
@@ -224,4 +256,19 @@ export class ProcessFormComponent {
   selectedAdvisorIds(): string[] {
     return this.form().get('advisorIds')?.value || [];
   }
+
+  // No es un computed a propósito, mismo motivo que selectedAdvisorIds().
+  selectedMatterId(): string {
+    return this.form().get('matterId')?.value || '';
+  }
+
+  selectedMatter(): ClientMatterResponse | null {
+    const matterId = this.selectedMatterId();
+    if (!matterId) {
+      return null;
+    }
+    return this.matters().find((m) => m.id === matterId) || null;
+  }
+
+  protected readonly ClientMatterStatus = ClientMatterStatus;
 }

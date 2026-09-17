@@ -26,6 +26,9 @@ describe('LegalProcessesService', () => {
     clientId: 'cl1',
     client: { id: 'cl1', fullName: 'Cliente Uno', email: 'cliente@lexar.com' },
     advisors: [],
+    // F34 §3: campos obligatorios (nullable) del modelo.
+    matterId: null,
+    matter: null,
     createdAt: new Date('2026-01-01'),
     updatedAt: new Date('2026-01-01'),
   };
