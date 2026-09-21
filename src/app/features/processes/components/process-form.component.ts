@@ -87,6 +87,20 @@ import { MultiSelectComponent, MultiSelectItem } from '../../../shared/component
                 <p class="mt-1 text-xs text-subtle">Clasificación pendiente: este proceso no tiene un asunto asignado.</p>
               }
             </label>
+            <!-- F40 §PRO-04: tipo de proceso (catálogo process_type) — opcional,
+                 Decisión de transición (mismo criterio que matterId, F34 §3). -->
+            <label class="text-sm text-muted">
+              Tipo de proceso
+              <select
+                formControlName="processTypeId"
+                class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
+              >
+                <option value="">Sin clasificar</option>
+                @for (processType of processTypes(); track processType.id) {
+                  <option [value]="processType.id">{{ processType.label }}</option>
+                }
+              </select>
+            </label>
             <div class="text-sm text-muted">
               <!--
                 BUG-06 etapa 2 (ajuste 2026-09-03): este campo se sacó del
@@ -112,10 +126,18 @@ import { MultiSelectComponent, MultiSelectItem } from '../../../shared/component
                   formControlName="stageId"
                   class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
                 >
-                  @for (stage of stages(); track stage.id) {
+                  @for (stage of filteredStages(); track stage.id) {
                     <option [value]="stage.id">{{ stage.label }}</option>
                   }
                 </select>
+                <!-- F40 §PRO-03: la etapa elegida nunca se borra sola al cambiar
+                     de tipo de proceso, aunque quede fuera de alcance — solo se
+                     avisa, el usuario decide si la cambia. -->
+                @if (isSelectedStageOutOfScope()) {
+                  <p class="mt-1 text-xs text-warning">
+                    Esta etapa no está configurada para el tipo de proceso seleccionado.
+                  </p>
+                }
               </label>
               <label class="text-sm text-muted">
                 Nivel de Riesgo
@@ -131,7 +153,7 @@ import { MultiSelectComponent, MultiSelectItem } from '../../../shared/component
             </div>
             <div class="grid gap-4 md:grid-cols-2">
               <label class="text-sm text-muted">
-                Corte / Jurisdicción
+                Juzgado o entidad
                 <input
                   formControlName="court"
                   type="text"
@@ -215,6 +237,9 @@ export class ProcessFormComponent {
   advisors = input<AdvisorResponse[]>([]);
   stages = input<CatalogItem[]>([]);
   riskLevels = input<CatalogItem[]>([]);
+  /** F40 §PRO-04: catálogo `process_type` para el selector y para filtrar
+   * `stages()` por `processTypeScope` (§PRO-03). */
+  processTypes = input<CatalogItem[]>([]);
   /** F34 §3/§4: asuntos del cliente actualmente seleccionado — el contenedor
    * (processes.component.ts) los recarga cada vez que cambia `clientId`. */
   matters = input<ClientMatterResponse[]>([]);
@@ -255,6 +280,41 @@ export class ProcessFormComponent {
   // No es un computed a propósito, mismo motivo que selectedAdvisorIds().
   selectedMatterId(): string {
     return this.form().get('matterId')?.value || '';
+  }
+
+  // No es un computed a propósito, mismo motivo que selectedMatterId().
+  selectedProcessTypeId(): string {
+    return this.form().get('processTypeId')?.value || '';
+  }
+
+  // F40 §PRO-03: las etapas visibles dependen del tipo de proceso elegido en
+  // el mismo formulario — null/'' en processTypeScope = aplica a cualquier
+  // tipo. La etapa ya seleccionada NUNCA se retira de la lista aunque quede
+  // fuera de alcance para el tipo actual: el formulario no le borra el dato
+  // al usuario, solo lo avisa (ver isSelectedStageOutOfScope()).
+  filteredStages(): CatalogItem[] {
+    const processTypeId = this.selectedProcessTypeId();
+    const inScope = this.stages().filter(
+      (stage) => !stage.processTypeScope || stage.processTypeScope === processTypeId,
+    );
+    const selectedStageId = this.form().get('stageId')?.value;
+    if (selectedStageId && !inScope.some((stage) => stage.id === selectedStageId)) {
+      const selectedStage = this.stages().find((stage) => stage.id === selectedStageId);
+      if (selectedStage) {
+        return [...inScope, selectedStage];
+      }
+    }
+    return inScope;
+  }
+
+  isSelectedStageOutOfScope(): boolean {
+    const processTypeId = this.selectedProcessTypeId();
+    const selectedStageId = this.form().get('stageId')?.value;
+    if (!processTypeId || !selectedStageId) {
+      return false;
+    }
+    const stage = this.stages().find((s) => s.id === selectedStageId);
+    return !!stage?.processTypeScope && stage.processTypeScope !== processTypeId;
   }
 
   selectedMatter(): ClientMatterResponse | null {

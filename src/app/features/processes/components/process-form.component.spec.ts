@@ -22,6 +22,7 @@ describe('ProcessFormComponent', () => {
       startDate: [''],
       endDate: [''],
       matterId: [''],
+      processTypeId: [''],
     });
   }
 
@@ -126,7 +127,7 @@ describe('ProcessFormComponent', () => {
     // MultiSelectComponent (ajuste 2026-09-03) solo renderiza el listbox
     // cuando el input de búsqueda tiene foco — igual que un <select>. Se
     // escopa a "app-multi-select" porque el formulario tiene varios
-    // input[type="text"] (Título, Corte/Jurisdicción, etc.) — sin el scope,
+    // input[type="text"] (Título, Juzgado o entidad, etc.) — sin el scope,
     // querySelector encuentra el de "Título del proceso" en su lugar.
     const searchInput: HTMLInputElement = fixture.nativeElement.querySelector(
       'app-multi-select input[type="text"]',
@@ -333,5 +334,117 @@ describe('ProcessFormComponent', () => {
     clientSelect.dispatchEvent(new Event('change'));
 
     expect(spy).toHaveBeenCalledWith('cl1');
+  });
+
+  // F40 §PRO-01: la etiqueta visible cambió, el formControlName ("court")
+  // se mantiene igual (ver F40.md).
+  it('muestra la etiqueta "Juzgado o entidad" en vez de "Corte / Jurisdicción" (PRO-01)', () => {
+    const fixture = createComponent();
+    fixture.componentRef.setInput('form', buildForm());
+    fixture.componentRef.setInput('isOpen', true);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Juzgado o entidad');
+    expect(fixture.nativeElement.textContent).not.toContain('Corte / Jurisdicción');
+  });
+
+  // F40 §PRO-03: las etapas visibles se filtran por el tipo de proceso
+  // elegido en el mismo formulario — null en processTypeScope = aplica a
+  // cualquier tipo.
+  describe('filteredStages (F40 §PRO-03)', () => {
+    const stageJudicial = {
+      id: 'stage-jud',
+      catalogType: 'process_stage' as const,
+      code: 'AUDIENCIA',
+      label: 'Audiencia',
+      color: null,
+      sortOrder: 1,
+      isActive: true,
+      isSystem: false,
+      personTypeScope: null,
+      processTypeScope: 'type-judicial',
+    };
+    const stageCualquiera = {
+      ...stageJudicial,
+      id: 'stage-any',
+      code: 'INVESTIGACION',
+      label: 'Investigación',
+      processTypeScope: null,
+    };
+
+    it('incluye las etapas sin scope y las que coinciden con el tipo seleccionado', () => {
+      const fixture = createComponent();
+      const form = buildForm();
+      form.patchValue({ processTypeId: 'type-judicial' });
+      fixture.componentRef.setInput('form', form);
+      fixture.componentRef.setInput('isOpen', true);
+      fixture.componentRef.setInput('stages', [stageJudicial, stageCualquiera]);
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.filteredStages().map((s) => s.id)).toEqual([
+        'stage-jud',
+        'stage-any',
+      ]);
+    });
+
+    it('excluye una etapa de otro tipo cuando no está seleccionada', () => {
+      const fixture = createComponent();
+      const form = buildForm();
+      form.patchValue({ processTypeId: 'type-administrativo' });
+      fixture.componentRef.setInput('form', form);
+      fixture.componentRef.setInput('isOpen', true);
+      fixture.componentRef.setInput('stages', [stageJudicial, stageCualquiera]);
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.filteredStages().map((s) => s.id)).toEqual([
+        'stage-any',
+      ]);
+    });
+
+    it('nunca retira la etapa ya seleccionada aunque quede fuera de alcance, y avisa sin bloquear', () => {
+      const fixture = createComponent();
+      const form = buildForm();
+      form.patchValue({ processTypeId: 'type-administrativo', stageId: 'stage-jud' });
+      fixture.componentRef.setInput('form', form);
+      fixture.componentRef.setInput('isOpen', true);
+      fixture.componentRef.setInput('stages', [stageJudicial, stageCualquiera]);
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.filteredStages().map((s) => s.id)).toEqual([
+        'stage-any',
+        'stage-jud',
+      ]);
+      expect(fixture.componentInstance.isSelectedStageOutOfScope()).toBe(true);
+      expect(fixture.nativeElement.textContent).toContain(
+        'Esta etapa no está configurada para el tipo de proceso seleccionado.',
+      );
+      const submitBtn: HTMLButtonElement = fixture.nativeElement.querySelector('button[type="submit"]');
+      expect(submitBtn.disabled).toBe(false);
+    });
+  });
+
+  // F40 §PRO-04: selector de tipo de proceso — opcional, catálogo `process_type`.
+  it('renderiza las opciones de processTypes() en el selector de tipo de proceso', () => {
+    const fixture = createComponent();
+    fixture.componentRef.setInput('form', buildForm());
+    fixture.componentRef.setInput('isOpen', true);
+    fixture.componentRef.setInput('processTypes', [
+      {
+        id: 'type-judicial',
+        catalogType: 'process_type' as const,
+        code: 'JUDICIAL',
+        label: 'Judicial',
+        color: null,
+        sortOrder: 1,
+        isActive: true,
+        isSystem: true,
+        personTypeScope: null,
+        processTypeScope: null,
+      },
+    ]);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Judicial');
+    expect(fixture.nativeElement.textContent).toContain('Sin clasificar');
   });
 });

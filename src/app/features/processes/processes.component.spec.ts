@@ -71,6 +71,7 @@ describe('ProcessesComponent', () => {
     status: ProcessStatus.DRAFT,
     stage: null,
     riskLevel: null,
+    processType: null,
     court: null,
     caseNumber: null,
     internalCode: 'RGJ-000001',
@@ -317,6 +318,8 @@ describe('ProcessesComponent', () => {
       expect(catalogsServiceMock.getActiveCatalog).toHaveBeenCalledWith('process_stage');
       expect(catalogsServiceMock.getActiveCatalog).toHaveBeenCalledWith('risk_level');
       expect(catalogsServiceMock.getActiveCatalog).toHaveBeenCalledWith('deadline_type');
+      // F40 §PRO-04
+      expect(catalogsServiceMock.getActiveCatalog).toHaveBeenCalledWith('process_type');
       expect(taskStatusesServiceMock.getAll).toHaveBeenCalled();
     });
 
@@ -532,6 +535,42 @@ describe('ProcessesComponent', () => {
         expect.objectContaining({ matterId: undefined }),
       );
     });
+
+    // F40 §PRO-04: processTypeId es opcional, mismo criterio que matterId.
+    it('envía processTypeId cuando se seleccionó un tipo de proceso', async () => {
+      await configure();
+      const component = createComponent();
+      component.processForm.patchValue({
+        title: 'Nuevo proceso',
+        clientId: 'cl1',
+        stageId: 'st1',
+        riskLevelId: 'rl1',
+        processTypeId: 'type-1',
+      });
+
+      component.submitProcess();
+
+      expect(legalProcessesServiceMock.createLegalProcess).toHaveBeenCalledWith(
+        expect.objectContaining({ processTypeId: 'type-1' }),
+      );
+    });
+
+    it('envía processTypeId undefined cuando no se seleccionó ningún tipo', async () => {
+      await configure();
+      const component = createComponent();
+      component.processForm.patchValue({
+        title: 'Nuevo proceso',
+        clientId: 'cl1',
+        stageId: 'st1',
+        riskLevelId: 'rl1',
+      });
+
+      component.submitProcess();
+
+      expect(legalProcessesServiceMock.createLegalProcess).toHaveBeenCalledWith(
+        expect.objectContaining({ processTypeId: undefined }),
+      );
+    });
   });
 
   describe('editProcess y configureEditableFields', () => {
@@ -606,6 +645,28 @@ describe('ProcessesComponent', () => {
       component.editProcess({ ...process, matterId: null });
 
       expect(component.processForm.value.matterId).toBe('');
+    });
+
+    // F40 §PRO-04: mismo criterio que matterId — Decisión de transición.
+    it('precarga processTypeId del proceso', async () => {
+      await configure();
+      const component = createComponent();
+
+      component.editProcess({
+        ...process,
+        processType: { id: 'type-1', code: 'JUDICIAL', label: 'Judicial', color: null },
+      });
+
+      expect(component.processForm.value.processTypeId).toBe('type-1');
+    });
+
+    it('precarga processTypeId vacío cuando el proceso no tiene tipo asignado', async () => {
+      await configure();
+      const component = createComponent();
+
+      component.editProcess({ ...process, processType: null });
+
+      expect(component.processForm.value.processTypeId).toBe('');
     });
   });
 

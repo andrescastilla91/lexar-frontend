@@ -42,7 +42,7 @@ import { PortalProcessListItem } from '../../../core/models/portal.model';
                 <div><dt class="inline text-muted">Radicado: </dt><dd class="inline">{{ process.caseNumber }}</dd></div>
               }
               @if (process.court) {
-                <div><dt class="inline text-muted">Despacho: </dt><dd class="inline">{{ process.court }}</dd></div>
+                <div><dt class="inline text-muted">Juzgado o entidad: </dt><dd class="inline">{{ process.court }}</dd></div>
               }
               @if (process.advisors.length > 0) {
                 <div>

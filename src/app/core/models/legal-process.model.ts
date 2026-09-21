@@ -23,6 +23,9 @@ export interface LegalProcessResponse {
   status: ProcessStatus;
   stage: CatalogRef | null;
   riskLevel: CatalogRef | null;
+  /** F40 §PRO-04: nulo en procesos preexistentes o creados sin tipo — misma
+   * "Decisión de transición" que `matterId` (F34 §3), nunca retroactivo. */
+  processType: CatalogRef | null;
   court: string | null;
   caseNumber: string | null;
   /** F40 §PRO-06: código interno del despacho — lo genera el sistema, inmutable, único por tenant. Nunca se envía al crear/editar. */
@@ -62,6 +65,7 @@ export interface CreateLegalProcessRequest {
   status?: ProcessStatus;
   stageId?: string;
   riskLevelId?: string;
+  processTypeId?: string;
   court?: string;
   caseNumber?: string;
   startDate?: string;
@@ -77,6 +81,7 @@ export interface UpdateLegalProcessRequest {
   status?: ProcessStatus;
   stageId?: string;
   riskLevelId?: string;
+  processTypeId?: string;
   court?: string;
   caseNumber?: string;
   startDate?: string;

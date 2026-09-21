@@ -17,6 +17,7 @@ describe('LegalProcessesService', () => {
     status: ProcessStatus.DRAFT,
     stage: null,
     riskLevel: null,
+    processType: null,
     court: null,
     caseNumber: null,
     internalCode: 'RGJ-000001',
@@ -80,6 +81,16 @@ describe('LegalProcessesService', () => {
           r.params.get('search') === 'demanda',
       );
       req.flush({ message: 'ok', legalProcesses: [], total: 0, page: 2, limit: 20 });
+    });
+
+    // F40 §PRO-04: filtro por tipo de proceso.
+    it('envía processTypeId como query param cuando se pasa', () => {
+      service.getLegalProcesses(1, 10, { processTypeId: 'type-1' }).subscribe();
+
+      const req = httpMock.expectOne(
+        (r) => r.url === apiUrl && r.params.get('processTypeId') === 'type-1',
+      );
+      req.flush({ message: 'ok', legalProcesses: [], total: 0, page: 1, limit: 10 });
     });
 
     it('en error expone el mensaje del backend', () => {

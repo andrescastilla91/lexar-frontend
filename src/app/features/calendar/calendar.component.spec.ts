@@ -108,6 +108,7 @@ describe('CalendarComponent', () => {
     status: ProcessStatus.ACTIVE,
     stage: null,
     riskLevel: null,
+    processType: null,
     court: null,
     caseNumber: null,
     internalCode: 'RGJ-000001',

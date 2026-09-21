@@ -41,6 +41,8 @@ export class LegalProcessesService {
        * catálogo "Tipo de vinculación" (F25) es transversal, a diferencia
        * del asunto, que está atado a un cliente. */
       contractTypeId?: string;
+      /** F40 §PRO-04: filtro por tipo de proceso (catálogo `process_type`). */
+      processTypeId?: string;
       advisorId?: string;
       search?: string;
     }
@@ -51,6 +53,7 @@ export class LegalProcessesService {
       if (filters.status) params.status = filters.status;
       if (filters.clientId) params.clientId = filters.clientId;
       if (filters.contractTypeId) params.contractTypeId = filters.contractTypeId;
+      if (filters.processTypeId) params.processTypeId = filters.processTypeId;
       if (filters.advisorId) params.advisorId = filters.advisorId;
       if (filters.search) params.search = filters.search;
     }

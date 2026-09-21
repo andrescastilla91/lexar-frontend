@@ -41,7 +41,7 @@ import { DashboardSummary } from '../../../core/models/dashboard.model';
             <div class="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-lg border border-default bg-surface-muted px-4 py-4 text-sm text-muted">
               <div class="min-w-0">
                 <p class="truncate text-base font-semibold text-text">{{ hearing.title }}</p>
-                <p class="truncate text-xs uppercase tracking-wide text-subtle">{{ hearing.court || 'Sin jurisdicción asignada' }}</p>
+                <p class="truncate text-xs uppercase tracking-wide text-subtle">{{ hearing.court || 'Sin juzgado o entidad asignado' }}</p>
                 <p class="mt-1 truncate text-xs text-subtle">{{ advisorInitials(hearing.advisors) }} • {{ hearing.client?.fullName ?? 'Cliente sin asignar' }}</p>
               </div>
               @if (hearing.nextHearingDate) {

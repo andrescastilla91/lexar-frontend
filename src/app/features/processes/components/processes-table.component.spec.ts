@@ -11,6 +11,7 @@ describe('ProcessesTableComponent', () => {
       status: ProcessStatus.DRAFT,
       stage: null,
       riskLevel: null,
+      processType: null, // F40 §PRO-04
       court: null,
       caseNumber: 'PROC-2026-000001',
       internalCode: 'RGJ-000001',
@@ -56,6 +57,27 @@ describe('ProcessesTableComponent', () => {
 
     expect(fixture.nativeElement.textContent).toContain('Proceso de prueba');
     expect(fixture.nativeElement.textContent).toContain('Cliente Uno');
+  });
+
+  // F40 §PRO-04
+  it('muestra "Sin clasificar" cuando el proceso no tiene tipo asignado', () => {
+    const fixture = createComponent();
+    fixture.componentRef.setInput('processes', [buildProcess({ processType: null })]);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Sin clasificar');
+  });
+
+  it('muestra la etiqueta del tipo de proceso cuando está asignado', () => {
+    const fixture = createComponent();
+    fixture.componentRef.setInput('processes', [
+      buildProcess({
+        processType: { id: 'type-1', code: 'JUDICIAL', label: 'Judicial', color: null },
+      }),
+    ]);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Judicial');
   });
 
   it('muestra el botón de editar solo cuando el proceso es editable', () => {

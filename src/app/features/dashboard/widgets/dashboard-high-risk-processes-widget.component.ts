@@ -42,7 +42,7 @@ import { DashboardSummary } from '../../../core/models/dashboard.model';
               <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
                 <div class="min-w-0">
                   <p class="truncate text-base font-semibold text-danger">{{ process.title }}</p>
-                  <p class="truncate text-xs uppercase tracking-wide text-danger/80">{{ process.court || 'Sin jurisdicción asignada' }}</p>
+                  <p class="truncate text-xs uppercase tracking-wide text-danger/80">{{ process.court || 'Sin juzgado o entidad asignado' }}</p>
                 </div>
                 <div class="flex flex-wrap gap-4 text-xs text-danger/90 sm:gap-6">
                   @if (process.nextHearingDate) {

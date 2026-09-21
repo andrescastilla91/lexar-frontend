@@ -179,6 +179,12 @@ import { matterStatusClasses, matterStatusLabel } from '../../../core/utils/matt
                   <p class="mt-1 text-sm text-text">{{ process.stage?.label || 'N/A' }}</p>
                 </div>
 
+                <!-- Tipo de proceso (F40 §PRO-04) -->
+                <div>
+                  <p class="text-xs font-medium text-subtle uppercase tracking-wide">Tipo de proceso</p>
+                  <p class="mt-1 text-sm text-text">{{ process.processType?.label || 'Sin clasificar' }}</p>
+                </div>
+
                 <!-- Riesgo -->
                 <div>
                   <p class="text-xs font-medium text-subtle uppercase tracking-wide">Riesgo</p>
@@ -259,6 +265,11 @@ import { matterStatusClasses, matterStatusLabel } from '../../../core/utils/matt
                 <div class="flex items-start justify-between gap-2">
                   <span class="text-xs font-medium text-subtle">Etapa:</span>
                   <span class="text-xs text-text">{{ process.stage?.label || 'N/A' }}</span>
+                </div>
+
+                <div class="flex items-start justify-between gap-2">
+                  <span class="text-xs font-medium text-subtle">Tipo de proceso:</span>
+                  <span class="text-xs text-text">{{ process.processType?.label || 'Sin clasificar' }}</span>
                 </div>
 
                 <div class="flex items-start justify-between gap-2">

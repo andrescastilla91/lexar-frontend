@@ -141,7 +141,7 @@ describe('SettingsCatalogsComponent', () => {
     catalogsServiceMock.createItem.mockReturnValue(of(items[1]));
     const component = createComponent();
     component.openCreateModal();
-    component.itemForm.setValue({ code: 'URGENTE', label: 'Urgente', color: 'danger' });
+    component.itemForm.setValue({ code: 'URGENTE', label: 'Urgente', color: 'danger', processTypeScope: null });
 
     component.submitItem();
 
@@ -174,7 +174,7 @@ describe('SettingsCatalogsComponent', () => {
     catalogsServiceMock.createItem.mockReturnValue(throwError(() => ({ message: 'Código duplicado' })));
     const component = createComponent();
     component.openCreateModal();
-    component.itemForm.setValue({ code: 'URGENTE', label: 'Urgente', color: '' });
+    component.itemForm.setValue({ code: 'URGENTE', label: 'Urgente', color: '', processTypeScope: null });
 
     component.submitItem();
 
@@ -276,7 +276,7 @@ describe('SettingsCatalogsComponent', () => {
     catalogsServiceMock.createItem.mockReturnValue(throwError(() => gateError));
     const component = createComponent();
     component.openCreateModal();
-    component.itemForm.setValue({ code: 'URGENTE', label: 'Urgente', color: '' });
+    component.itemForm.setValue({ code: 'URGENTE', label: 'Urgente', color: '', processTypeScope: null });
 
     component.submitItem();
 
@@ -307,5 +307,83 @@ describe('SettingsCatalogsComponent', () => {
 
     expect(planUpgradeMock.promptUpgrade).not.toHaveBeenCalled();
     expect(toastServiceMock.error).not.toHaveBeenCalled();
+  });
+
+  // F40 §PRO-04: nueva pestaña "Tipos de proceso" (process_type).
+  it('incluye la pestaña "Tipos de proceso" (process_type) y permite seleccionarla', () => {
+    catalogsServiceMock.getCatalog.mockReturnValue(of([]));
+    const component = createComponent();
+
+    expect(component.tabs.find((t) => t.id === 'process_type')?.label).toBe('Tipos de proceso');
+
+    component.selectType('process_type');
+
+    expect(component.activeType()).toBe('process_type');
+    expect(catalogsServiceMock.getCatalog).toHaveBeenCalledWith('process_type');
+  });
+
+  // F40 §PRO-03: processTypeScope solo es relevante en la pestaña de etapas.
+  describe('processTypeScope (F40 §PRO-03)', () => {
+    const stageItem: CatalogItem = {
+      id: 's1',
+      catalogType: 'process_stage',
+      code: 'AUDIENCIA',
+      label: 'Audiencia',
+      color: null,
+      sortOrder: 0,
+      isActive: true,
+      isSystem: false,
+      processTypeScope: 'type-1',
+    } as CatalogItem;
+
+    it('ngOnInit carga las opciones de tipo de proceso para el selector de scope', () => {
+      catalogsServiceMock.getCatalog.mockImplementation((type: string) =>
+        type === 'process_type'
+          ? of([{ id: 'type-1', catalogType: 'process_type', code: 'JUDICIAL', label: 'Judicial' } as CatalogItem])
+          : of(items),
+      );
+      const component = createComponent();
+
+      expect(component.processTypeOptions()).toEqual([
+        { id: 'type-1', catalogType: 'process_type', code: 'JUDICIAL', label: 'Judicial' },
+      ]);
+    });
+
+    it('openEditModal precarga processTypeScope del ítem', () => {
+      const component = createComponent();
+
+      component.openEditModal(stageItem);
+
+      expect(component.itemForm.get('processTypeScope')?.value).toBe('type-1');
+    });
+
+    it('submitItem incluye processTypeScope en el payload cuando la pestaña activa es process_stage', () => {
+      catalogsServiceMock.updateItem.mockReturnValue(of(stageItem));
+      const component = createComponent();
+      component.selectType('process_stage');
+      component.openEditModal(stageItem);
+      component.itemForm.patchValue({ processTypeScope: 'type-2' });
+
+      component.submitItem();
+
+      expect(catalogsServiceMock.updateItem).toHaveBeenCalledWith('process_stage', 's1', {
+        label: 'Audiencia',
+        color: undefined,
+        processTypeScope: 'type-2',
+      });
+    });
+
+    it('submitItem omite processTypeScope del payload en cualquier otra pestaña', () => {
+      catalogsServiceMock.updateItem.mockReturnValue(of(items[0]));
+      const component = createComponent();
+      component.openEditModal(items[0]);
+
+      component.submitItem();
+
+      expect(catalogsServiceMock.updateItem).toHaveBeenCalledWith('document_type', '1', {
+        label: 'Contrato',
+        color: 'primary',
+      });
+    });
   });
 });

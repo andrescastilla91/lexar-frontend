@@ -13,6 +13,7 @@ const CATALOG_TABS: { id: CatalogType; label: string }[] = [
   { id: 'document_type', label: 'Tipos de documento' },
   { id: 'risk_level', label: 'Niveles de riesgo' },
   { id: 'process_stage', label: 'Etapas de proceso' },
+  { id: 'process_type', label: 'Tipos de proceso' },
   { id: 'advisor_specialty', label: 'Especialidades de asesor' },
   { id: 'deadline_type', label: 'Tipos de plazo' },
   { id: 'laft_risk', label: 'Riesgo LA/FT' },
@@ -228,6 +229,22 @@ const COLOR_OPTIONS: { value: string; label: string }[] = [
               }
             </select>
           </label>
+          <!-- F40 §PRO-03: solo relevante para el catálogo "Etapas de proceso" —
+               a qué tipo de proceso aplica esta etapa. null = aplica a todos. -->
+          @if (activeType() === 'process_stage') {
+            <label class="text-sm text-muted">
+              Aplica a tipo de proceso
+              <select
+                formControlName="processTypeScope"
+                class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
+              >
+                <option [value]="null">Todos los tipos</option>
+                @for (processType of processTypeOptions(); track processType.id) {
+                  <option [value]="processType.id">{{ processType.label }}</option>
+                }
+              </select>
+            </label>
+          }
         </form>
         @if (formError()) {
           <p class="mt-3 rounded-md border border-danger bg-danger-tint px-3 py-2 text-sm text-danger">{{ formError() }}</p>
@@ -253,6 +270,9 @@ export class SettingsCatalogsComponent implements OnInit {
   readonly formError = signal<string | null>(null);
   readonly modalOpen = signal(false);
   readonly editingItem = signal<CatalogItem | null>(null);
+  /** F40 §PRO-03: opciones para el selector "Aplica a tipo de proceso" en la
+   * pestaña de etapas — se carga una sola vez, independiente de activeType(). */
+  readonly processTypeOptions = signal<CatalogItem[]>([]);
 
   readonly items = computed(() => [...this.allItems()].sort((a, b) => a.sortOrder - b.sortOrder));
 
@@ -260,10 +280,18 @@ export class SettingsCatalogsComponent implements OnInit {
     code: ['', [Validators.required, Validators.pattern(/^[A-Z0-9_]+$/)]],
     label: ['', [Validators.required, Validators.maxLength(100)]],
     color: [''],
+    processTypeScope: [null as string | null], // F40 §PRO-03
   });
 
   ngOnInit(): void {
     this.loadItems();
+    // F40 §PRO-03: independiente de la pestaña activa, se necesita para el
+    // selector "Aplica a tipo de proceso" en cuanto el usuario abre la
+    // pestaña de etapas.
+    this.catalogsService.getCatalog('process_type').subscribe({
+      next: (items) => this.processTypeOptions.set(items),
+      error: () => this.processTypeOptions.set([]),
+    });
   }
 
   selectType(type: CatalogType): void {
@@ -296,7 +324,7 @@ export class SettingsCatalogsComponent implements OnInit {
 
   openCreateModal(): void {
     this.editingItem.set(null);
-    this.itemForm.reset({ code: '', label: '', color: '' });
+    this.itemForm.reset({ code: '', label: '', color: '', processTypeScope: null });
     this.itemForm.get('code')?.enable();
     this.formError.set(null);
     this.modalOpen.set(true);
@@ -304,7 +332,12 @@ export class SettingsCatalogsComponent implements OnInit {
 
   openEditModal(item: CatalogItem): void {
     this.editingItem.set(item);
-    this.itemForm.reset({ code: item.code, label: item.label, color: item.color ?? '' });
+    this.itemForm.reset({
+      code: item.code,
+      label: item.label,
+      color: item.color ?? '',
+      processTypeScope: item.processTypeScope ?? null,
+    });
     this.itemForm.get('code')?.disable();
     this.formError.set(null);
     this.modalOpen.set(true);
@@ -330,15 +363,25 @@ export class SettingsCatalogsComponent implements OnInit {
     const value = this.itemForm.getRawValue();
     const editing = this.editingItem();
 
+    // F40 §PRO-03: processTypeScope solo es relevante para `process_stage` —
+    // en cualquier otra pestaña se omite del payload (undefined no viaja en
+    // el JSON), nunca se envía un valor sin sentido para ese catálogo.
+    const processTypeScopePayload =
+      this.activeType() === 'process_stage'
+        ? { processTypeScope: value.processTypeScope || null }
+        : {};
+
     const request = editing
       ? this.catalogsService.updateItem(this.activeType(), editing.id, {
           label: value.label,
           color: value.color || undefined,
+          ...processTypeScopePayload,
         })
       : this.catalogsService.createItem(this.activeType(), {
           code: value.code,
           label: value.label,
           color: value.color || undefined,
+          ...processTypeScopePayload,
         });
 
     request.subscribe({

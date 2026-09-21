@@ -202,6 +202,19 @@ import {
                 }
               </select>
             </label>
+            <!-- F40 §PRO-04: filtro por tipo de proceso (catálogo process_type). -->
+            <label class="w-full text-sm text-muted sm:w-48">
+              <span class="mb-2 block">Tipo de proceso</span>
+              <select
+                formControlName="processTypeId"
+                class="w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
+              >
+                <option [value]="null">Todos</option>
+                @for (processType of processTypes(); track processType.id) {
+                  <option [value]="processType.id">{{ processType.label }}</option>
+                }
+              </select>
+            </label>
           </div>
           <div class="flex gap-2">
             <button
@@ -234,6 +247,7 @@ import {
         [advisors]="advisors()"
         [stages]="stages()"
         [riskLevels]="riskLevels()"
+        [processTypes]="processTypes()"
         [matters]="matters()"
         [internalCode]="editingProcess()?.internalCode ?? null"
         (close)="togglePanel()"
@@ -399,6 +413,7 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   // transversal a toda la empresa, no depende de elegir un cliente primero
   // (a diferencia del asunto concreto, que sí es por cliente).
   readonly contractTypes = signal<CatalogItem[]>([]);
+  readonly processTypes = signal<CatalogItem[]>([]); // F40 §PRO-04
   readonly stages = signal<CatalogItem[]>([]);
   readonly riskLevels = signal<CatalogItem[]>([]);
   readonly deadlineTypes = signal<CatalogItem[]>([]); // F13
@@ -493,6 +508,7 @@ export class ProcessesComponent implements OnInit, OnDestroy {
     status: [null as ProcessStatus | null],
     clientId: [null as string | null],
     contractTypeId: [null as string | null],
+    processTypeId: [null as string | null],
   });
 
   readonly processForm = this.fb.nonNullable.group({
@@ -508,6 +524,7 @@ export class ProcessesComponent implements OnInit, OnDestroy {
     startDate: [''],
     endDate: [''],
     matterId: [''],
+    processTypeId: [''], // F40 §PRO-04: opcional — Decisión de transición
   });
 
   readonly statusForm = this.fb.nonNullable.group({
@@ -616,6 +633,10 @@ export class ProcessesComponent implements OnInit, OnDestroy {
     this.catalogsService
       .getActiveCatalog('contract_type')
       .subscribe((items) => this.contractTypes.set(items));
+    // F40 §PRO-04: catálogo para el campo/filtro "Tipo de proceso".
+    this.catalogsService
+      .getActiveCatalog('process_type')
+      .subscribe((items) => this.processTypes.set(items));
   }
 
   loadProcesses(): void {
@@ -627,6 +648,7 @@ export class ProcessesComponent implements OnInit, OnDestroy {
         status: filters.status || undefined,
         clientId: filters.clientId || undefined,
         contractTypeId: filters.contractTypeId || undefined,
+        processTypeId: filters.processTypeId || undefined,
         search: filters.search || undefined,
       })
       .subscribe({
@@ -672,6 +694,7 @@ export class ProcessesComponent implements OnInit, OnDestroy {
       status: null,
       clientId: null,
       contractTypeId: null,
+      processTypeId: null,
     });
     this.applyFilters();
   }
@@ -707,6 +730,7 @@ export class ProcessesComponent implements OnInit, OnDestroy {
         startDate: '',
         endDate: '',
         matterId: '',
+        processTypeId: '',
       });
       // Habilitar todos los campos para nuevo proceso
       Object.keys(this.processForm.controls).forEach((key) => {
@@ -747,6 +771,7 @@ export class ProcessesComponent implements OnInit, OnDestroy {
       // Se envía siempre el array real: omitirlo cuando queda vacío hace que el backend nunca toque la relación.
       advisorIds: formValue.advisorIds,
       matterId: formValue.matterId || undefined,
+      processTypeId: formValue.processTypeId || undefined,
     };
 
     // El estado solo se incluye al crear (siempre DRAFT)
@@ -811,6 +836,7 @@ export class ProcessesComponent implements OnInit, OnDestroy {
           ? new Date(process.endDate).toISOString().slice(0, 10)
           : '',
         matterId: process.matterId || '',
+        processTypeId: process.processType?.id || '',
       },
       { emitEvent: false },
     );
