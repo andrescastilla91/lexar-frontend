@@ -17,22 +17,53 @@ import { Locator, Page } from '@playwright/test';
  * evento; solo se oculta cuando el tipo está en modo ALWAYS (entonces se
  * muestra el badge fijo "Siempre visible para el cliente" en su lugar, ver
  * process-history-modal.component.ts).
+ *
+ * Ajuste 2026-09-21 (F40 Ola 4a — fix e2e tras rediseño de /procesos):
+ * el flujo cambió de "todo en modales sobre la lista" a "ficha de detalle
+ * dedicada en /procesos/:id con tabs (Datos/Contrapartes/Plazos/Tareas/
+ * Historial)". Esto rompió varios supuestos de este page object:
+ *  - El modal de creación (`app-process-form`) se recortó a los campos
+ *    esenciales — ya NO incluye "Asunto" (matterId), y SÍ agregó "Tipo de
+ *    proceso" (processTypeId) como obligatorio. Guardar navega directo a
+ *    la ficha de detalle (mismo patrón que clients.component.ts).
+ *  - Ya no existe un botón "Editar proceso": la edición es el formulario
+ *    inline "Guardar cambios" de la pestaña "Datos" de la ficha — ahí es
+ *    donde ahora viven asunto, descripción, juzgado, radicado y fechas.
+ *  - Ya no existe un botón "Ver historial": "Historial" es una pestaña más
+ *    de la ficha de detalle.
+ *  - El título del proceso en la card de la lista dejó de ser un heading
+ *    (<h3>) — ahora es un <a [routerLink]> que navega a la ficha (ver
+ *    processes-table.component.ts). `processTitleHeading()` sigue siendo
+ *    válido, pero solo contra la FICHA DE DETALLE (donde el título sí es
+ *    un <h2> real, ver process-detail.component.ts) — contra la lista hay
+ *    que usar `processCardTitleLink()` / `openProcessDetail()`.
  */
 export class ProcessesPage {
   readonly newProcessButton: Locator;
   readonly titleInput: Locator;
-  readonly descriptionInput: Locator;
   readonly clientSelect: Locator;
-  // F34 §3: el <select> de asunto se recarga vía Angular al cambiar de
-  // cliente (valueChanges de clientId) — hay que esperar a que la opción
-  // exista, no basta con seleccionarla inmediatamente tras elegir cliente.
-  readonly matterSelect: Locator;
+  // F40 Ola 4a: "Tipo de proceso" es obligatorio en el modal de creación
+  // (Validators.required en processForm, ver processes.component.ts) —
+  // sin seleccionarlo, submitProcess() bloquea el guardado en silencio
+  // (el panel de creación se queda abierto con "Completa los campos
+  // obligatorios.", nunca navega a la ficha de detalle).
+  readonly processTypeSelect: Locator;
   readonly stageSelect: Locator;
   readonly riskLevelSelect: Locator;
-  readonly caseNumberInput: Locator;
   // Mismo botón para crear/actualizar — el texto cambia según isEditing()
   // (ver process-form.component.ts).
   readonly saveProcessButton: Locator;
+
+  // F40 Ola 4a: "Asunto", "Descripción" y "Radicado" ya no están en el
+  // modal de creación — viven en el formulario inline de la pestaña
+  // "Datos" de la ficha de detalle (`app-process-detail`, editForm). Se
+  // escopan a ese componente para no chocar con los <select>/<input>
+  // homónimos del modal de creación o de la barra de filtros de la lista.
+  private readonly datosTabScope: Locator;
+  readonly matterSelect: Locator;
+  readonly descriptionInput: Locator;
+  readonly caseNumberInput: Locator;
+  readonly saveDatosButton: Locator;
 
   readonly statusSelect: Locator;
   readonly updateStatusButton: Locator;
@@ -45,24 +76,27 @@ export class ProcessesPage {
   // process-annotation-modal.component.ts.
   readonly annotationMarkInternalCheckbox: Locator;
 
-  readonly closeHistoryButton: Locator;
-
   constructor(private readonly page: Page) {
     this.newProcessButton = this.page.getByRole('button', { name: 'Nuevo proceso' });
     // Escopados a <app-process-form> (el modal de crear/editar): la barra de
     // filtros de la lista tiene su propio <select formControlName="clientId">
-    // siempre presente en el DOM, y sin este scope ambos selects matchean
-    // (violación de modo estricto de Playwright) — ver processes.component.ts
-    // línea ~151 (filtro) vs línea ~422 (processForm del modal).
+    // (y su propio "Tipo de proceso") siempre presentes en el DOM, y sin
+    // este scope los selects matchean por duplicado (violación de modo
+    // estricto de Playwright) — ver processes.component.ts línea ~151
+    // (filtro) vs línea ~422 (processForm del modal).
     const formScope = this.page.locator('app-process-form');
     this.titleInput = formScope.locator('input[formcontrolname="title"]');
-    this.descriptionInput = formScope.locator('textarea[formcontrolname="description"]');
     this.clientSelect = formScope.locator('select[formcontrolname="clientId"]');
-    this.matterSelect = formScope.locator('select[formcontrolname="matterId"]');
+    this.processTypeSelect = formScope.locator('select[formcontrolname="processTypeId"]');
     this.stageSelect = formScope.locator('select[formcontrolname="stageId"]');
     this.riskLevelSelect = formScope.locator('select[formcontrolname="riskLevelId"]');
-    this.caseNumberInput = formScope.locator('input[formcontrolname="caseNumber"]');
     this.saveProcessButton = this.page.getByRole('button', { name: /^(Guardar|Actualizar) proceso$/ });
+
+    this.datosTabScope = this.page.locator('app-process-detail');
+    this.matterSelect = this.datosTabScope.locator('select[formcontrolname="matterId"]');
+    this.descriptionInput = this.datosTabScope.locator('textarea[formcontrolname="description"]');
+    this.caseNumberInput = this.datosTabScope.locator('input[formcontrolname="caseNumber"]');
+    this.saveDatosButton = this.datosTabScope.getByRole('button', { name: 'Guardar cambios' });
 
     // Escopados a <app-process-status-modal>: la barra de filtros de la
     // lista tiene su propio <select formControlName="status"> ("Estado:
@@ -73,14 +107,18 @@ export class ProcessesPage {
     this.statusSelect = statusModalScope.locator('select[formcontrolname="status"]');
     this.updateStatusButton = statusModalScope.getByRole('button', { name: 'Actualizar estado' });
 
-    this.annotationDescriptionInput = this.page.locator('textarea[formcontrolname="description"]');
+    // F40 Ola 4a: escopado a <app-process-annotation-modal> — la pestaña
+    // "Datos" de la ficha tiene su propio `textarea[formcontrolname=
+    // "description"]` (activeTab() arranca en 'datos', así que convive en
+    // el DOM con el overlay de anotación en cuanto este se abre) — sin
+    // este scope, fill() choca con 2 elementos (violación de modo estricto).
+    const annotationModalScope = this.page.locator('app-process-annotation-modal');
+    this.annotationDescriptionInput = annotationModalScope.locator('textarea[formcontrolname="description"]');
     this.annotationFileInput = this.page.locator('input[type="file"]');
     this.saveAnnotationButton = this.page.getByRole('button', { name: 'Guardar anotación' });
-    this.annotationMarkInternalCheckbox = this.page
-      .locator('app-process-annotation-modal')
-      .getByLabel('Marcar como interna (no visible para el cliente)');
-
-    this.closeHistoryButton = this.page.getByRole('button', { name: 'Cerrar' });
+    this.annotationMarkInternalCheckbox = annotationModalScope.getByLabel(
+      'Marcar como interna (no visible para el cliente)',
+    );
   }
 
   async goto(): Promise<void> {
@@ -121,6 +159,7 @@ export class ProcessesPage {
   async createProcess(data: {
     title: string;
     clientFullName: string;
+    processTypeLabel: string;
     stageLabel: string;
     riskLevelLabel: string;
     advisorFullName?: string;
@@ -128,11 +167,12 @@ export class ProcessesPage {
     await this.newProcessButton.click();
     await this.titleInput.fill(data.title);
     await this.clientSelect.selectOption({ label: data.clientFullName });
-    // stageId y riskLevelId son obligatorios a nivel de FormGroup
-    // (Validators.required en processForm) aunque el template no lo marque
-    // con "*" — sin esto, submitProcess() bloquea el guardado en silencio
-    // (solo un mensaje de error, el modal no se cierra). Ver
-    // processes.component.ts.
+    // processTypeId y stageId y riskLevelId son obligatorios a nivel de
+    // FormGroup (Validators.required en processForm) aunque el template no
+    // lo marque con "*" para todos — sin esto, submitProcess() bloquea el
+    // guardado en silencio (solo un mensaje de error, el panel no navega a
+    // la ficha). Ver processes.component.ts.
+    await this.processTypeSelect.selectOption({ label: data.processTypeLabel });
     await this.stageSelect.selectOption({ label: data.stageLabel });
     await this.riskLevelSelect.selectOption({ label: data.riskLevelLabel });
     if (data.advisorFullName) {
@@ -145,9 +185,13 @@ export class ProcessesPage {
     await this.saveProcessButton.click();
   }
 
-  // F34 §3: selecciona un asunto en el <select> del formulario — espera a
-  // que la opción exista porque matters() se recarga asíncronamente vía
-  // ClientsService.getMatters() tras elegir cliente (ver process-form.component.ts).
+  // F34 §3 (reescrito F40 Ola 4a): "Asunto" ya no se elige al crear el
+  // proceso — se vincula después, desde el <select formcontrolname=
+  // "matterId"> de la pestaña "Datos" de la ficha de detalle, y hay que
+  // guardar explícitamente (ya no es parte de un único submit de creación).
+  // Esperamos a que la opción exista porque matters() se recarga
+  // asíncronamente vía ClientsService.getMatters() (ver
+  // process-detail.component.ts).
   //
   // BUG QA 2026-09-17 (e2e real, no del código de producto): waitFor() sin
   // `state` espera 'visible' por defecto, y Playwright/Chromium calculan la
@@ -160,25 +204,15 @@ export class ProcessesPage {
   // esté pintada, algo que selectOption() no requiere (actúa sobre el value,
   // no sobre clicks reales). state: 'attached' expresa esa precondición real
   // sin depender del cálculo de visibilidad, inconsistente para <option>.
-  async selectMatter(matterName: string): Promise<void> {
+  async linkMatter(matterName: string): Promise<void> {
     await this.matterSelect.locator('option', { hasText: matterName }).waitFor({ state: 'attached' });
     await this.matterSelect.selectOption({ label: matterName });
-  }
-
-  // Card de escritorio: title="Editar proceso" es el nombre accesible del
-  // botón (sin texto visible, ver processes-table.component.ts). La versión
-  // mobile del mismo botón usa el texto "Editar" — nombre distinto, así que
-  // no hay ambigüedad en el viewport desktop que usa este proyecto.
-  editProcessButton(): Locator {
-    return this.page.getByRole('button', { name: 'Editar proceso' });
+    await this.saveDatosButton.click();
+    await this.page.getByText('Proceso actualizado exitosamente').waitFor({ state: 'visible', timeout: 15_000 });
   }
 
   changeStatusButton(): Locator {
     return this.page.getByRole('button', { name: 'Cambiar estado' });
-  }
-
-  viewHistoryButton(): Locator {
-    return this.page.getByRole('button', { name: 'Ver historial' });
   }
 
   annotateButton(): Locator {
@@ -189,10 +223,15 @@ export class ProcessesPage {
   // formulario que también se renderiza en la card de la lista (bajo el
   // título, ver processes-table.component.ts) — permite verificar la
   // edición sin reabrir el modal.
+  //
+  // F40 Ola 4a: ya no hay un botón "Editar proceso" — el <input
+  // formcontrolname="caseNumber"> de la pestaña "Datos" (activa por
+  // defecto en la ficha de detalle) es editable directamente; se guarda
+  // con "Guardar cambios" en vez de reabrir un modal.
   async editCaseNumber(newCaseNumber: string): Promise<void> {
-    await this.editProcessButton().click();
     await this.caseNumberInput.fill(newCaseNumber);
-    await this.saveProcessButton.click();
+    await this.saveDatosButton.click();
+    await this.page.getByText('Proceso actualizado exitosamente').waitFor({ state: 'visible', timeout: 15_000 });
   }
 
   async changeStatusTo(statusLabel: string): Promise<void> {
@@ -244,16 +283,16 @@ export class ProcessesPage {
 
   private async waitForAnnotationModalToClose(): Promise<void> {
     // <app-process-annotation-modal> está montado sin condición en
-    // processes.component.ts — el tag host nunca se desmonta, solo su
+    // process-detail.component.ts — el tag host nunca se desmonta, solo su
     // contenido (el overlay `fixed inset-0`) vía `@if (isOpen())` dentro de
     // su propio template. Esperar `state: 'hidden'` sobre el host es una
     // heurística de bounding-box, no una prueba dura de que el overlay salió
     // del DOM, y bajo carga (suite completa) se demostró insuficiente: el
-    // wait resolvía pero el siguiente click ("Ver historial") seguía
-    // chocando contra el mismo overlay. Se reemplaza por dos señales duras:
-    // 1) el toast de éxito (prueba de negocio de que create+upload
-    //    terminaron), 2) `state: 'detached'` sobre el overlay real, que
-    // exige que el nodo desaparezca del DOM de verdad.
+    // wait resolvía pero el siguiente click seguía chocando contra el mismo
+    // overlay. Se reemplaza por dos señales duras: 1) el toast de éxito
+    // (prueba de negocio de que create+upload terminaron), 2) `state:
+    // 'detached'` sobre el overlay real, que exige que el nodo desaparezca
+    // del DOM de verdad.
     const annotationModal = this.page.locator('app-process-annotation-modal');
     const annotationOverlay = annotationModal.locator('div.fixed.inset-0');
     try {
@@ -295,8 +334,15 @@ export class ProcessesPage {
     return this.page.locator('app-file-preview-modal').getByRole('button', { name: 'Cerrar' });
   }
 
+  // F40 Ola 4a: "Historial" dejó de ser un botón/modal independiente
+  // ("Ver historial") y pasó a ser una pestaña más de la ficha de detalle
+  // (`tabs` en process-detail.component.ts) — se abre haciendo click en la
+  // pestaña, no en un botón dedicado.
   async openHistory(): Promise<void> {
-    await this.viewHistoryButton().click();
+    await this.datosTabScope
+      .locator('nav')
+      .getByRole('button', { name: 'Historial', exact: true })
+      .click();
   }
 
   // F27: fila del historial para un evento, acotada por su descripción —
@@ -317,18 +363,31 @@ export class ProcessesPage {
 
   // La card de escritorio (`p-6 shadow-card`) y la card mobile (`p-4
   // shadow-card`, oculta con `md:hidden` pero igual presente en el DOM)
-  // repiten el mismo título — un getByText suelto sobre toda la página
-  // matchea las dos y viola modo estricto (mismo gotcha de
-  // settings-catalogs.page.ts / clients.page.ts). El título de escritorio
-  // es un <h3> (heading); el de mobile es un <p> sin rol — por eso
-  // getByRole('heading', ...) ya alcanza para desambiguar el título solo.
-  // Para acotar OTRO texto (ej. caseNumber, que en ambas versiones es un
-  // <p>) hay que escopar a la card completa con este helper.
+  // repiten el mismo título — un getByText/getByRole suelto sobre toda la
+  // página matchea las dos y viola modo estricto (mismo gotcha de
+  // settings-catalogs.page.ts / clients.page.ts). Se acota a la card de
+  // escritorio por su clase distintiva (`p-6`, la mobile usa `p-4`) en vez
+  // de depender del rol/visibilidad calculada.
   processTitleHeading(title: string): Locator {
     return this.page.getByRole('heading', { name: title, exact: true });
   }
 
+  // F40 Ola 4a: el título de la card en la LISTA ya no es un heading — es
+  // un <a [routerLink]="['/procesos', process.id]"> que navega a la ficha
+  // de detalle (ver processes-table.component.ts). `processTitleHeading()`
+  // solo es válido dentro de la ficha de detalle (`<h2>` real, ver
+  // process-detail.component.ts); en la lista hay que usar este locator.
+  processCardTitleLink(title: string): Locator {
+    return this.page.locator('div.p-6.shadow-card').getByRole('link', { name: title, exact: true });
+  }
+
+  // Navega desde la lista a la ficha de detalle de un proceso, haciendo
+  // click en el título de su card.
+  async openProcessDetail(title: string): Promise<void> {
+    await this.processCardTitleLink(title).click();
+  }
+
   processCard(title: string): Locator {
-    return this.page.locator('div.p-6.shadow-card').filter({ has: this.processTitleHeading(title) });
+    return this.page.locator('div.p-6.shadow-card').filter({ has: this.processCardTitleLink(title) });
   }
 }

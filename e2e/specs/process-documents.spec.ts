@@ -103,17 +103,24 @@ test.describe('CRUD de proceso con documentos', () => {
     await processesPage.createProcess({
       title: processTitle,
       clientFullName,
+      processTypeLabel: 'Judicial',
       stageLabel: 'Investigación',
       riskLevelLabel: 'Bajo',
       advisorFullName,
     });
+    // F40 Ola 4a: guardar navega directo a la ficha de detalle.
     await expect(processesPage.processTitleHeading(processTitle)).toBeVisible();
 
     // Editar: un proceso recién creado queda en DRAFT, que es editable (ver
-    // isProcessEditable en process-format.utils.ts).
+    // isProcessEditable en process-format.utils.ts). Ya no hay un botón
+    // "Editar proceso" — el radicado se edita inline en la pestaña "Datos"
+    // (activa por defecto) y se guarda con "Guardar cambios". Se recarga la
+    // página para confirmar que el cambio de verdad se persistió en el
+    // backend y no solo quedó en el input local.
     const updatedCaseNumber = `EXP-E2E-${suffix}`;
     await processesPage.editCaseNumber(updatedCaseNumber);
-    await expect(processesPage.processCard(processTitle).getByText(updatedCaseNumber)).toBeVisible();
+    await page.reload();
+    await expect(processesPage.caseNumberInput).toHaveValue(updatedCaseNumber);
 
     // Subir documentos solo está disponible para procesos ACTIVE (el botón
     // "Agregar anotación" ni se renderiza en otro estado, ver

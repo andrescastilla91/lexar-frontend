@@ -61,7 +61,7 @@ async function optOutExternalAi(tenant: TestTenant): Promise<void> {
   await api.dispose();
 }
 
-async function createLegalProcessViaApi(tenant: TestTenant): Promise<{ processTitle: string }> {
+async function createLegalProcessViaApi(tenant: TestTenant): Promise<{ processTitle: string; processId: string }> {
   const api = await request.newContext({ baseURL: E2E_API_ORIGIN });
 
   const loginResponse = await api.post('/api/auth/login', {
@@ -102,9 +102,10 @@ async function createLegalProcessViaApi(tenant: TestTenant): Promise<{ processTi
       `No se pudo crear el proceso de prueba: ${processResponse.status()} ${await processResponse.text()}`,
     );
   }
+  const { legalProcess } = (await processResponse.json()) as { legalProcess: { id: string } };
 
   await api.dispose();
-  return { processTitle };
+  return { processTitle, processId: legalProcess.id };
 }
 
 test.describe('Asistente IA — Nivel 0 sin LLM (F20.1)', () => {
@@ -193,7 +194,7 @@ test.describe('Asistente IA — Nivel 0 sin LLM (F20.1)', () => {
     page,
     tenant,
   }) => {
-    const { processTitle } = await createLegalProcessViaApi(tenant);
+    const { processTitle, processId } = await createLegalProcessViaApi(tenant);
     await loginAsAdmin(page, tenant);
     const chatbot = new ChatbotPage(page);
     await chatbot.goto();
@@ -210,12 +211,12 @@ test.describe('Asistente IA — Nivel 0 sin LLM (F20.1)', () => {
 
     await chatbot.lastMessage().getByRole('button', { name: processTitle }).click();
 
-    // El panel de edición abre igual que en global-search.spec.ts (mismo
-    // patrón F18, ProcessesComponent.openFromQueryParam): consume ?openId=
-    // y limpia la URL de inmediato con replaceUrl, así que la URL final es
-    // /procesos sin query — el link "funcional" se valida con el proceso
-    // correcto precargado en el formulario, no con el query string transitorio.
-    await expect(page).toHaveURL(/\/procesos$/);
-    await expect(page.locator('input[formcontrolname="title"]')).toHaveValue(processTitle);
+    // F40 Ola 4a: redirectFromQueryParam() (ProcessesComponent) ya no abre
+    // un panel de edición sobre /procesos — navega directo a la ficha de
+    // detalle del proceso (mismo patrón que clients.component.ts) y limpia
+    // el ?openId= con replaceUrl. El link "funcional" se valida con la URL
+    // de la ficha y su título real (<h2>), no con un input de formulario.
+    await expect(page).toHaveURL(new RegExp(`/procesos/${processId}$`));
+    await expect(page.getByRole('heading', { name: processTitle, exact: true })).toBeVisible();
   });
 });

@@ -91,19 +91,20 @@ test.describe('F34: Asuntos del cliente', () => {
     await processesPage.newProcessButton.click();
     await processesPage.titleInput.fill(processTitle);
     await processesPage.clientSelect.selectOption({ label: clientFullName });
-    await processesPage.selectMatter(matterName);
+    await processesPage.processTypeSelect.selectOption({ label: 'Judicial' });
     await processesPage.stageSelect.selectOption({ label: 'Investigación' });
     await processesPage.riskLevelSelect.selectOption({ label: 'Bajo' });
     await processesPage.saveProcessButton.click();
+    // F40 Ola 4a: "Asunto" ya no se elige al crear — guardar navega directo
+    // a la ficha de detalle (donde el título sí es un <h2> real).
     await expect(processesPage.processTitleHeading(processTitle)).toBeVisible();
 
-    // Ficha del proceso: reabrir el modal de edición y confirmar que el
-    // asunto elegido sigue seleccionado.
-    await processesPage.editProcessButton().click();
+    // Ficha del proceso: vincular el asunto desde la pestaña "Datos" (ya
+    // activa por defecto) y confirmar que queda seleccionado.
+    await processesPage.linkMatter(matterName);
     await expect(processesPage.matterSelect).toHaveValue(/.+/);
     const selectedLabel = await processesPage.matterSelect.locator('option:checked').textContent();
     expect(selectedLabel?.trim()).toBe(matterName);
-    await processesPage.saveProcessButton.click();
 
     // Ficha del cliente: el contador de procesos vinculados del asunto subió
     // a 1 — hay que volver a /clientes, openMattersPanel() parte de la lista.
@@ -134,13 +135,22 @@ test.describe('F34: Asuntos del cliente', () => {
     await processesPage.createProcess({
       title: processTitle,
       clientFullName,
+      processTypeLabel: 'Judicial',
       stageLabel: 'Investigación',
       riskLevelLabel: 'Bajo',
     });
     await expect(processesPage.processTitleHeading(processTitle)).toBeVisible();
 
-    await processesPage.editProcessButton().click();
-    await expect(page.getByText('Clasificación pendiente: este proceso no tiene un asunto asignado.')).toBeVisible();
+    // NOTA (ajuste 2026-09-21): el aviso "Clasificación pendiente: este
+    // proceso no tiene un asunto asignado." que este test verificaba ya no
+    // existe en el código — F40 Ola 4a reemplazó el modal de edición por el
+    // formulario inline de la pestaña "Datos", y ese aviso no se migró (no
+    // hay ningún string "Clasificación pendiente" en el frontend). Se deja
+    // constancia del estado real actual (el <select> de asunto queda en su
+    // opción por defecto "Sin asunto"); pendiente de que el propietario
+    // decida si el aviso debe reintroducirse en la ficha de detalle.
+    await expect(processesPage.matterSelect).toHaveValue('');
+    await expect(processesPage.matterSelect.locator('option:checked')).toHaveText('Sin asunto');
   });
 
   // BUG-27 (ajuste 2026-09-17, decisión del propietario): eliminar un asunto
@@ -188,11 +198,14 @@ test.describe('F34: Asuntos del cliente', () => {
     await processesPage.newProcessButton.click();
     await processesPage.titleInput.fill(processTitle);
     await processesPage.clientSelect.selectOption({ label: clientFullName });
-    await processesPage.selectMatter(matterName);
+    await processesPage.processTypeSelect.selectOption({ label: 'Judicial' });
     await processesPage.stageSelect.selectOption({ label: 'Investigación' });
     await processesPage.riskLevelSelect.selectOption({ label: 'Bajo' });
     await processesPage.saveProcessButton.click();
+    // F40 Ola 4a: "Asunto" ya no se elige al crear — se vincula después
+    // desde la pestaña "Datos" de la ficha de detalle.
     await expect(processesPage.processTitleHeading(processTitle)).toBeVisible();
+    await processesPage.linkMatter(matterName);
 
     // Con un proceso vinculado: el botón "Eliminar" queda deshabilitado y su
     // title explica que hay que usar "Cerrar anticipadamente" en su lugar.

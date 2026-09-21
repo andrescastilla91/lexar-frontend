@@ -78,10 +78,12 @@ tenantTest.describe('F27 — política de visibilidad configurable del portal', 
       await processesPage.createProcess({
         title: processTitle,
         clientFullName,
+        processTypeLabel: 'Judicial',
         stageLabel: 'Investigación',
         riskLevelLabel: 'Bajo',
         advisorFullName,
       });
+      // F40 Ola 4a: guardar navega directo a la ficha de detalle.
       await expect(processesPage.processTitleHeading(processTitle)).toBeVisible();
 
       await processesPage.openHistory();
@@ -141,6 +143,11 @@ portalTest.describe('F27 — anotaciones visibles por defecto en el portal del c
 
       const processesPage = new ProcessesPage(page);
       await processesPage.goto();
+      // F40 Ola 4a: el proceso existente (creado por API vía el fixture) se
+      // ve en la lista, pero "Agregar anotación" ya no vive ahí — hay que
+      // entrar a la ficha de detalle (processTitleHeading solo es un <h2>
+      // real dentro de ella).
+      await processesPage.openProcessDetail(portalTenant.legalProcessTitle);
       await expect(processesPage.processTitleHeading(portalTenant.legalProcessTitle)).toBeVisible();
 
       const visibleAnnotation = `Nota visible para el cliente (E2E ${Date.now()})`;
