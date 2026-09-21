@@ -140,18 +140,42 @@ describe('ProcessFormComponent', () => {
     expect(spy).toHaveBeenCalledWith(['adv1']);
   });
 
-  it('emite generateCaseNumber al hacer clic en el botón de generar', () => {
+  // F40 §PRO-06: el botón "Generar número automático" se retiró (generaba
+  // un valor falso con Date.now() sobre el mismo campo que ahora es el
+  // radicado real). El código interno de verdad lo genera el backend y
+  // este componente solo lo muestra de solo lectura.
+  it('ya no ofrece el generador falso de número de caso', () => {
     const fixture = createComponent();
     fixture.componentRef.setInput('form', buildForm());
     fixture.componentRef.setInput('isOpen', true);
     fixture.detectChanges();
 
-    const spy = jest.fn();
-    fixture.componentInstance.generateCaseNumber.subscribe(spy);
+    expect(
+      fixture.nativeElement.querySelector('button[title="Generar número automático"]'),
+    ).toBeNull();
+    expect((fixture.componentInstance as any).generateCaseNumber).toBeUndefined();
+  });
 
-    fixture.nativeElement.querySelector('button[title="Generar número automático"]').click();
+  it('no muestra el código interno al crear (aún no existe)', () => {
+    const fixture = createComponent();
+    fixture.componentRef.setInput('form', buildForm());
+    fixture.componentRef.setInput('isOpen', true);
+    fixture.componentRef.setInput('isEditing', false);
+    fixture.detectChanges();
 
-    expect(spy).toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).not.toContain('Código interno');
+  });
+
+  it('muestra el código interno de solo lectura al editar', () => {
+    const fixture = createComponent();
+    fixture.componentRef.setInput('form', buildForm());
+    fixture.componentRef.setInput('isOpen', true);
+    fixture.componentRef.setInput('isEditing', true);
+    fixture.componentRef.setInput('internalCode', 'RGJ-000042');
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Código interno');
+    expect(fixture.nativeElement.textContent).toContain('RGJ-000042');
   });
 
   it('emite close al hacer clic en cancelar', () => {

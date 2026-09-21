@@ -118,6 +118,7 @@ const SETTINGS_TAB_IDS: SettingsTab[] = [
               <app-settings-legal-form
                 [form]="legalForm"
                 [taxId]="company()?.taxId ?? ''"
+                [processCodeCounter]="company()?.processCodeCounter ?? 0"
                 [isSubmitting]="isSubmittingLegal()"
                 [errorMessage]="legalError()"
                 (submit)="onSubmitLegal()"
@@ -226,6 +227,10 @@ export class SettingsComponent implements OnInit {
     email: [''],
     registrationNumber: [''],
     taxRegime: [''],
+    // F40 §PRO-06: se deshabilita en applyCompany() cuando ya hay procesos
+    // creados (processCodeCounter > 0) — nunca con [disabled] en la
+    // plantilla junto a formControlName (ver BUG-14).
+    processCodePrefix: [''],
   });
 
   readonly billingForm = this.fb.nonNullable.group({
@@ -396,7 +401,17 @@ export class SettingsComponent implements OnInit {
       email: company.email ?? '',
       registrationNumber: company.registrationNumber ?? '',
       taxRegime: company.taxRegime ?? '',
+      processCodePrefix: company.processCodePrefix ?? '',
     });
+    // F40 §PRO-06: "queda editable en Configuración mientras no haya
+    // procesos creados" — una vez emitido el primer código, se bloquea en
+    // la UI (el backend no lo impide: cambiar el prefijo después nunca
+    // reescribe los códigos ya emitidos, ver process-code.util.ts).
+    if (company.processCodeCounter > 0) {
+      this.legalForm.get('processCodePrefix')?.disable();
+    } else {
+      this.legalForm.get('processCodePrefix')?.enable();
+    }
     this.billingForm.patchValue({
       billingEmail: company.billingEmail ?? '',
     });

@@ -16,6 +16,7 @@ describe('SettingsLegalFormComponent', () => {
       email: [''],
       registrationNumber: [''],
       taxRegime: [''],
+      processCodePrefix: [''],
     });
     fixture.componentRef.setInput('form', form);
     fixture.detectChanges();
@@ -58,4 +59,24 @@ describe('SettingsLegalFormComponent', () => {
     const button: HTMLButtonElement = fixture.nativeElement.querySelector('button[type="submit"]');
     expect(button.disabled).toBe(true);
   });
+
+  // F40 §PRO-06
+  it('muestra el texto de derivación automática cuando processCodeCounter es 0', () => {
+    const { fixture } = createComponent();
+
+    expect(fixture.nativeElement.textContent).toContain(
+      'Si no lo defines, se deriva automáticamente de la razón social.',
+    );
+  });
+
+  it('muestra el aviso de "no editable" cuando processCodeCounter > 0', () => {
+    const { fixture } = createComponent();
+    fixture.componentRef.setInput('processCodeCounter', 3);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain(
+      'No editable: esta empresa ya tiene procesos con código asignado',
+    );
+  });
 });
+

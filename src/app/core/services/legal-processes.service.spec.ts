@@ -19,6 +19,7 @@ describe('LegalProcessesService', () => {
     riskLevel: null,
     court: null,
     caseNumber: null,
+    internalCode: 'RGJ-000001',
     nextHearingDate: null,
     startDate: null,
     endDate: null,

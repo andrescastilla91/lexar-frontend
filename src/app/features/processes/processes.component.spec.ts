@@ -73,6 +73,7 @@ describe('ProcessesComponent', () => {
     riskLevel: null,
     court: null,
     caseNumber: null,
+    internalCode: 'RGJ-000001',
     nextHearingDate: null,
     startDate: null,
     endDate: null,
@@ -407,6 +408,20 @@ describe('ProcessesComponent', () => {
       expect(component.editingProcess()).toBeNull();
       expect(component.processForm.value.title).toBe('');
       expect(component.processForm.get('caseNumber')?.disabled).toBe(false);
+    });
+  });
+
+  // QA 2026-09-17: mismo patrón mobile que clients.component.ts / users.component.ts
+  // — panel de "Filtros" colapsado por defecto en mobile, se alterna con un botón.
+  describe('filtersOpen', () => {
+    it('arranca colapsado y se alterna', async () => {
+      await configure();
+      const component = createComponent();
+
+      expect(component.filtersOpen()).toBe(false);
+
+      component.filtersOpen.set(true);
+      expect(component.filtersOpen()).toBe(true);
     });
   });
 
@@ -944,7 +959,7 @@ describe('ProcessesComponent', () => {
     });
   });
 
-  describe('setAdvisorIds y generateCaseNumber', () => {
+  describe('setAdvisorIds', () => {
     it('escribe el array completo de ids recibido de MultiSelectComponent', async () => {
       await configure();
       const component = createComponent();
@@ -955,14 +970,18 @@ describe('ProcessesComponent', () => {
       component.setAdvisorIds([]);
       expect(component.processForm.value.advisorIds).toEqual([]);
     });
+  });
 
-    it('genera un número de caso con el formato PROC-YYYY-NNNNNN', async () => {
+  // F40 §PRO-06: generateCaseNumber() se retiró (generaba un número falso
+  // con Date.now() sobre el mismo campo que ahora es el radicado real). El
+  // código interno de verdad lo genera el backend y se expone de solo
+  // lectura a través de editingProcess()?.internalCode.
+  describe('internalCode (F40 §PRO-06)', () => {
+    it('ya no existe generateCaseNumber en el componente', async () => {
       await configure();
       const component = createComponent();
 
-      component.generateCaseNumber();
-
-      expect(component.processForm.value.caseNumber).toMatch(/^PROC-\d{4}-\d{6}$/);
+      expect((component as any).generateCaseNumber).toBeUndefined();
     });
   });
 

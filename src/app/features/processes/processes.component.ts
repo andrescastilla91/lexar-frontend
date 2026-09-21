@@ -116,28 +116,51 @@ import {
         </button>
       </header>
 
-      <!-- Filters Panel -->
-      <section class="relative grid gap-6">
+      <!-- Filtros (QA 2026-09-17: mismo patrón compacto y colapsable de
+           clients.component.ts / users.component.ts — fila flex en vez de
+           grid rígido, y colapsado por defecto en mobile, para que el
+           panel de filtros no le quite protagonismo al listado a medida
+           que F40 le suma más campos (tipo de proceso, etc.)). -->
+      <div class="rounded-lg border border-default bg-surface p-6 shadow-card">
+        <button
+          type="button"
+          class="flex w-full items-center justify-between py-2 text-sm font-medium text-muted sm:hidden"
+          [class.mb-4]="filtersOpen()"
+          (click)="filtersOpen.set(!filtersOpen())"
+        >
+          <span>Filtros</span>
+          <svg
+            class="h-4 w-4 transition-transform"
+            [class.rotate-180]="filtersOpen()"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            viewBox="0 0 24 24"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+          </svg>
+        </button>
         <form
-          class="grid gap-4 rounded-lg border border-default bg-surface p-6 shadow-card"
+          class="space-y-4 sm:block"
+          [class.hidden]="!filtersOpen()"
           [formGroup]="filterForm"
           (ngSubmit)="applyFilters()"
         >
-          <div class="grid gap-4 md:grid-cols-5">
-            <label class="flex flex-col gap-2 text-sm text-muted md:col-span-2">
-              Búsqueda
+          <div class="flex flex-col gap-4 sm:flex-row sm:flex-wrap">
+            <label class="text-sm text-muted sm:min-w-[220px] sm:flex-1">
+              <span class="mb-2 block">Búsqueda</span>
               <input
                 formControlName="search"
                 type="search"
                 placeholder="Título, número de caso, descripción"
-                class="rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
+                class="w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
               />
             </label>
-            <label class="flex flex-col gap-2 text-sm text-muted">
-              Estado
+            <label class="w-full text-sm text-muted sm:w-48">
+              <span class="mb-2 block">Estado</span>
               <select
                 formControlName="status"
-                class="rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
+                class="w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
               >
                 <option [value]="null">Todos</option>
                 <option [value]="ProcessStatus.DRAFT">Borrador</option>
@@ -151,11 +174,11 @@ import {
                 <option [value]="ProcessStatus.ARCHIVED">Archivado</option>
               </select>
             </label>
-            <label class="flex flex-col gap-2 text-sm text-muted">
-              Cliente
+            <label class="w-full text-sm text-muted sm:w-48">
+              <span class="mb-2 block">Cliente</span>
               <select
                 formControlName="clientId"
-                class="rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
+                class="w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
               >
                 <option [value]="null">Todos</option>
                 @for (client of clients(); track client.id) {
@@ -167,11 +190,11 @@ import {
                  elegir cliente primero (los asuntos son por cliente) — se
                  reemplaza por el catálogo "Tipo de vinculación" (F25),
                  transversal a toda la empresa, sin esa dependencia. -->
-            <label class="flex flex-col gap-2 text-sm text-muted">
-              Tipo de vinculación
+            <label class="w-full text-sm text-muted sm:w-48">
+              <span class="mb-2 block">Tipo de vinculación</span>
               <select
                 formControlName="contractTypeId"
-                class="rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
+                class="w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
               >
                 <option [value]="null">Todos</option>
                 @for (contractType of contractTypes(); track contractType.id) {
@@ -196,7 +219,7 @@ import {
             </button>
           </div>
         </form>
-      </section>
+      </div>
 
       <!-- Create/Edit Form Modal -->
       <app-process-form
@@ -212,10 +235,10 @@ import {
         [stages]="stages()"
         [riskLevels]="riskLevels()"
         [matters]="matters()"
+        [internalCode]="editingProcess()?.internalCode ?? null"
         (close)="togglePanel()"
         (submit)="submitProcess()"
         (advisorIdsChange)="setAdvisorIds($event)"
-        (generateCaseNumber)="generateCaseNumber()"
         (clientChange)="onClientChanged($event)"
       />
 
@@ -395,6 +418,10 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   readonly isLoading = signal(false);
   readonly formError = signal<string | null>(null);
   readonly panelOpen = signal(false);
+  // QA 2026-09-17: mismo patrón mobile de clients.component.ts / users.component.ts
+  // — panel de "Filtros" colapsado por defecto en mobile (sm:hidden en el botón,
+  // sm:block en el form), para no competir con el listado por espacio.
+  readonly filtersOpen = signal(false);
   readonly statusModalOpen = signal(false);
   readonly historyModalOpen = signal(false); // HU-17
   readonly annotationModalOpen = signal(false); // HU-16
@@ -1432,17 +1459,11 @@ export class ProcessesComponent implements OnInit, OnDestroy {
     this.processForm.patchValue({ advisorIds });
   }
 
-  generateCaseNumber(): void {
-    // Formato: PROC-YYYY-NNNNNN
-    // PROC: Prefijo (configurable por empresa en futuro)
-    // YYYY: Año actual
-    // NNNNNN: Número secuencial basado en timestamp
-    const year = new Date().getFullYear();
-    const sequence = Date.now().toString().slice(-6);
-    const caseNumber = `PROC-${year}-${sequence}`;
-
-    this.processForm.patchValue({ caseNumber });
-  }
+  // F40 §PRO-06: generateCaseNumber() se retiró — generaba un número falso
+  // con Date.now() (no persistía, no era único de verdad) sobre el mismo
+  // campo que ahora es el radicado real asignado por el juzgado. El código
+  // interno de verdad lo genera el backend en create() y se muestra de
+  // solo lectura en el formulario (ver internalCode en app-process-form).
 
   // Descargar archivo desde el historial
   downloadFile(fileId: string): void {

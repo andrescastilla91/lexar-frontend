@@ -13,6 +13,7 @@ describe('ProcessesTableComponent', () => {
       riskLevel: null,
       court: null,
       caseNumber: 'PROC-2026-000001',
+      internalCode: 'RGJ-000001',
       nextHearingDate: null,
       startDate: null,
       endDate: null,

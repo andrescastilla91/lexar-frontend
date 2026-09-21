@@ -78,6 +78,8 @@ describe('SettingsComponent', () => {
     website: null,
     logoUrl: null,
     require2fa: false,
+    processCodePrefix: null,
+    processCodeCounter: 0,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
   };
@@ -145,6 +147,26 @@ describe('SettingsComponent', () => {
     expect(component.company()).toEqual(baseCompany);
     expect(component.legalForm.get('legalName')?.value).toBe('Bufete Test');
     expect(component.billingForm.get('billingEmail')?.value).toBe('');
+  });
+
+  // F40 §PRO-06: "editable mientras no haya procesos creados" — el control
+  // real se deshabilita en applyCompany(), nunca con [disabled] en la
+  // plantilla junto a formControlName (ver BUG-14).
+  it('processCodePrefix queda habilitado cuando la empresa aún no tiene procesos (counter = 0)', () => {
+    const component = createComponent();
+
+    expect(component.legalForm.get('processCodePrefix')?.disabled).toBe(false);
+  });
+
+  it('processCodePrefix queda deshabilitado cuando la empresa ya generó códigos (counter > 0)', () => {
+    companyServiceMock.getCompany.mockReturnValue(
+      of({ ...baseCompany, processCodePrefix: 'RGJ', processCodeCounter: 3 }),
+    );
+
+    const component = createComponent();
+
+    expect(component.legalForm.get('processCodePrefix')?.value).toBe('RGJ');
+    expect(component.legalForm.get('processCodePrefix')?.disabled).toBe(true);
   });
 
   it('si falla la carga de la empresa, muestra un mensaje de error', () => {

@@ -25,6 +25,8 @@ export interface LegalProcessResponse {
   riskLevel: CatalogRef | null;
   court: string | null;
   caseNumber: string | null;
+  /** F40 §PRO-06: código interno del despacho — lo genera el sistema, inmutable, único por tenant. Nunca se envía al crear/editar. */
+  internalCode: string;
   nextHearingDate: Date | null;
   startDate: Date | null;
   endDate: Date | null;
