@@ -1,27 +1,24 @@
 import { TestBed } from '@angular/core/testing';
 import { FormBuilder, Validators } from '@angular/forms';
 import { ProcessFormComponent } from './process-form.component';
-import { ProcessStatus } from '../../../core/models/legal-process.model';
 import { AdvisorResponse } from '../../../core/models/advisor-backend.model';
-import { ClientResponse, ClientMatterResponse, ClientMatterStatus } from '../../../core/models/client-backend.model';
+import { ClientResponse } from '../../../core/models/client-backend.model';
 
 describe('ProcessFormComponent', () => {
   const fb = new FormBuilder();
 
+  // F40 Ola 4a: el formulario se recortó a los campos esenciales para abrir
+  // el expediente (ver "Ola 4 (revisada)" en F40-ajustes-procesos-piloto.md)
+  // — ya no incluye description/matterId/court/caseNumber/startDate/endDate
+  // (se completan después en la pestaña "Datos" de ProcessDetailComponent).
   function buildForm(advisorIds: string[] = []) {
     return fb.nonNullable.group({
       title: ['', [Validators.required]],
-      description: [''],
       clientId: ['', [Validators.required]],
       advisorIds: [advisorIds],
-      status: [ProcessStatus.DRAFT],
-      stageId: [''],
-      riskLevelId: [''],
-      court: [''],
-      caseNumber: [''],
-      startDate: [''],
-      endDate: [''],
-      matterId: [''],
+      status: ['DRAFT'],
+      stageId: ['', [Validators.required]],
+      riskLevelId: ['', [Validators.required]],
       processTypeId: [''],
     });
   }
@@ -56,27 +53,6 @@ describe('ProcessFormComponent', () => {
     assignedAdvisor: null,
     createdAt: new Date('2026-01-01'),
     updatedAt: new Date('2026-01-01'),
-  };
-
-  const matterVigente: ClientMatterResponse = {
-    id: 'm1',
-    clientId: 'cl1',
-    contractType: null,
-    name: 'Asesoría permanente',
-    description: null,
-    startDate: null,
-    endDate: null,
-    status: ClientMatterStatus.VIGENTE,
-    processCount: 0,
-    createdAt: '2026-01-01',
-    updatedAt: '2026-01-01',
-  };
-
-  const matterVencido: ClientMatterResponse = {
-    ...matterVigente,
-    id: 'm2',
-    name: 'Litigio vencido',
-    status: ClientMatterStatus.VENCIDO,
   };
 
   function createComponent() {
@@ -124,11 +100,6 @@ describe('ProcessFormComponent', () => {
     const spy = jest.fn();
     fixture.componentInstance.advisorIdsChange.subscribe(spy);
 
-    // MultiSelectComponent (ajuste 2026-09-03) solo renderiza el listbox
-    // cuando el input de búsqueda tiene foco — igual que un <select>. Se
-    // escopa a "app-multi-select" porque el formulario tiene varios
-    // input[type="text"] (Título, Juzgado o entidad, etc.) — sin el scope,
-    // querySelector encuentra el de "Título del proceso" en su lugar.
     const searchInput: HTMLInputElement = fixture.nativeElement.querySelector(
       'app-multi-select input[type="text"]',
     );
@@ -139,44 +110,6 @@ describe('ProcessFormComponent', () => {
     checkbox.dispatchEvent(new Event('change'));
 
     expect(spy).toHaveBeenCalledWith(['adv1']);
-  });
-
-  // F40 §PRO-06: el botón "Generar número automático" se retiró (generaba
-  // un valor falso con Date.now() sobre el mismo campo que ahora es el
-  // radicado real). El código interno de verdad lo genera el backend y
-  // este componente solo lo muestra de solo lectura.
-  it('ya no ofrece el generador falso de número de caso', () => {
-    const fixture = createComponent();
-    fixture.componentRef.setInput('form', buildForm());
-    fixture.componentRef.setInput('isOpen', true);
-    fixture.detectChanges();
-
-    expect(
-      fixture.nativeElement.querySelector('button[title="Generar número automático"]'),
-    ).toBeNull();
-    expect((fixture.componentInstance as any).generateCaseNumber).toBeUndefined();
-  });
-
-  it('no muestra el código interno al crear (aún no existe)', () => {
-    const fixture = createComponent();
-    fixture.componentRef.setInput('form', buildForm());
-    fixture.componentRef.setInput('isOpen', true);
-    fixture.componentRef.setInput('isEditing', false);
-    fixture.detectChanges();
-
-    expect(fixture.nativeElement.textContent).not.toContain('Código interno');
-  });
-
-  it('muestra el código interno de solo lectura al editar', () => {
-    const fixture = createComponent();
-    fixture.componentRef.setInput('form', buildForm());
-    fixture.componentRef.setInput('isOpen', true);
-    fixture.componentRef.setInput('isEditing', true);
-    fixture.componentRef.setInput('internalCode', 'RGJ-000042');
-    fixture.detectChanges();
-
-    expect(fixture.nativeElement.textContent).toContain('Código interno');
-    expect(fixture.nativeElement.textContent).toContain('RGJ-000042');
   });
 
   it('emite close al hacer clic en cancelar', () => {
@@ -220,17 +153,6 @@ describe('ProcessFormComponent', () => {
     expect(submitBtn.disabled).toBe(true);
   });
 
-  it('deshabilita el botón de guardar cuando canEdit es false', () => {
-    const fixture = createComponent();
-    fixture.componentRef.setInput('form', buildForm());
-    fixture.componentRef.setInput('isOpen', true);
-    fixture.componentRef.setInput('canEdit', false);
-    fixture.detectChanges();
-
-    const submitBtn: HTMLButtonElement = fixture.nativeElement.querySelector('button[type="submit"]');
-    expect(submitBtn.disabled).toBe(true);
-  });
-
   it('muestra el mensaje de error cuando errorMessage está presente', () => {
     const fixture = createComponent();
     fixture.componentRef.setInput('form', buildForm());
@@ -241,111 +163,30 @@ describe('ProcessFormComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Completa los campos obligatorios.');
   });
 
-  it('muestra el título de edición cuando isEditing es true', () => {
-    const fixture = createComponent();
-    fixture.componentRef.setInput('form', buildForm());
-    fixture.componentRef.setInput('isOpen', true);
-    fixture.componentRef.setInput('isEditing', true);
-    fixture.componentRef.setInput('clients', [client]);
-    fixture.detectChanges();
-
-    expect(fixture.nativeElement.textContent).toContain('Editar proceso');
-  });
-
-  // F34 §3: selector de asunto + advertencia no bloqueante para asuntos
-  // vencidos + aviso de clasificación pendiente en procesos existentes.
-  it('selectedMatter refleja el asunto seleccionado por matterId', () => {
-    const fixture = createComponent();
-    const form = buildForm();
-    form.patchValue({ matterId: 'm2' });
-    fixture.componentRef.setInput('form', form);
-    fixture.componentRef.setInput('isOpen', true);
-    fixture.componentRef.setInput('matters', [matterVigente, matterVencido]);
-    fixture.detectChanges();
-
-    expect(fixture.componentInstance.selectedMatter()).toEqual(matterVencido);
-  });
-
-  it('muestra advertencia no bloqueante cuando el asunto seleccionado está vencido', () => {
-    const fixture = createComponent();
-    const form = buildForm();
-    form.patchValue({ matterId: 'm2' });
-    fixture.componentRef.setInput('form', form);
-    fixture.componentRef.setInput('isOpen', true);
-    fixture.componentRef.setInput('matters', [matterVigente, matterVencido]);
-    fixture.detectChanges();
-
-    expect(fixture.nativeElement.textContent).toContain('Este asunto está vencido');
-    // No bloquea el envío — el botón sigue habilitado.
-    const submitBtn: HTMLButtonElement = fixture.nativeElement.querySelector('button[type="submit"]');
-    expect(submitBtn.disabled).toBe(false);
-  });
-
-  // BUG QA 2026-09-17 (F34): asunto eliminado (soft delete) pero la
-  // referencia se conserva en el proceso — aviso no bloqueante, nunca el de
-  // "vencido" (isDeleted se revisa primero en la cadena @if/@else if).
-  it('muestra aviso no bloqueante cuando el asunto seleccionado fue eliminado', () => {
-    const matterEliminado: ClientMatterResponse = {
-      ...matterVigente,
-      id: 'm3',
-      name: 'Asunto eliminado',
-      isDeleted: true,
-    };
-    const fixture = createComponent();
-    const form = buildForm();
-    form.patchValue({ matterId: 'm3' });
-    fixture.componentRef.setInput('form', form);
-    fixture.componentRef.setInput('isOpen', true);
-    fixture.componentRef.setInput('matters', [matterVigente, matterEliminado]);
-    fixture.detectChanges();
-
-    expect(fixture.nativeElement.textContent).toContain(
-      'Este asunto fue eliminado. Se mantiene la referencia en el proceso.',
-    );
-    expect(fixture.nativeElement.textContent).not.toContain('Este asunto está vencido');
-    const submitBtn: HTMLButtonElement = fixture.nativeElement.querySelector('button[type="submit"]');
-    expect(submitBtn.disabled).toBe(false);
-  });
-
-  it('muestra aviso de clasificación pendiente en un proceso existente sin asunto', () => {
-    const fixture = createComponent();
-    fixture.componentRef.setInput('form', buildForm());
-    fixture.componentRef.setInput('isOpen', true);
-    fixture.componentRef.setInput('isEditing', true);
-    fixture.detectChanges();
-
-    expect(fixture.nativeElement.textContent).toContain('Clasificación pendiente');
-  });
-
-  it('emite clientChange solo ante la interacción real del usuario con el select de cliente', () => {
+  it('muestra el título "Registrar nuevo proceso" (formulario ahora es solo de creación)', () => {
     const fixture = createComponent();
     fixture.componentRef.setInput('form', buildForm());
     fixture.componentRef.setInput('isOpen', true);
     fixture.componentRef.setInput('clients', [client]);
     fixture.detectChanges();
 
-    const spy = jest.fn();
-    fixture.componentInstance.clientChange.subscribe(spy);
-
-    const clientSelect: HTMLSelectElement = fixture.nativeElement.querySelector(
-      'select[formcontrolname="clientId"]',
-    );
-    clientSelect.value = 'cl1';
-    clientSelect.dispatchEvent(new Event('change'));
-
-    expect(spy).toHaveBeenCalledWith('cl1');
+    expect(fixture.nativeElement.textContent).toContain('Registrar nuevo proceso');
   });
 
-  // F40 §PRO-01: la etiqueta visible cambió, el formControlName ("court")
-  // se mantiene igual (ver F40.md).
-  it('muestra la etiqueta "Juzgado o entidad" en vez de "Corte / Jurisdicción" (PRO-01)', () => {
+  // F40 Ola 4a: asunto, descripción, juzgado, radicado y fechas se difieren
+  // a la pestaña "Datos" del detalle — ya no viven en este formulario.
+  it('ya no incluye los campos diferidos a la pestaña "Datos" del detalle', () => {
     const fixture = createComponent();
     fixture.componentRef.setInput('form', buildForm());
     fixture.componentRef.setInput('isOpen', true);
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.textContent).toContain('Juzgado o entidad');
-    expect(fixture.nativeElement.textContent).not.toContain('Corte / Jurisdicción');
+    expect(fixture.nativeElement.querySelector('select[formcontrolname="matterId"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('input[formcontrolname="court"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('input[formcontrolname="caseNumber"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('input[formcontrolname="startDate"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('input[formcontrolname="endDate"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('textarea[formcontrolname="description"]')).toBeNull();
   });
 
   // F40 §PRO-03: las etapas visibles se filtran por el tipo de proceso
@@ -423,7 +264,8 @@ describe('ProcessFormComponent', () => {
     });
   });
 
-  // F40 §PRO-04: selector de tipo de proceso — opcional, catálogo `process_type`.
+  // F40 §PRO-04: selector de tipo de proceso — ahora esencial en creación
+  // (ver "Campos esenciales para la creación" en F40-ajustes-procesos-piloto.md).
   it('renderiza las opciones de processTypes() en el selector de tipo de proceso', () => {
     const fixture = createComponent();
     fixture.componentRef.setInput('form', buildForm());
@@ -445,6 +287,6 @@ describe('ProcessFormComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('Judicial');
-    expect(fixture.nativeElement.textContent).toContain('Sin clasificar');
+    expect(fixture.nativeElement.textContent).toContain('Seleccionar tipo');
   });
 });

@@ -307,4 +307,53 @@ describe('ProcessCounterpartiesModalComponent', () => {
 
     expect(toastServiceMock.error).toHaveBeenCalledWith('No se pudo eliminar');
   });
+
+  // F40 Ola 4a — ajuste 2026-09-21 (feedback punto 1): en modo embedded el
+  // tab-strip interno se reemplaza por un header título+acción; el listado
+  // queda siempre visible y el alta/edición se abre en un diálogo flotante.
+  describe('modo embedded (F40 Ola 4a, feedback punto 1)', () => {
+    function createEmbeddedComponent() {
+      const fixture = TestBed.createComponent(ProcessCounterpartiesModalComponent);
+      fixture.componentRef.setInput('isOpen', true);
+      fixture.componentRef.setInput('embedded', true);
+      fixture.componentRef.setInput('legalProcessId', 'p1');
+      fixture.componentRef.setInput('processTitle', 'Proceso 1');
+      fixture.detectChanges();
+      return { fixture, component: fixture.componentInstance };
+    }
+
+    it('muestra el header con el conteo y "+ Nueva contraparte", con el listado siempre visible', () => {
+      const { fixture } = createEmbeddedComponent();
+
+      expect(fixture.nativeElement.textContent).toContain('Contrapartes (1)');
+      expect(fixture.nativeElement.textContent).toContain('Banco XYZ');
+      const buttons: HTMLButtonElement[] = Array.from(fixture.nativeElement.querySelectorAll('button'));
+      expect(buttons.some((b) => b.textContent?.trim() === '+ Nueva contraparte')).toBe(true);
+    });
+
+    it('abre el diálogo flotante de alta al hacer clic en "+ Nueva contraparte", sin ocultar el listado', () => {
+      const { fixture, component } = createEmbeddedComponent();
+
+      const buttons: HTMLButtonElement[] = Array.from(fixture.nativeElement.querySelectorAll('button'));
+      buttons.find((b) => b.textContent?.trim() === '+ Nueva contraparte')!.click();
+      fixture.detectChanges();
+
+      expect(component.activeTab()).toBe('form');
+      expect(fixture.nativeElement.querySelector('form')).not.toBeNull();
+      // El listado (con la contraparte ya cargada) se mantiene visible detrás del diálogo.
+      expect(fixture.nativeElement.textContent).toContain('Banco XYZ');
+    });
+
+    it('cierra el diálogo flotante al cancelar y vuelve a "list"', () => {
+      const { fixture, component } = createEmbeddedComponent();
+      component.openCreateForm();
+      fixture.detectChanges();
+
+      component.cancelEdit();
+      fixture.detectChanges();
+
+      expect(component.activeTab()).toBe('list');
+      expect(fixture.nativeElement.querySelector('form')).toBeNull();
+    });
+  });
 });

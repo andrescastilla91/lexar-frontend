@@ -208,4 +208,82 @@ describe('ProcessDeadlinesModalComponent', () => {
 
     expect(spy).toHaveBeenCalled();
   });
+
+  // F40 Ola 4a — ajuste 2026-09-21 (feedback punto 2): en modo embedded el
+  // formulario "Nuevo plazo" ya no se muestra siempre — vive oculto detrás
+  // de un botón, y el listado queda siempre visible sin scroll propio.
+  describe('modo embedded (F40 Ola 4a, feedback punto 2)', () => {
+    it('muestra el header con el conteo y el botón "+ Nuevo plazo", sin el formulario visible', () => {
+      const fixture = createComponent();
+      fixture.componentRef.setInput('form', buildForm());
+      fixture.componentRef.setInput('embedded', true);
+      fixture.componentRef.setInput('deadlines', [buildDeadline()]);
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).toContain('Plazos y audiencias (1)');
+      expect(fixture.nativeElement.textContent).toContain('Audiencia inicial');
+      const buttons: HTMLButtonElement[] = Array.from(fixture.nativeElement.querySelectorAll('button'));
+      expect(buttons.some((b) => b.textContent?.trim() === '+ Nuevo plazo')).toBe(true);
+      expect(fixture.componentInstance.formOpen()).toBe(false);
+    });
+
+    it('abre el diálogo flotante de alta al hacer clic en "+ Nuevo plazo"', () => {
+      const fixture = createComponent();
+      fixture.componentRef.setInput('form', buildForm());
+      fixture.componentRef.setInput('embedded', true);
+      fixture.detectChanges();
+
+      const buttons: HTMLButtonElement[] = Array.from(fixture.nativeElement.querySelectorAll('button'));
+      buttons.find((b) => b.textContent?.trim() === '+ Nuevo plazo')!.click();
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.formOpen()).toBe(true);
+      expect(fixture.nativeElement.querySelector('form')).not.toBeNull();
+    });
+
+    it('cierra el diálogo flotante con el botón de cerrar (X)', () => {
+      const fixture = createComponent();
+      fixture.componentRef.setInput('form', buildForm());
+      fixture.componentRef.setInput('embedded', true);
+      fixture.detectChanges();
+      fixture.componentInstance.formOpen.set(true);
+      fixture.detectChanges();
+
+      fixture.nativeElement.querySelector('svg[stroke="currentColor"]')!.closest('button')!.click();
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.formOpen()).toBe(false);
+    });
+
+    it('cierra el diálogo automáticamente cuando el envío termina sin error', () => {
+      const fixture = createComponent();
+      fixture.componentRef.setInput('form', buildForm());
+      fixture.componentRef.setInput('embedded', true);
+      fixture.detectChanges();
+      fixture.componentInstance.formOpen.set(true);
+
+      fixture.componentRef.setInput('isSubmitting', true);
+      fixture.detectChanges();
+      fixture.componentRef.setInput('isSubmitting', false);
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.formOpen()).toBe(false);
+    });
+
+    it('no cierra el diálogo automáticamente si el envío termina con error', () => {
+      const fixture = createComponent();
+      fixture.componentRef.setInput('form', buildForm());
+      fixture.componentRef.setInput('embedded', true);
+      fixture.detectChanges();
+      fixture.componentInstance.formOpen.set(true);
+
+      fixture.componentRef.setInput('isSubmitting', true);
+      fixture.detectChanges();
+      fixture.componentRef.setInput('errorMessage', 'Error al crear el plazo');
+      fixture.componentRef.setInput('isSubmitting', false);
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.formOpen()).toBe(true);
+    });
+  });
 });

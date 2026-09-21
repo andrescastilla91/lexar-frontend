@@ -1,87 +1,42 @@
-import {
-  Component,
-  computed,
-  inject,
-  signal,
-  OnInit,
-  OnDestroy,
-} from '@angular/core';
+import { Component, computed, inject, signal, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { LegalProcessesService } from '../../core/services/legal-processes.service';
-import { ProcessEventsService } from '../../core/services/process-events.service';
 import { AdvisorsService } from '../../core/services/advisors.service';
 import { ClientsService } from '../../core/services/clients.service';
-import { FilesService } from '../../core/services/files.service';
-import { DeadlinesService } from '../../core/services/deadlines.service';
-import { TasksService } from '../../core/services/tasks.service';
-import { TaskStatusesService } from '../../core/services/task-statuses.service';
 import { AdvisorResponse } from '../../core/models/advisor-backend.model';
-import {
-  ClientResponse,
-  ClientMatterResponse,
-} from '../../core/models/client-backend.model';
+import { ClientResponse } from '../../core/models/client-backend.model';
 import { CatalogsService } from '../../core/services/catalogs.service';
 import { CatalogItem } from '../../core/models/catalog-backend.model';
-import {
-  CreateDeadlineRequest,
-  DeadlineResponse,
-  DeadlineStatus,
-} from '../../core/models/deadline.model';
-import {
-  CreateTaskRequest,
-  TaskResponse,
-  TaskTemplateResponse,
-} from '../../core/models/task.model';
-import { TaskStatusResponse } from '../../core/models/task-status.model';
 import { PermissionsService } from '../../core/services/permissions.service';
 import { PaginationComponent } from '../../core/components/pagination.component';
-import { FilePreviewModalComponent } from '../../core/components/file-preview-modal.component';
-import { forkJoin, of, Subscription } from 'rxjs';
-import { switchMap } from 'rxjs/operators';
 import {
   LegalProcessResponse,
   ProcessStatus,
   CreateLegalProcessRequest,
-  UpdateLegalProcessRequest,
-  UpdateProcessStatusRequest,
 } from '../../core/models/legal-process.model';
-import { ProcessEvent, ProcessEventType } from '../../core/models/process-event.model';
 import { ConfirmDialogService } from '../../core/services/confirm-dialog.service';
 import { ToastService } from '../../core/services/toast.service';
-import { PortalVisibilityPolicyService } from '../../core/services/portal-visibility-policy.service';
-import { PortalEventVisibilityPolicy } from '../../core/models/portal-visibility-policy.model';
 import { ProcessesTableComponent } from './components/processes-table.component';
 import { ProcessFormComponent } from './components/process-form.component';
-import { ProcessStatusModalComponent } from './components/process-status-modal.component';
-import { ProcessAnnotationModalComponent } from './components/process-annotation-modal.component';
-import { ProcessHistoryModalComponent } from './components/process-history-modal.component';
-import { ProcessDeadlinesModalComponent } from './components/process-deadlines-modal.component';
-import { ProcessTasksModalComponent } from './components/process-tasks-modal.component';
-import { ProcessCounterpartiesModalComponent } from './components/process-counterparties-modal.component'; // F40 §PRO-07
-import {
-  getStatusLabel,
-  getValidNextStatuses,
-  isProcessEditable,
-} from './utils/process-format.utils';
 
+/**
+ * F40 Ola 4a: rediseño de /procesos — se reemplazan los 7 overlays que
+ * este componente orquestaba sobre un `editingProcess` compartido
+ * (formulario de edición, estado, historial, anotaciones, plazos, tareas,
+ * contrapartes) por una ficha de detalle propia (`/procesos/:id` →
+ * `ProcessDetailComponent`), mismo patrón que `clients.component.ts` →
+ * `ClientDetailComponent`. Este componente ahora solo orquesta el listado,
+ * los filtros y la creación (formulario recortado a los campos esenciales
+ * — ver "Ola 4 (revisada)" en F40-ajustes-procesos-piloto.md); al guardar,
+ * navega directo al detalle del proceso recién creado. Editar, cambiar
+ * estado, contrapartes, plazos, tareas, anotaciones e historial viven ahora
+ * en `ProcessDetailComponent`.
+ */
 @Component({
   selector: 'app-processes',
   standalone: true,
-  imports: [
-    ReactiveFormsModule,
-    PaginationComponent,
-    ProcessesTableComponent,
-    ProcessFormComponent,
-    ProcessStatusModalComponent,
-    ProcessAnnotationModalComponent,
-    ProcessHistoryModalComponent,
-    ProcessDeadlinesModalComponent,
-    ProcessTasksModalComponent,
-    ProcessCounterpartiesModalComponent, // F40 §PRO-07
-    FilePreviewModalComponent,
-  ],
+  imports: [ReactiveFormsModule, PaginationComponent, ProcessesTableComponent, ProcessFormComponent],
   template: `
     <div class="space-y-8">
       <!-- Header -->
@@ -236,119 +191,21 @@ import {
         </form>
       </div>
 
-      <!-- Create/Edit Form Modal -->
+      <!-- Formulario de creación (F40 Ola 4a: recortado a lo esencial —
+           editar vive ahora en la ficha de detalle del proceso). -->
       <app-process-form
         [form]="processForm"
         [isOpen]="panelOpen()"
-        [isEditing]="!!editingProcess()"
         [isSubmitting]="isLoading()"
         [errorMessage]="formError()"
-        [statusMessage]="processStatusMessage()"
-        [canEdit]="canEditProcess()"
         [clients]="clients()"
         [advisors]="advisors()"
         [stages]="stages()"
         [riskLevels]="riskLevels()"
         [processTypes]="processTypes()"
-        [matters]="matters()"
-        [internalCode]="editingProcess()?.internalCode ?? null"
         (close)="togglePanel()"
         (submit)="submitProcess()"
         (advisorIdsChange)="setAdvisorIds($event)"
-        (clientChange)="onClientChanged($event)"
-      />
-
-      <!-- Status Update Modal (HU-14) -->
-      <app-process-status-modal
-        [form]="statusForm"
-        [isOpen]="statusModalOpen()"
-        [isSubmitting]="isLoading()"
-        [errorMessage]="formError()"
-        [validNextStatuses]="validNextStatuses()"
-        (close)="closeStatusModal()"
-        (submit)="updateStatus()"
-      />
-
-      <!-- HU-17: History Modal -->
-      <app-process-history-modal
-        [isOpen]="historyModalOpen()"
-        [processTitle]="editingProcess()?.title ?? null"
-        [isLoadingHistory]="isLoadingHistory()"
-        [events]="processHistory()"
-        [visibilityPolicies]="visibilityPolicies()"
-        (close)="closeHistoryModal()"
-        (previewFile)="previewFileFromHistory($event.fileId, $event.filename)"
-        (downloadFile)="downloadFile($event)"
-        (toggleVisibility)="toggleEventVisibility($event)"
-      />
-
-      <!-- HU F13: Modal de plazos y audiencias -->
-      <app-process-deadlines-modal
-        [isOpen]="deadlinesModalOpen()"
-        [processTitle]="editingProcess()?.title ?? null"
-        [isLoading]="isLoadingDeadlines()"
-        [isSubmitting]="isSubmittingDeadline()"
-        [errorMessage]="deadlineFormError()"
-        [deadlines]="processDeadlines()"
-        [deadlineTypes]="deadlineTypes()"
-        [advisors]="editingProcess()?.advisors ?? []"
-        [form]="deadlineForm"
-        (close)="closeDeadlinesModal()"
-        (submit)="submitDeadline()"
-        (toggleAssignee)="toggleDeadlineAssignee($event)"
-        (markDone)="markDeadlineDone($event)"
-        (deleteDeadline)="deleteDeadlineItem($event)"
-      />
-
-      <!-- F14: Modal de tareas -->
-      <app-process-tasks-modal
-        [isOpen]="tasksModalOpen()"
-        [processTitle]="editingProcess()?.title ?? null"
-        [isLoading]="isLoadingTasks()"
-        [isSubmitting]="isSubmittingTask()"
-        [isInstantiating]="isInstantiatingTemplate()"
-        [errorMessage]="taskFormError()"
-        [tasks]="processTasks()"
-        [advisors]="editingProcess()?.advisors ?? []"
-        [templates]="taskTemplates()"
-        [statuses]="taskStatuses()"
-        [form]="taskForm"
-        (close)="closeTasksModal()"
-        (submit)="submitTask()"
-        (taskUpdated)="onProcessTaskUpdated($event)"
-        (deleteTask)="deleteTaskItem($event)"
-        (instantiateTemplate)="instantiateTaskTemplate($event)"
-      />
-
-      <!-- F40 §PRO-07: Modal de contrapartes -->
-      <app-process-counterparties-modal
-        [isOpen]="counterpartiesModalOpen()"
-        [legalProcessId]="editingProcess()?.id ?? null"
-        [processTitle]="editingProcess()?.title ?? null"
-        (close)="closeCounterpartiesModal()"
-      />
-
-      <!-- File Preview Modal -->
-      <app-file-preview-modal
-        [file]="previewingFile()"
-        [url]="previewUrl()"
-        (close)="closePreviewModal()"
-        (download)="downloadFile(previewingFile()!.id)"
-      />
-
-      <!-- HU-16: Annotation Modal -->
-      <app-process-annotation-modal
-        [form]="annotationForm"
-        [isOpen]="annotationModalOpen()"
-        [isSubmitting]="isLoading()"
-        [errorMessage]="formError()"
-        [processTitle]="editingProcess()?.title ?? null"
-        [files]="annotationFiles()"
-        [visibilityMode]="annotationVisibilityMode()"
-        (close)="closeAnnotationModal()"
-        (submit)="submitAnnotation()"
-        (filesSelected)="onAnnotationFilesSelected($event)"
-        (removeFile)="removeAnnotationFile($event)"
       />
 
       <!-- Data Table -->
@@ -356,13 +213,6 @@ import {
         [processes]="processes()"
         [isLoading]="isLoading()"
         [hasFullAccess]="hasFullProcessAccess()"
-        (edit)="editProcess($event)"
-        (changeStatus)="openStatusModal($event)"
-        (viewHistory)="openHistoryModal($event)"
-        (viewDeadlines)="openDeadlinesModal($event)"
-        (viewTasks)="openTasksModal($event)"
-        (viewCounterparties)="openCounterpartiesModal($event)"
-        (annotate)="openAnnotationModal($event)"
         (delete)="deleteProcess($event)"
       />
 
@@ -382,21 +232,14 @@ import {
     </div>
   `,
 })
-export class ProcessesComponent implements OnInit, OnDestroy {
+export class ProcessesComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly legalProcessesService = inject(LegalProcessesService);
-  private readonly processEventsService = inject(ProcessEventsService);
   private readonly advisorsService = inject(AdvisorsService);
   private readonly clientsService = inject(ClientsService);
   private readonly catalogsService = inject(CatalogsService);
-  private readonly filesService = inject(FilesService);
-  private readonly deadlinesService = inject(DeadlinesService);
-  private readonly tasksService = inject(TasksService);
-  private readonly taskStatusesService = inject(TaskStatusesService);
-  private readonly visibilityPolicyService = inject(PortalVisibilityPolicyService);
-  private readonly sanitizer = inject(DomSanitizer);
-  private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly toast = inject(ToastService);
+  private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly permissionsService = inject(PermissionsService);
@@ -408,8 +251,6 @@ export class ProcessesComponent implements OnInit, OnDestroy {
     this.permissionsService.hasPermission('legal_processes.view.all'),
   );
 
-  private fileDeletedSubscription?: Subscription;
-
   // Exposed enums for template
   readonly ProcessStatus = ProcessStatus;
 
@@ -417,31 +258,12 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   readonly processes = signal<LegalProcessResponse[]>([]);
   readonly advisors = signal<AdvisorResponse[]>([]);
   readonly clients = signal<ClientResponse[]>([]);
-  // F34 §3: asuntos del cliente actualmente seleccionado en el formulario —
-  // se recarga cada vez que cambia processForm.clientId (ver constructor).
-  readonly matters = signal<ClientMatterResponse[]>([]);
   // F34-b: catálogo "Tipo de vinculación" (F25) para el filtro de /procesos —
-  // transversal a toda la empresa, no depende de elegir un cliente primero
-  // (a diferencia del asunto concreto, que sí es por cliente).
+  // transversal a toda la empresa, no depende de elegir un cliente primero.
   readonly contractTypes = signal<CatalogItem[]>([]);
   readonly processTypes = signal<CatalogItem[]>([]); // F40 §PRO-04
   readonly stages = signal<CatalogItem[]>([]);
   readonly riskLevels = signal<CatalogItem[]>([]);
-  readonly deadlineTypes = signal<CatalogItem[]>([]); // F13
-  readonly deadlinesModalOpen = signal(false); // F13
-  readonly processDeadlines = signal<DeadlineResponse[]>([]); // F13
-  readonly isLoadingDeadlines = signal(false); // F13
-  readonly isSubmittingDeadline = signal(false); // F13
-  readonly deadlineFormError = signal<string | null>(null); // F13
-  readonly tasksModalOpen = signal(false); // F14
-  readonly counterpartiesModalOpen = signal(false); // F40 §PRO-07
-  readonly processTasks = signal<TaskResponse[]>([]); // F14
-  readonly taskTemplates = signal<TaskTemplateResponse[]>([]); // F14
-  readonly taskStatuses = signal<TaskStatusResponse[]>([]); // F14
-  readonly isLoadingTasks = signal(false); // F14
-  readonly isSubmittingTask = signal(false); // F14
-  readonly isInstantiatingTemplate = signal(false); // F14
-  readonly taskFormError = signal<string | null>(null); // F14
   readonly isLoading = signal(false);
   readonly formError = signal<string | null>(null);
   readonly panelOpen = signal(false);
@@ -449,70 +271,12 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   // — panel de "Filtros" colapsado por defecto en mobile (sm:hidden en el botón,
   // sm:block en el form), para no competir con el listado por espacio.
   readonly filtersOpen = signal(false);
-  readonly statusModalOpen = signal(false);
-  readonly historyModalOpen = signal(false); // HU-17
-  readonly annotationModalOpen = signal(false); // HU-16
-  readonly annotationFiles = signal<File[]>([]); // HU-16 - Archivos para adjuntar a anotación
-  readonly editingProcess = signal<LegalProcessResponse | null>(null);
-  readonly processHistory = signal<ProcessEvent[]>([]); // HU-17
-  readonly isLoadingHistory = signal(false); // HU-17
-  // F27: política de visibilidad del portal por tipo de evento — se carga
-  // una vez y se reutiliza en el modal de historial y el de anotaciones.
-  readonly visibilityPolicies = signal<PortalEventVisibilityPolicy[]>([]);
-  readonly annotationVisibilityMode = computed(
-    () =>
-      this.visibilityPolicies().find((p) => p.eventType === ProcessEventType.ANNOTATION)?.mode ??
-      null
-  );
-  readonly previewingFile = signal<{
-    id: string;
-    originalFilename: string;
-    isImage: boolean;
-    isPdf: boolean;
-  } | null>(null);
-  readonly previewUrl = signal<SafeResourceUrl | null>(null);
   readonly currentPage = signal(1);
   readonly totalItems = signal(0);
 
-  // Computed signals
-  readonly validNextStatuses = computed(() => {
-    const process = this.editingProcess();
-    return process ? getValidNextStatuses(process.status) : [];
-  });
-
-  readonly canEditProcess = computed(() => {
-    const process = this.editingProcess();
-    if (!process) return true; // Nuevo proceso, siempre editable
-    return isProcessEditable(process.status);
-  });
-
-  readonly processStatusMessage = computed(() => {
-    const process = this.editingProcess();
-    if (!process) return null;
-
-    switch (process.status) {
-      case ProcessStatus.COMPLETED:
-        return 'Este proceso está completado. No se pueden realizar cambios.';
-      case ProcessStatus.CANCELLED:
-        return 'Este proceso está cancelado. No se pueden realizar cambios.';
-      case ProcessStatus.ARCHIVED:
-        return 'Este proceso está archivado. No se pueden realizar cambios.';
-      case ProcessStatus.ACTIVE:
-        return 'El número de caso y el cliente no pueden modificarse una vez el proceso está activo.';
-      case ProcessStatus.UNDER_REVIEW:
-        return 'El proceso está en revisión. Algunas modificaciones están restringidas.';
-      case ProcessStatus.SUSPENDED:
-        return 'El proceso está suspendido. La etapa no puede modificarse.';
-      default:
-        return null;
-    }
-  });
-
   readonly pageSize = 10;
 
-  readonly totalPages = computed(() =>
-    Math.ceil(this.totalItems() / this.pageSize),
-  );
+  readonly totalPages = computed(() => Math.ceil(this.totalItems() / this.pageSize));
 
   // Forms
   readonly filterForm = this.fb.nonNullable.group({
@@ -523,49 +287,16 @@ export class ProcessesComponent implements OnInit, OnDestroy {
     processTypeId: [null as string | null],
   });
 
+  // F40 Ola 4a: recortado a los campos esenciales para abrir el expediente
+  // (ver "Campos esenciales para la creación" en F40-ajustes-procesos-piloto.md).
   readonly processForm = this.fb.nonNullable.group({
     title: ['', [Validators.required]],
-    description: [''],
     clientId: ['', [Validators.required]],
     advisorIds: [[] as string[], []],
     status: [ProcessStatus.DRAFT, [Validators.required]],
     stageId: ['', [Validators.required]],
     riskLevelId: ['', [Validators.required]],
-    court: [''],
-    caseNumber: [''],
-    startDate: [''],
-    endDate: [''],
-    matterId: [''],
-    processTypeId: [''], // F40 §PRO-04: opcional — Decisión de transición
-  });
-
-  readonly statusForm = this.fb.nonNullable.group({
-    status: [ProcessStatus.DRAFT, [Validators.required]],
-    notes: [''],
-  });
-
-  // HU-16: Formulario de anotación. F27: markAsInternal solo se manda si
-  // la política de ANNOTATION está en DEFAULT_ON (ver annotation-modal).
-  readonly annotationForm = this.fb.nonNullable.group({
-    description: ['', [Validators.required, Validators.maxLength(2000)]],
-    markAsInternal: [false],
-  });
-
-  // F13: Formulario de creación de plazos
-  readonly deadlineForm = this.fb.nonNullable.group({
-    title: ['', [Validators.required, Validators.maxLength(200)]],
-    typeId: ['', [Validators.required]],
-    dueAt: ['', [Validators.required]],
-    allDay: [false],
-    notes: [''],
-    assigneeUserIds: [[] as string[]],
-  });
-
-  // F14: Formulario de creación de tareas
-  readonly taskForm = this.fb.nonNullable.group({
-    title: ['', [Validators.required, Validators.maxLength(200)]],
-    assigneeUserId: [''],
-    dueAt: [''],
+    processTypeId: ['', [Validators.required]],
   });
 
   constructor() {
@@ -573,82 +304,10 @@ export class ProcessesComponent implements OnInit, OnDestroy {
     this.loadAdvisors();
     this.loadClients();
     this.loadCatalogs();
-    this.loadTaskTemplates();
-    this.loadTaskStatuses();
-    this.loadVisibilityPolicies();
-
-    // F34 §3: se recargan los asuntos cada vez que cambia clientId — tanto
-    // por selección manual del usuario (clientChange en process-form) como
-    // por patchValue programático (editProcess()). No limpia matterId acá:
-    // eso solo ocurre en onClientChanged(), disparado por interacción real.
-    this.processForm.get('clientId')!.valueChanges.subscribe((clientId) => {
-      this.loadMattersForClient(clientId || null);
-    });
   }
 
-  // F34 §3: recarga la lista de asuntos disponibles para el cliente actual
-  // del formulario — vacía la lista (no deja asuntos de otro cliente
-  // seleccionable) cuando no hay cliente elegido.
-  //
-  // BUG QA 2026-09-17 (F34) — `syntheticMatter`: solo lo pasa editProcess()
-  // cuando el proceso está vinculado a un asunto ya soft-eliminado (ver
-  // mergeDeletedMatterIfNeeded más abajo). Tiene que mergearse DENTRO del
-  // `next` del propio Observable — si se mergeara antes de llamar a este
-  // método (p. ej. justo después de invocarlo), la respuesta real del
-  // backend llegaría después y lo pisaría, porque /client-matters nunca
-  // incluye asuntos eliminados.
-  loadMattersForClient(
-    clientId: string | null,
-    syntheticMatter?: ClientMatterResponse,
-  ): void {
-    if (!clientId) {
-      this.matters.set(syntheticMatter ? [syntheticMatter] : []);
-      return;
-    }
-    this.clientsService.getMatters(clientId).subscribe({
-      next: (matters) =>
-        this.matters.set(
-          syntheticMatter && !matters.some((m) => m.id === syntheticMatter.id)
-            ? [...matters, syntheticMatter]
-            : matters,
-        ),
-      error: () => this.matters.set(syntheticMatter ? [syntheticMatter] : []),
-    });
-  }
-
-  // F34 §3: solo se invoca desde el evento nativo `change` del <select> de
-  // cliente en process-form.component.ts — nunca desde editProcess(), que
-  // ya patchea el matterId correcto del proceso y no debe perderlo.
-  onClientChanged(_clientId: string): void {
-    this.processForm.patchValue({ matterId: '' });
-  }
-
-  // F27: política de visibilidad del portal por tipo de evento.
-  loadVisibilityPolicies(): void {
-    this.visibilityPolicyService.getAll().subscribe({
-      next: (policies) => this.visibilityPolicies.set(policies),
-      error: (error) => console.error('Error loading visibility policies:', error),
-    });
-  }
-
-  loadCatalogs(): void {
-    this.catalogsService
-      .getActiveCatalog('process_stage')
-      .subscribe((items) => this.stages.set(items));
-    this.catalogsService
-      .getActiveCatalog('risk_level')
-      .subscribe((items) => this.riskLevels.set(items));
-    this.catalogsService
-      .getActiveCatalog('deadline_type')
-      .subscribe((items) => this.deadlineTypes.set(items));
-    // F34-b (rediseño): catálogo para el filtro "Tipo de vinculación".
-    this.catalogsService
-      .getActiveCatalog('contract_type')
-      .subscribe((items) => this.contractTypes.set(items));
-    // F40 §PRO-04: catálogo para el campo/filtro "Tipo de proceso".
-    this.catalogsService
-      .getActiveCatalog('process_type')
-      .subscribe((items) => this.processTypes.set(items));
+  ngOnInit(): void {
+    this.redirectFromQueryParam();
   }
 
   loadProcesses(): void {
@@ -695,6 +354,15 @@ export class ProcessesComponent implements OnInit, OnDestroy {
     });
   }
 
+  loadCatalogs(): void {
+    this.catalogsService.getActiveCatalog('process_stage').subscribe((items) => this.stages.set(items));
+    this.catalogsService.getActiveCatalog('risk_level').subscribe((items) => this.riskLevels.set(items));
+    // F34-b (rediseño): catálogo para el filtro "Tipo de vinculación".
+    this.catalogsService.getActiveCatalog('contract_type').subscribe((items) => this.contractTypes.set(items));
+    // F40 §PRO-04: catálogo para el campo/filtro "Tipo de proceso".
+    this.catalogsService.getActiveCatalog('process_type').subscribe((items) => this.processTypes.set(items));
+  }
+
   applyFilters(): void {
     this.currentPage.set(1);
     this.loadProcesses();
@@ -728,25 +396,14 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   togglePanel(): void {
     if (this.panelOpen()) {
       this.panelOpen.set(false);
-      this.editingProcess.set(null);
       this.processForm.reset({
         title: '',
-        description: '',
         clientId: '',
         advisorIds: [],
         status: ProcessStatus.DRAFT,
         stageId: '',
         riskLevelId: '',
-        court: '',
-        caseNumber: '',
-        startDate: '',
-        endDate: '',
-        matterId: '',
         processTypeId: '',
-      });
-      // Habilitar todos los campos para nuevo proceso
-      Object.keys(this.processForm.controls).forEach((key) => {
-        this.processForm.get(key)?.enable();
       });
       this.formError.set(null);
     } else {
@@ -769,50 +426,31 @@ export class ProcessesComponent implements OnInit, OnDestroy {
     this.formError.set(null);
     const formValue = this.processForm.getRawValue();
 
-    // Prepare request
-    const baseRequest = {
+    const request: CreateLegalProcessRequest = {
       title: formValue.title,
-      description: formValue.description || undefined,
-      stageId: formValue.stageId || undefined,
-      riskLevelId: formValue.riskLevelId || undefined,
-      court: formValue.court || undefined,
-      caseNumber: formValue.caseNumber || undefined,
-      startDate: formValue.startDate || undefined,
-      endDate: formValue.endDate || undefined,
       clientId: formValue.clientId,
       // Se envía siempre el array real: omitirlo cuando queda vacío hace que el backend nunca toque la relación.
       advisorIds: formValue.advisorIds,
-      matterId: formValue.matterId || undefined,
+      status: ProcessStatus.DRAFT,
+      stageId: formValue.stageId || undefined,
+      riskLevelId: formValue.riskLevelId || undefined,
       processTypeId: formValue.processTypeId || undefined,
     };
 
-    // El estado solo se incluye al crear (siempre DRAFT)
-    // Al editar, el estado se cambia mediante el modal dedicado
-    const request: CreateLegalProcessRequest | UpdateLegalProcessRequest =
-      this.editingProcess()
-        ? baseRequest
-        : { ...baseRequest, status: ProcessStatus.DRAFT };
-
-    const operation = this.editingProcess()
-      ? this.legalProcessesService.updateLegalProcess(
-          this.editingProcess()!.id,
-          request,
-        )
-      : this.legalProcessesService.createLegalProcess(
-          request as CreateLegalProcessRequest,
-        );
-
-    operation.subscribe({
-      next: () => {
+    this.legalProcessesService.createLegalProcess(request).subscribe({
+      next: (process) => {
         this.isLoading.set(false);
         this.togglePanel();
-        this.loadProcesses();
+        // F40 Ola 4a: mismo patrón que clients.component.ts → navega directo
+        // a la ficha de detalle del proceso recién creado, donde se
+        // completan asunto, descripción, juzgado, radicado y fechas.
+        this.router.navigate(['/procesos', process.id]);
       },
       error: (error) => {
         console.error('Error saving process:', error);
         // BUG-10: legalProcessesService ya envuelve el error en un Error
         // nativo con el mensaje real extraído (.message) — error.error no
-        // existe ahí, así que error.error?.message siempre caía al genérico.
+        // existe ahí.
         const message = error.message || 'Error al guardar el proceso';
         this.formError.set(message);
         this.toast.error(message);
@@ -821,604 +459,10 @@ export class ProcessesComponent implements OnInit, OnDestroy {
     });
   }
 
-  editProcess(process: LegalProcessResponse): void {
-    this.editingProcess.set(process);
-    // BUG QA 2026-09-17 (F34): { emitEvent: false } evita que este patchValue
-    // dispare la suscripción a clientId.valueChanges (loadMattersForClient
-    // async) — de lo contrario esa recarga llegaría *después* de mergear el
-    // asunto eliminado sintético de abajo y lo pisaría con la lista real
-    // (que nunca incluye asuntos soft-eliminados). Se llama a
-    // loadMattersForClient() explícitamente a continuación, en el mismo
-    // orden que antes, solo que ya no depende de la carrera del Observable.
-    this.processForm.patchValue(
-      {
-        title: process.title,
-        description: process.description || '',
-        clientId: process.clientId,
-        advisorIds: process.advisors?.map((a) => a.id) || [],
-        status: process.status,
-        stageId: process.stage?.id || '',
-        riskLevelId: process.riskLevel?.id || '',
-        court: process.court || '',
-        caseNumber: process.caseNumber || '',
-        startDate: process.startDate
-          ? new Date(process.startDate).toISOString().slice(0, 10)
-          : '',
-        endDate: process.endDate
-          ? new Date(process.endDate).toISOString().slice(0, 10)
-          : '',
-        matterId: process.matterId || '',
-        processTypeId: process.processType?.id || '',
-      },
-      { emitEvent: false },
-    );
-    this.loadMattersForClient(
-      process.clientId || null,
-      this.buildDeletedMatterEntry(process),
-    );
-    this.configureEditableFields(process.status);
-    this.panelOpen.set(true);
-  }
-
-  // BUG QA 2026-09-17 (F34): /client-matters excluye asuntos soft-eliminados
-  // (comportamiento correcto para el alta de nuevos vínculos), así que si el
-  // proceso está enlazado a uno ya eliminado, el <select> de
-  // ProcessFormComponent no tendría ninguna opción que preseleccionar y se
-  // vería "vacío" pese a que el backend conserva matterId (ver
-  // LegalProcessesService.findOne()). Se sintetiza una entrada a partir de
-  // process.matter — solo se usa para mostrar/preseleccionar, nunca se
-  // manda de vuelta al backend como una opción de alta.
-  //
-  // F34-b: `status` ya no se hardcodea a TERMINADO — el mapper del backend
-  // expone el status real que tenía el asunto antes de eliminarse
-  // (`legal-process.mapper.ts`), así que se usa ese. Antes de F34-b
-  // `LegalProcessResponse.matter` no traía `status`, por eso quedó fijo;
-  // era deuda técnica, no una decisión de negocio.
-  private buildDeletedMatterEntry(
-    process: LegalProcessResponse,
-  ): ClientMatterResponse | undefined {
-    if (!process.matter?.isDeleted) {
-      return undefined;
-    }
-    return {
-      id: process.matter.id,
-      clientId: process.clientId,
-      contractType: process.matter.contractType,
-      name: process.matter.name,
-      description: null,
-      startDate: null,
-      endDate: null,
-      status: process.matter.status,
-      processCount: 0,
-      createdAt: '',
-      updatedAt: '',
-      isDeleted: true,
-    };
-  }
-
-  openStatusModal(process: LegalProcessResponse): void {
-    this.editingProcess.set(process);
-    this.statusForm.patchValue({
-      status: process.status,
-      notes: '',
-    });
-    this.statusModalOpen.set(true);
-  }
-
-  closeStatusModal(): void {
-    this.statusModalOpen.set(false);
-    this.editingProcess.set(null);
-    this.statusForm.reset();
-    this.formError.set(null);
-  }
-
-  // HU-17: Abrir modal de historial
-  openHistoryModal(process: LegalProcessResponse): void {
-    this.editingProcess.set(process);
-    this.historyModalOpen.set(true);
-    this.loadProcessHistory(process.id);
-  }
-
-  // HU-17: Cerrar modal de historial
-  closeHistoryModal(): void {
-    this.historyModalOpen.set(false);
-    this.editingProcess.set(null);
-    this.processHistory.set([]);
-  }
-
-  // HU-17: Cargar historial del proceso
-  loadProcessHistory(processId: string): void {
-    this.isLoadingHistory.set(true);
-    this.processEventsService.getProcessHistory(processId).subscribe({
-      next: (events) => {
-        this.processHistory.set(events);
-        this.isLoadingHistory.set(false);
-      },
-      error: (error) => {
-        console.error('Error loading process history:', error);
-        this.isLoadingHistory.set(false);
-      },
-    });
-  }
-
-  // F16: toggle "compartir con cliente" desde el modal de historial
-  toggleEventVisibility(event: {
-    eventId: string;
-    visibleToClient: boolean;
-  }): void {
-    const processId = this.editingProcess()?.id;
-    if (!processId) {
-      return;
-    }
-    this.processEventsService
-      .setEventVisibility(processId, event.eventId, event.visibleToClient)
-      .subscribe({
-        next: () => {
-          this.processHistory.update((events) =>
-            events.map((e) =>
-              e.id === event.eventId
-                ? { ...e, visibleToClient: event.visibleToClient }
-                : e,
-            ),
-          );
-        },
-        error: (error) => {
-          console.error(
-            'Error al actualizar la visibilidad del evento:',
-            error,
-          );
-        },
-      });
-  }
-
-  // HU-16: Abrir modal de anotación
-  openAnnotationModal(process: LegalProcessResponse): void {
-    this.editingProcess.set(process);
-    this.annotationModalOpen.set(true);
-    this.annotationForm.reset({ description: '', markAsInternal: false });
-    this.annotationFiles.set([]);
-  }
-
-  // HU-16: Cerrar modal de anotación
-  closeAnnotationModal(): void {
-    this.annotationModalOpen.set(false);
-    this.editingProcess.set(null);
-    this.annotationForm.reset({ description: '', markAsInternal: false });
-    this.annotationFiles.set([]);
-    this.formError.set(null);
-  }
-
-  // HU-16: Manejar selección de archivos
-  onAnnotationFilesSelected(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    if (input.files && input.files.length > 0) {
-      const filesArray = Array.from(input.files);
-      this.annotationFiles.set([...this.annotationFiles(), ...filesArray]);
-    }
-  }
-
-  // HU-16: Remover archivo de la lista
-  removeAnnotationFile(index: number): void {
-    const files = this.annotationFiles();
-    files.splice(index, 1);
-    this.annotationFiles.set([...files]);
-  }
-
-  // HU-16: Crear anotación y subir archivos
-  submitAnnotation(): void {
-    if (this.isLoading()) {
-      return;
-    }
-
-    if (this.annotationForm.invalid || !this.editingProcess()) {
-      return;
-    }
-
-    this.isLoading.set(true);
-    this.formError.set(null);
-    const { description, markAsInternal } = this.annotationForm.getRawValue();
-    const processId = this.editingProcess()!.id;
-
-    // Primero crear la anotación
-    this.processEventsService
-      .createAnnotation(processId, description, markAsInternal)
-      .pipe(
-        // Luego subir archivos si hay, vinculándolos a la anotación creada
-        switchMap((annotationEvent) => {
-          const files = this.annotationFiles();
-          if (files.length === 0) {
-            return of(null);
-          }
-          // Obtener el ID del evento de anotación creado
-          const annotationEventId = annotationEvent.id;
-          // Subir todos los archivos en paralelo, vinculados a la anotación
-          const uploads = files.map((file) =>
-            this.filesService.uploadFile(
-              file,
-              'legal_process',
-              processId,
-              undefined,
-              annotationEventId,
-            ),
-          );
-          return forkJoin(uploads);
-        }),
-      )
-      .subscribe({
-        next: () => {
-          this.isLoading.set(false);
-          this.closeAnnotationModal();
-          this.toast.success('Anotación creada correctamente.');
-          // Recargar historial si está abierto
-          if (this.historyModalOpen()) {
-            this.loadProcessHistory(processId);
-          }
-        },
-        error: (error) => {
-          console.error('Error creating annotation:', error);
-          // BUG-20 (hallazgo tardío en ola 3): error.message, no
-          // error.error?.message — ver comentario en settings.component.ts.
-          this.formError.set(
-            error.message || 'Error al crear anotación o subir archivos',
-          );
-          this.isLoading.set(false);
-        },
-      });
-  }
-
-  // F13: Abrir modal de plazos y audiencias
-  openDeadlinesModal(process: LegalProcessResponse): void {
-    this.editingProcess.set(process);
-    this.deadlinesModalOpen.set(true);
-    this.deadlineFormError.set(null);
-    this.deadlineForm.reset({
-      title: '',
-      typeId: '',
-      dueAt: '',
-      allDay: false,
-      notes: '',
-      assigneeUserIds: [],
-    });
-    this.loadProcessDeadlines(process.id);
-  }
-
-  // F13: Cerrar modal de plazos y audiencias
-  closeDeadlinesModal(): void {
-    this.deadlinesModalOpen.set(false);
-    this.editingProcess.set(null);
-    this.processDeadlines.set([]);
-    this.deadlineFormError.set(null);
-  }
-
-  // F13: Cargar plazos del proceso
-  loadProcessDeadlines(processId: string): void {
-    this.isLoadingDeadlines.set(true);
-    this.deadlinesService.getForProcess(processId).subscribe({
-      next: (deadlines) => {
-        this.processDeadlines.set(deadlines);
-        this.isLoadingDeadlines.set(false);
-      },
-      error: (error) => {
-        console.error('Error loading process deadlines:', error);
-        this.toast.error('Error al cargar los plazos del proceso');
-        this.isLoadingDeadlines.set(false);
-      },
-    });
-  }
-
-  // F13: Alternar asignación de un asesor al nuevo plazo
-  toggleDeadlineAssignee(userId: string): void {
-    const currentIds = this.deadlineForm.get('assigneeUserIds')?.value || [];
-    const index = currentIds.indexOf(userId);
-
-    if (index > -1) {
-      this.deadlineForm.patchValue({
-        assigneeUserIds: currentIds.filter((id: string) => id !== userId),
-      });
-    } else {
-      this.deadlineForm.patchValue({
-        assigneeUserIds: [...currentIds, userId],
-      });
-    }
-  }
-
-  // F13: Crear plazo para el proceso en edición
-  submitDeadline(): void {
-    if (this.isSubmittingDeadline() || !this.editingProcess()) {
-      return;
-    }
-
-    if (this.deadlineForm.invalid) {
-      this.deadlineForm.markAllAsTouched();
-      this.deadlineFormError.set('Completa los campos obligatorios.');
-      return;
-    }
-
-    this.isSubmittingDeadline.set(true);
-    this.deadlineFormError.set(null);
-    const processId = this.editingProcess()!.id;
-    const formValue = this.deadlineForm.getRawValue();
-
-    const request: CreateDeadlineRequest = {
-      title: formValue.title,
-      typeId: formValue.typeId,
-      dueAt: new Date(formValue.dueAt).toISOString(),
-      allDay: formValue.allDay,
-      notes: formValue.notes || undefined,
-      assigneeUserIds: formValue.assigneeUserIds,
-    };
-
-    this.deadlinesService.create(processId, request).subscribe({
-      next: () => {
-        this.isSubmittingDeadline.set(false);
-        this.toast.success('Plazo creado correctamente.');
-        this.deadlineForm.reset({
-          title: '',
-          typeId: '',
-          dueAt: '',
-          allDay: false,
-          notes: '',
-          assigneeUserIds: [],
-        });
-        this.loadProcessDeadlines(processId);
-        this.loadProcesses();
-      },
-      error: (error) => {
-        console.error('Error creating deadline:', error);
-        this.deadlineFormError.set(error.message || 'Error al crear el plazo');
-        this.toast.error(error.message || 'Error al crear el plazo');
-        this.isSubmittingDeadline.set(false);
-      },
-    });
-  }
-
-  // F13: Marcar un plazo como completado
-  markDeadlineDone(deadline: DeadlineResponse): void {
-    this.deadlinesService
-      .update(deadline.id, { status: DeadlineStatus.DONE })
-      .subscribe({
-        next: () => {
-          this.toast.success('Plazo marcado como completado.');
-          this.loadProcessDeadlines(deadline.processId);
-          this.loadProcesses();
-        },
-        error: (error) => {
-          console.error('Error updating deadline:', error);
-          this.toast.error(error.message || 'Error al actualizar el plazo');
-        },
-      });
-  }
-
-  // F13: Eliminar un plazo
-  async deleteDeadlineItem(deadline: DeadlineResponse): Promise<void> {
-    const confirmed = await this.confirmDialog.confirm({
-      title: 'Eliminar plazo',
-      message: `¿Estás seguro de eliminar el plazo "${deadline.title}"?`,
-      danger: true,
-    });
-    if (!confirmed) {
-      return;
-    }
-
-    this.deadlinesService.delete(deadline.id).subscribe({
-      next: () => {
-        this.toast.success('Plazo eliminado correctamente.');
-        this.loadProcessDeadlines(deadline.processId);
-        this.loadProcesses();
-      },
-      error: (error) => {
-        console.error('Error deleting deadline:', error);
-        this.toast.error(error.message || 'Error al eliminar el plazo');
-      },
-    });
-  }
-
-  // F14: Plantillas disponibles para instanciar (independiente del proceso)
-  loadTaskStatuses(): void {
-    this.taskStatusesService.getAll().subscribe({
-      next: (statuses) => this.taskStatuses.set(statuses),
-      error: (error) => console.error('Error loading task statuses:', error),
-    });
-  }
-
-  loadTaskTemplates(): void {
-    this.tasksService.getTemplates().subscribe({
-      next: (templates) => this.taskTemplates.set(templates),
-      error: (error) => console.error('Error loading task templates:', error),
-    });
-  }
-
-  // F14: Abrir modal de tareas
-  // F40 §PRO-07: abre el modal de contrapartes — autocontenido, carga sus
-  // propios datos a partir de legalProcessId (mismo criterio que
-  // ClientMattersPanelComponent en la ficha del cliente).
-  openCounterpartiesModal(process: LegalProcessResponse): void {
-    this.editingProcess.set(process);
-    this.counterpartiesModalOpen.set(true);
-  }
-
-  closeCounterpartiesModal(): void {
-    this.counterpartiesModalOpen.set(false);
-    this.editingProcess.set(null);
-  }
-
-  openTasksModal(process: LegalProcessResponse): void {
-    this.editingProcess.set(process);
-    this.tasksModalOpen.set(true);
-    this.taskFormError.set(null);
-    this.taskForm.reset({ title: '', assigneeUserId: '', dueAt: '' });
-    this.loadProcessTasks(process.id);
-  }
-
-  // F14: Cerrar modal de tareas
-  closeTasksModal(): void {
-    this.tasksModalOpen.set(false);
-    this.editingProcess.set(null);
-    this.processTasks.set([]);
-    this.taskFormError.set(null);
-  }
-
-  // F14: Cargar tareas del proceso
-  loadProcessTasks(processId: string): void {
-    this.isLoadingTasks.set(true);
-    this.tasksService.getForProcess(processId).subscribe({
-      next: (tasks) => {
-        this.processTasks.set(tasks);
-        this.isLoadingTasks.set(false);
-      },
-      error: (error) => {
-        console.error('Error loading process tasks:', error);
-        this.toast.error('Error al cargar las tareas del proceso');
-        this.isLoadingTasks.set(false);
-      },
-    });
-  }
-
-  // F14: Crear tarea para el proceso en edición
-  submitTask(): void {
-    if (this.isSubmittingTask() || !this.editingProcess()) {
-      return;
-    }
-
-    if (this.taskForm.invalid) {
-      this.taskForm.markAllAsTouched();
-      this.taskFormError.set('Completa los campos obligatorios.');
-      return;
-    }
-
-    this.isSubmittingTask.set(true);
-    this.taskFormError.set(null);
-    const processId = this.editingProcess()!.id;
-    const formValue = this.taskForm.getRawValue();
-
-    const request: CreateTaskRequest = {
-      title: formValue.title,
-      processId,
-      assigneeUserId: formValue.assigneeUserId || undefined,
-      dueAt: formValue.dueAt
-        ? new Date(formValue.dueAt).toISOString()
-        : undefined,
-    };
-
-    this.tasksService.create(request).subscribe({
-      next: () => {
-        this.isSubmittingTask.set(false);
-        this.toast.success('Tarea creada correctamente.');
-        this.taskForm.reset({ title: '', assigneeUserId: '', dueAt: '' });
-        this.loadProcessTasks(processId);
-      },
-      error: (error) => {
-        console.error('Error creating task:', error);
-        this.taskFormError.set(error.message || 'Error al crear la tarea');
-        this.toast.error(error.message || 'Error al crear la tarea');
-        this.isSubmittingTask.set(false);
-      },
-    });
-  }
-
-  // F14: TaskStatusControlComponent (dentro del modal) ya hizo el PATCH y
-  // mostró el toast — aquí solo se refleja el resultado en la lista local.
-  onProcessTaskUpdated(updated: TaskResponse): void {
-    this.processTasks.update((tasks) =>
-      tasks.map((t) => (t.id === updated.id ? updated : t)),
-    );
-  }
-
-  // F14: Eliminar una tarea
-  async deleteTaskItem(task: TaskResponse): Promise<void> {
-    if (task.status.isTerminal) {
-      return;
-    }
-    const confirmed = await this.confirmDialog.confirm({
-      title: 'Eliminar tarea',
-      message: `¿Estás seguro de eliminar la tarea "${task.title}"?`,
-      danger: true,
-    });
-    if (!confirmed) {
-      return;
-    }
-
-    this.tasksService.delete(task.id).subscribe({
-      next: () => {
-        this.toast.success('Tarea eliminada correctamente.');
-        if (task.processId) {
-          this.loadProcessTasks(task.processId);
-        }
-      },
-      error: (error) => {
-        console.error('Error deleting task:', error);
-        this.toast.error(error.message || 'Error al eliminar la tarea');
-      },
-    });
-  }
-
-  // F14: Instanciar una plantilla de tareas en el proceso en edición
-  instantiateTaskTemplate(templateId: string): void {
-    const process = this.editingProcess();
-    if (!process || !templateId || this.isInstantiatingTemplate()) {
-      return;
-    }
-
-    this.isInstantiatingTemplate.set(true);
-    this.tasksService.instantiateTemplate(process.id, templateId).subscribe({
-      next: (tasks) => {
-        this.isInstantiatingTemplate.set(false);
-        this.toast.success(
-          `Se crearon ${tasks.length} tarea(s) desde la plantilla.`,
-        );
-        this.loadProcessTasks(process.id);
-      },
-      error: (error) => {
-        console.error('Error instantiating task template:', error);
-        this.toast.error(error.message || 'Error al instanciar la plantilla');
-        this.isInstantiatingTemplate.set(false);
-      },
-    });
-  }
-
-  async updateStatus(): Promise<void> {
-    if (this.isLoading()) {
-      return;
-    }
-
-    if (this.statusForm.invalid || !this.editingProcess()) {
-      return;
-    }
-
-    const request: UpdateProcessStatusRequest = this.statusForm.getRawValue();
-
-    if (getValidNextStatuses(request.status).length === 0) {
-      const confirmed = await this.confirmDialog.confirm({
-        title: 'Confirmar cambio de estado',
-        message: `Cambiar el proceso a "${getStatusLabel(request.status)}" es definitivo: no se podrá volver a cambiar su estado después. ¿Deseas continuar?`,
-        danger: true,
-      });
-      if (!confirmed) {
-        return;
-      }
-    }
-
-    this.isLoading.set(true);
-    this.formError.set(null);
-
-    this.legalProcessesService
-      .updateProcessStatus(this.editingProcess()!.id, request)
-      .subscribe({
-        next: () => {
-          this.isLoading.set(false);
-          this.closeStatusModal();
-          this.loadProcesses();
-        },
-        error: (error) => {
-          console.error('Error updating status:', error);
-          // BUG-10: mismo patrón que saveProcess — updateProcessStatus
-          // también envuelve el error en un Error nativo.
-          const message = error.message || 'Error al actualizar el estado';
-          this.formError.set(message);
-          this.toast.error(message);
-          this.isLoading.set(false);
-        },
-      });
+  // BUG-06 etapa 2: MultiSelectComponent (dentro de ProcessFormComponent)
+  // emite el array completo de ids seleccionados en cada cambio.
+  setAdvisorIds(advisorIds: string[]): void {
+    this.processForm.patchValue({ advisorIds });
   }
 
   async deleteProcess(process: LegalProcessResponse): Promise<void> {
@@ -1439,178 +483,25 @@ export class ProcessesComponent implements OnInit, OnDestroy {
       },
       error: (error) => {
         console.error('Error deleting process:', error);
-        // BUG-20 (hallazgo tardío en ola 3): alert() nativo reemplazado por
-        // ToastService, leyendo error.message (no error.error?.message) —
-        // ver comentario en settings.component.ts.
+        // BUG-20: alert() nativo reemplazado por ToastService, leyendo
+        // error.message (no error.error?.message).
         this.toast.error(error.message || 'Error al eliminar el proceso');
         this.isLoading.set(false);
       },
     });
   }
 
-  // Workflow helpers
-  //
-  // BUG QA 2026-09-17 (F34 §3, hallazgo durante fix de matterId sintético):
-  // enable()/disable() de un FormControl emiten valueChanges por defecto,
-  // aunque el valor no cambie. Si este método corre sin { emitEvent: false }
-  // después de editProcess(), el enable() de 'clientId' aquí abajo reactiva
-  // la suscripción del constructor (línea ~508) y vuelve a llamar
-  // loadMattersForClient(clientId) — esta vez SIN el asunto eliminado
-  // sintético — pisando la lista que editProcess() acababa de construir. Por
-  // eso todo enable()/disable() de este método usa { emitEvent: false }: es
-  // reconfiguración interna de permisos de edición por estado, no una
-  // interacción real del usuario sobre el cliente.
-  configureEditableFields(status: ProcessStatus): void {
-    // Habilitar todos los campos primero
-    Object.keys(this.processForm.controls).forEach((key) => {
-      this.processForm.get(key)?.enable({ emitEvent: false });
-    });
-
-    // Configurar restricciones según el estado
-    switch (status) {
-      case ProcessStatus.DRAFT:
-        // En borrador, todos los campos son editables
-        break;
-
-      case ProcessStatus.ACTIVE:
-        // En activo, no se puede cambiar el número de caso ni el cliente
-        this.processForm.get('caseNumber')?.disable({ emitEvent: false });
-        this.processForm.get('clientId')?.disable({ emitEvent: false });
-        break;
-
-      case ProcessStatus.UNDER_REVIEW:
-        // En revisión, no se puede cambiar caso, cliente (más restrictivo que activo)
-        this.processForm.get('caseNumber')?.disable({ emitEvent: false });
-        this.processForm.get('clientId')?.disable({ emitEvent: false });
-        this.processForm.get('status')?.disable({ emitEvent: false }); // Evitar cambio directo de estado
-        break;
-
-      case ProcessStatus.SUSPENDED:
-        // Suspendido, no se puede cambiar caso, cliente, ni etapa
-        this.processForm.get('caseNumber')?.disable({ emitEvent: false });
-        this.processForm.get('clientId')?.disable({ emitEvent: false });
-        this.processForm.get('stageId')?.disable({ emitEvent: false });
-        break;
-
-      case ProcessStatus.COMPLETED:
-      case ProcessStatus.CANCELLED:
-      case ProcessStatus.ARCHIVED:
-        // Procesos finalizados no son editables
-        Object.keys(this.processForm.controls).forEach((key) => {
-          this.processForm.get(key)?.disable({ emitEvent: false });
-        });
-        break;
-    }
-  }
-
-  // BUG-06 etapa 2: MultiSelectComponent (dentro de ProcessFormComponent)
-  // emite el array completo de ids seleccionados en cada cambio, en vez de
-  // un id a la vez — ya no hace falta calcular el toggle acá.
-  setAdvisorIds(advisorIds: string[]): void {
-    this.processForm.patchValue({ advisorIds });
-  }
-
-  // F40 §PRO-06: generateCaseNumber() se retiró — generaba un número falso
-  // con Date.now() (no persistía, no era único de verdad) sobre el mismo
-  // campo que ahora es el radicado real asignado por el juzgado. El código
-  // interno de verdad lo genera el backend en create() y se muestra de
-  // solo lectura en el formulario (ver internalCode en app-process-form).
-
-  // Descargar archivo desde el historial
-  downloadFile(fileId: string): void {
-    this.filesService.downloadFile(fileId).subscribe({
-      next: () => {
-        console.log('Descarga iniciada');
-      },
-      error: (error) => {
-        console.error('Error al descargar archivo:', error);
-        this.toast.error(error.message || 'Error al descargar el archivo');
-      },
-    });
-  }
-
-  // Preview file from history
-  previewFileFromHistory(fileId: string, filename: string): void {
-    this.filesService.getDownloadUrl(fileId).subscribe({
-      next: (response) => {
-        const contentType = this.getContentTypeFromFilename(filename);
-        this.previewingFile.set({
-          id: fileId,
-          originalFilename: filename,
-          isImage: contentType.startsWith('image/'),
-          isPdf: contentType === 'application/pdf',
-        });
-        this.previewUrl.set(
-          this.sanitizer.bypassSecurityTrustResourceUrl(response.url),
-        );
-      },
-      error: (error) => {
-        console.error('Error al obtener URL del archivo:', error);
-        this.toast.error(error.message || 'Error al cargar vista previa del archivo');
-      },
-    });
-  }
-
-  // Close preview modal
-  closePreviewModal(): void {
-    this.previewingFile.set(null);
-    this.previewUrl.set(null);
-  }
-
-  // Helper: Get content type from filename
-  private getContentTypeFromFilename(filename: string): string {
-    const extension = filename.split('.').pop()?.toLowerCase() || '';
-    const contentTypes: Record<string, string> = {
-      pdf: 'application/pdf',
-      jpg: 'image/jpeg',
-      jpeg: 'image/jpeg',
-      png: 'image/png',
-      gif: 'image/gif',
-      webp: 'image/webp',
-      svg: 'image/svg+xml',
-      doc: 'application/msword',
-      docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      xls: 'application/vnd.ms-excel',
-      xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    };
-    return contentTypes[extension] || 'application/octet-stream';
-  }
-
-  // Lifecycle hooks
-  ngOnInit(): void {
-    // Suscribirse a eventos de eliminación de archivos para sincronizar vistas
-    this.fileDeletedSubscription = this.filesService.fileDeleted$.subscribe(
-      () => {
-        // Si el modal de historial está abierto, recargar el historial del proceso actual
-        if (this.historyModalOpen() && this.editingProcess()) {
-          this.loadProcessHistory(this.editingProcess()!.id);
-        }
-      },
-    );
-
-    this.openFromQueryParam();
-  }
-
-  /** F18 — al llegar desde un resultado de búsqueda global (?openId=), abre
-   * el panel de edición de ese proceso aunque no esté en la página cargada. */
-  private openFromQueryParam(): void {
+  /** F18/F40 Ola 4a — al llegar desde un resultado de búsqueda global o de
+   * notificaciones (?openId=), redirige a la ficha de detalle del proceso
+   * en vez de abrir un modal de edición (mismo patrón que
+   * `clients.component.ts` → `redirectFromQueryParam()`). El backend genera
+   * `linkPath: '/procesos?openId=<id>'` (search.service.ts / notifications)
+   * sin cambios — solo este manejador cambia de "abrir modal" a "redirigir". */
+  private redirectFromQueryParam(): void {
     const openId = this.route.snapshot.queryParamMap.get('openId');
     if (!openId) {
       return;
     }
-    this.legalProcessesService.getLegalProcess(openId).subscribe({
-      next: (process) => this.editProcess(process),
-      error: () => {},
-    });
-    this.router.navigate([], {
-      relativeTo: this.route,
-      queryParams: {},
-      replaceUrl: true,
-    });
-  }
-
-  ngOnDestroy(): void {
-    // Limpiar suscripción para evitar memory leaks
-    this.fileDeletedSubscription?.unsubscribe();
+    this.router.navigate(['/procesos', openId]);
   }
 }

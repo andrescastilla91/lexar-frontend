@@ -9,20 +9,24 @@ import { PortalEventVisibilityMode } from '../../../core/models/portal-visibilit
   imports: [ReactiveFormsModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    @if (isOpen()) {
-      <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+    @if (embedded() || isOpen()) {
+      <div [class]="embedded() ? '' : 'fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4'">
         <form
-          class="w-full max-w-sm md:max-w-2xl lg:max-w-4xl grid gap-4 rounded-lg border border-default bg-surface p-4 md:p-6 shadow-2xl max-h-[90vh] overflow-y-auto"
+          [class]="embedded()
+            ? 'grid gap-4 rounded-lg border border-default bg-surface p-4 md:p-6 shadow-card'
+            : 'w-full max-w-sm md:max-w-2xl lg:max-w-4xl grid gap-4 rounded-lg border border-default bg-surface p-4 md:p-6 shadow-2xl max-h-[90vh] overflow-y-auto'"
           [formGroup]="form()"
           (ngSubmit)="submit.emit()"
         >
-          <h3 class="text-lg font-semibold text-text">Agregar anotación</h3>
-          <strong>Proceso: </strong>
-          <h4 class="text-lg text-subtle"> {{ processTitle() }}</h4>
+          @if (!embedded()) {
+            <h3 class="text-lg font-semibold text-text">Agregar anotación</h3>
+            <strong>Proceso: </strong>
+            <h4 class="text-lg text-subtle"> {{ processTitle() }}</h4>
+          }
 
           <div class="grid gap-4">
             <label class="text-sm text-muted">
-              Descripción *
+              Anotación *
               <textarea
                 formControlName="description"
                 placeholder="Describe el evento, acción o nota importante..."
@@ -146,6 +150,9 @@ export class ProcessAnnotationModalComponent {
   errorMessage = input<string | null>(null);
   processTitle = input<string | null>(null);
   files = input<File[]>([]);
+  /** F40 Ola 4a: true cuando se renderiza como panel de la pestaña
+   * "Anotaciones" en ProcessDetailComponent, en vez de overlay modal. */
+  embedded = input(false);
   // F27: modo de visibilidad vigente para ANNOTATION — controla si se
   // muestra el aviso + checkbox "marcar interna".
   visibilityMode = input<PortalEventVisibilityMode | null>(null);

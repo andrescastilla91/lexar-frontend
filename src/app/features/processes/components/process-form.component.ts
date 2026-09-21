@@ -1,11 +1,19 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import { FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { ProcessStatus } from '../../../core/models/legal-process.model';
 import { AdvisorResponse } from '../../../core/models/advisor-backend.model';
-import { ClientResponse, ClientMatterResponse, ClientMatterStatus } from '../../../core/models/client-backend.model';
+import { ClientResponse } from '../../../core/models/client-backend.model';
 import { CatalogItem } from '../../../core/models/catalog-backend.model';
 import { MultiSelectComponent, MultiSelectItem } from '../../../shared/components/multi-select/multi-select.component';
 
+/**
+ * F40 Ola 4a: recortado a los campos esenciales para ABRIR el expediente
+ * (ver "Campos esenciales para la creación" en F40-ajustes-procesos-piloto.md,
+ * sección "Ola 4 (revisada)"). Ya no se usa para editar — la edición vive en
+ * la pestaña "Datos" de ProcessDetailComponent, con su propio formulario
+ * independiente (mismo criterio que ClientFormComponent/ClientDetailComponent
+ * en F33/F34). Asunto, descripción, juzgado, radicado y fechas se completan
+ * después desde el detalle.
+ */
 @Component({
   selector: 'app-process-form',
   standalone: true,
@@ -15,23 +23,17 @@ import { MultiSelectComponent, MultiSelectItem } from '../../../shared/component
     @if (isOpen()) {
       <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
         <form
-          class="w-full max-w-xl md:max-w-2xl grid gap-4 rounded-lg border border-default bg-surface p-4 md:p-6 shadow-2xl max-h-[90vh] overflow-y-auto"
+          class="w-full max-w-xl grid gap-4 rounded-lg border border-default bg-surface p-4 md:p-6 shadow-2xl max-h-[90vh] overflow-y-auto"
           [formGroup]="form()"
           (ngSubmit)="submit.emit()"
         >
-          <h3 class="text-lg font-semibold text-text">
-            {{ isEditing() ? 'Editar proceso' : 'Registrar nuevo proceso' }}
-          </h3>
-          @if (statusMessage()) {
-            <div class="rounded-md border border-warning bg-warning-tint px-4 py-3">
-              <div class="flex items-start gap-2">
-                <svg class="mt-0.5 h-5 w-5 flex-shrink-0 text-warning" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-                <p class="text-sm text-warning">{{ statusMessage() }}</p>
-              </div>
-            </div>
-          }
+          <div>
+            <h3 class="text-lg font-semibold text-text">Registrar nuevo proceso</h3>
+            <p class="mt-1 text-xs text-subtle">
+              Completa los datos esenciales para abrir el expediente. Asunto, descripción, juzgado, radicado y
+              fechas se agregan después desde la ficha del proceso.
+            </p>
+          </div>
           <div class="grid gap-4">
             <label class="text-sm text-muted">
               Título del proceso *
@@ -43,19 +45,9 @@ import { MultiSelectComponent, MultiSelectItem } from '../../../shared/component
               />
             </label>
             <label class="text-sm text-muted">
-              Descripción
-              <textarea
-                formControlName="description"
-                placeholder="Detalles del proceso"
-                rows="3"
-                class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
-              ></textarea>
-            </label>
-            <label class="text-sm text-muted">
               Cliente *
               <select
                 formControlName="clientId"
-                (change)="clientChange.emit($any($event.target).value)"
                 class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
               >
                 <option value="">Seleccionar cliente</option>
@@ -64,38 +56,14 @@ import { MultiSelectComponent, MultiSelectItem } from '../../../shared/component
                 }
               </select>
             </label>
+            <!-- F40 §PRO-04: se promueve a esencial — condiciona qué etapas aplican (§PRO-03). -->
             <label class="text-sm text-muted">
-              Asunto
-              <select
-                formControlName="matterId"
-                class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
-              >
-                <option value="">Sin asunto</option>
-                @for (matter of matters(); track matter.id) {
-                  <option [value]="matter.id">{{ matter.name }}</option>
-                }
-              </select>
-              @if (selectedMatter()?.isDeleted) {
-                <p class="mt-1 text-xs text-warning">
-                  Este asunto fue eliminado. Se mantiene la referencia en el proceso.
-                </p>
-              } @else if (selectedMatter()?.status === ClientMatterStatus.VENCIDO) {
-                <p class="mt-1 text-xs text-warning">
-                  Este asunto está vencido. Puedes vincularlo igual — considera renovarlo o cerrarlo desde la ficha del cliente.
-                </p>
-              } @else if (isEditing() && !selectedMatterId()) {
-                <p class="mt-1 text-xs text-subtle">Clasificación pendiente: este proceso no tiene un asunto asignado.</p>
-              }
-            </label>
-            <!-- F40 §PRO-04: tipo de proceso (catálogo process_type) — opcional,
-                 Decisión de transición (mismo criterio que matterId, F34 §3). -->
-            <label class="text-sm text-muted">
-              Tipo de proceso
+              Tipo de proceso *
               <select
                 formControlName="processTypeId"
                 class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
               >
-                <option value="">Sin clasificar</option>
+                <option value="">Seleccionar tipo</option>
                 @for (processType of processTypes(); track processType.id) {
                   <option [value]="processType.id">{{ processType.label }}</option>
                 }
@@ -117,11 +85,17 @@ import { MultiSelectComponent, MultiSelectItem } from '../../../shared/component
                 emptyStateText="No hay asesores disponibles"
                 (selectionChange)="advisorIdsChange.emit($event)"
               />
-              <p class="mt-1 text-xs text-subtle">Selecciona uno o más asesores para el proceso</p>
+              <!-- F40 Ola 4a: se promueve a recomendado en creación — un
+                   proceso sin asesor asignado queda fuera del alcance de
+                   visibilidad de quien no tenga legal_processes.view.all
+                   (F36) hasta que alguien se lo asigne. -->
+              <p class="mt-1 text-xs text-subtle">
+                Selecciona uno o más asesores — evita que el proceso quede sin responsable visible para su equipo.
+              </p>
             </div>
             <div class="grid gap-4 md:grid-cols-2">
               <label class="text-sm text-muted">
-                Etapa
+                Etapa *
                 <select
                   formControlName="stageId"
                   class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
@@ -140,7 +114,7 @@ import { MultiSelectComponent, MultiSelectItem } from '../../../shared/component
                 }
               </label>
               <label class="text-sm text-muted">
-                Nivel de Riesgo
+                Nivel de Riesgo *
                 <select
                   formControlName="riskLevelId"
                   class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
@@ -151,55 +125,6 @@ import { MultiSelectComponent, MultiSelectItem } from '../../../shared/component
                 </select>
               </label>
             </div>
-            <div class="grid gap-4 md:grid-cols-2">
-              <label class="text-sm text-muted">
-                Juzgado o entidad
-                <input
-                  formControlName="court"
-                  type="text"
-                  placeholder="Entidad o despacho"
-                  class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
-                />
-              </label>
-              <div class="text-sm text-muted">
-                <label class="block">Número de Caso (radicado)</label>
-                <input
-                  formControlName="caseNumber"
-                  type="text"
-                  placeholder="Radicado o número de expediente"
-                  class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
-                />
-                <p class="mt-1 text-xs text-subtle">Lo asigna el juzgado — opcional, puedes registrarlo después.</p>
-                @if (isEditing() && internalCode()) {
-                  <p class="mt-2 text-xs text-muted">
-                    Código interno:
-                    <span class="font-mono font-semibold text-text">{{ internalCode() }}</span>
-                  </p>
-                }
-              </div>
-            </div>
-            <div class="grid gap-4 md:grid-cols-2">
-              <label class="text-sm text-muted">
-                Fecha de Inicio
-                <input
-                  formControlName="startDate"
-                  type="date"
-                  class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
-                />
-              </label>
-              <label class="text-sm text-muted">
-                Fecha de Fin
-                <input
-                  formControlName="endDate"
-                  type="date"
-                  class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
-                />
-              </label>
-            </div>
-            <p class="text-xs text-subtle">
-              La próxima audiencia se calcula automáticamente a partir de los plazos de tipo "Audiencia" registrados
-              en la pestaña Plazos.
-            </p>
           </div>
           @if (errorMessage()) {
             <p class="rounded-md border border-danger bg-danger-tint px-3 py-2 text-sm text-danger">{{ errorMessage() }}</p>
@@ -208,9 +133,9 @@ import { MultiSelectComponent, MultiSelectItem } from '../../../shared/component
             <button
               type="submit"
               class="rounded-md bg-navy-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-navy-950 disabled:opacity-50 disabled:cursor-not-allowed"
-              [disabled]="isSubmitting() || !canEdit()"
+              [disabled]="isSubmitting()"
             >
-              {{ isEditing() ? 'Actualizar' : 'Guardar' }} proceso
+              Guardar proceso
             </button>
             <button
               type="button"
@@ -228,23 +153,13 @@ import { MultiSelectComponent, MultiSelectItem } from '../../../shared/component
 export class ProcessFormComponent {
   form = input.required<FormGroup>();
   isOpen = input(false);
-  isEditing = input(false);
   isSubmitting = input(false);
   errorMessage = input<string | null>(null);
-  statusMessage = input<string | null>(null);
-  canEdit = input(true);
   clients = input<ClientResponse[]>([]);
   advisors = input<AdvisorResponse[]>([]);
   stages = input<CatalogItem[]>([]);
   riskLevels = input<CatalogItem[]>([]);
-  /** F40 §PRO-04: catálogo `process_type` para el selector y para filtrar
-   * `stages()` por `processTypeScope` (§PRO-03). */
   processTypes = input<CatalogItem[]>([]);
-  /** F34 §3/§4: asuntos del cliente actualmente seleccionado — el contenedor
-   * (processes.component.ts) los recarga cada vez que cambia `clientId`. */
-  matters = input<ClientMatterResponse[]>([]);
-  /** F40 §PRO-06: código interno del despacho, generado por el backend — solo lectura, null mientras el proceso aún no existe (formulario de creación). */
-  internalCode = input<string | null>(null);
 
   close = output<void>();
   submit = output<void>();
@@ -253,13 +168,6 @@ export class ProcessFormComponent {
   // el contenedor (processes.component.ts) hace un patchValue directo en vez
   // de calcular el diff él mismo.
   advisorIdsChange = output<string[]>();
-  // F34 §3: solo se emite en interacción real del usuario (evento nativo
-  // `change` del <select>), nunca en un patchValue programático — así el
-  // contenedor puede limpiar `matterId` al cambiar de cliente sin pisar el
-  // valor que `editProcess()` acaba de precargar.
-  clientChange = output<string>();
-
-  protected readonly ProcessStatus = ProcessStatus;
 
   readonly advisorItems = computed<MultiSelectItem[]>(() =>
     this.advisors().map((advisor) => ({
@@ -271,18 +179,11 @@ export class ProcessFormComponent {
 
   // No es un computed a propósito: form() es un input de FormGroup mutable
   // (patchValue no cambia la referencia), así que este valor debe leerse en
-  // cada ciclo de detección de cambios del template, igual que ya hacía
-  // isAdvisorSelected() antes de esta migración.
+  // cada ciclo de detección de cambios del template.
   selectedAdvisorIds(): string[] {
     return this.form().get('advisorIds')?.value || [];
   }
 
-  // No es un computed a propósito, mismo motivo que selectedAdvisorIds().
-  selectedMatterId(): string {
-    return this.form().get('matterId')?.value || '';
-  }
-
-  // No es un computed a propósito, mismo motivo que selectedMatterId().
   selectedProcessTypeId(): string {
     return this.form().get('processTypeId')?.value || '';
   }
@@ -316,14 +217,4 @@ export class ProcessFormComponent {
     const stage = this.stages().find((s) => s.id === selectedStageId);
     return !!stage?.processTypeScope && stage.processTypeScope !== processTypeId;
   }
-
-  selectedMatter(): ClientMatterResponse | null {
-    const matterId = this.selectedMatterId();
-    if (!matterId) {
-      return null;
-    }
-    return this.matters().find((m) => m.id === matterId) || null;
-  }
-
-  protected readonly ClientMatterStatus = ClientMatterStatus;
 }

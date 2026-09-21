@@ -23,27 +23,31 @@ export interface HistoryFileRef {
   imports: [HasPermissionDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    @if (isOpen()) {
-      <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+    @if (embedded() || isOpen()) {
+      <div [class]="embedded() ? '' : 'fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4'">
         <div
-          class="w-full max-w-xl md:max-w-2xl lg:max-w-3xl flex flex-col rounded-lg border border-default bg-surface shadow-2xl overflow-hidden max-h-[85vh]"
+          [class]="embedded()
+            ? 'flex flex-col rounded-lg border border-default bg-surface shadow-card overflow-hidden'
+            : 'w-full max-w-xl md:max-w-2xl lg:max-w-3xl flex flex-col rounded-lg border border-default bg-surface shadow-2xl overflow-hidden max-h-[85vh]'"
         >
           <!-- Header -->
-          <div class="flex items-center justify-between border-b border-default p-6">
-            <div>
-              <h3 class="text-lg font-semibold text-text">Historial del proceso</h3>
-              <p class="text-sm text-subtle">{{ processTitle() }}</p>
+          @if (!embedded()) {
+            <div class="flex items-center justify-between border-b border-default p-6">
+              <div>
+                <h3 class="text-lg font-semibold text-text">Historial del proceso</h3>
+                <p class="text-sm text-subtle">{{ processTitle() }}</p>
+              </div>
+              <button
+                type="button"
+                (click)="close.emit()"
+                class="rounded-md p-2 text-subtle hover:bg-surface-muted hover:text-muted"
+              >
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
-            <button
-              type="button"
-              (click)="close.emit()"
-              class="rounded-md p-2 text-subtle hover:bg-surface-muted hover:text-muted"
-            >
-              <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
+          }
 
           <!-- Timeline Content -->
           <div class="flex-1 overflow-y-auto p-6">
@@ -167,15 +171,17 @@ export interface HistoryFileRef {
           </div>
 
           <!-- Footer -->
-          <div class="border-t border-default p-4">
-            <button
-              type="button"
-              (click)="close.emit()"
-              class="w-full rounded-md border border-default px-4 py-2 text-sm font-semibold text-muted transition hover:bg-surface-muted"
-            >
-              Cerrar
-            </button>
-          </div>
+          @if (!embedded()) {
+            <div class="border-t border-default p-4">
+              <button
+                type="button"
+                (click)="close.emit()"
+                class="w-full rounded-md border border-default px-4 py-2 text-sm font-semibold text-muted transition hover:bg-surface-muted"
+              >
+                Cerrar
+              </button>
+            </div>
+          }
         </div>
       </div>
     }
@@ -183,6 +189,9 @@ export interface HistoryFileRef {
 })
 export class ProcessHistoryModalComponent {
   isOpen = input(false);
+  /** F40 Ola 4a: true cuando se renderiza como panel de la pestaña
+   * "Historial" en ProcessDetailComponent, en vez de overlay modal. */
+  embedded = input(false);
   processTitle = input<string | null>(null);
   isLoadingHistory = input(false);
   events = input<ProcessEvent[]>([]);

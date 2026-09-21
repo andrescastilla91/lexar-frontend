@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { ProcessesTableComponent } from './processes-table.component';
 import { LegalProcessResponse, ProcessStatus } from '../../../core/models/legal-process.model';
 
@@ -22,6 +23,8 @@ describe('ProcessesTableComponent', () => {
       clientId: 'cl1',
       client: { id: 'cl1', fullName: 'Cliente Uno', email: 'cliente@lexar.com' },
       advisors: [],
+      matterId: null,
+      matter: null,
       createdAt: new Date('2026-01-01'),
       updatedAt: new Date('2026-01-01'),
       ...overrides,
@@ -29,6 +32,10 @@ describe('ProcessesTableComponent', () => {
   }
 
   function createComponent() {
+    TestBed.configureTestingModule({
+      imports: [ProcessesTableComponent],
+      providers: [provideRouter([])],
+    });
     return TestBed.createComponent(ProcessesTableComponent);
   }
 
@@ -80,47 +87,29 @@ describe('ProcessesTableComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Judicial');
   });
 
-  it('muestra el botón de editar solo cuando el proceso es editable', () => {
+  // F40 Ola 4a: el título navega a la ficha de detalle en vez de abrir un modal de edición.
+  it('el título del proceso enlaza a /procesos/:id', () => {
     const fixture = createComponent();
-    fixture.componentRef.setInput('processes', [buildProcess({ status: ProcessStatus.COMPLETED })]);
-    fixture.detectChanges();
-
-    expect(fixture.nativeElement.querySelector('button[title="Editar proceso"]')).toBeNull();
-  });
-
-  it('muestra el botón de cambiar estado solo si hay transiciones válidas', () => {
-    const fixture = createComponent();
-    fixture.componentRef.setInput('processes', [buildProcess({ status: ProcessStatus.CANCELLED })]);
-    fixture.detectChanges();
-
-    expect(fixture.nativeElement.querySelector('button[title="Cambiar estado"]')).toBeNull();
-  });
-
-  it('muestra el botón de anotar solo cuando el proceso está ACTIVE', () => {
-    const fixture = createComponent();
-    fixture.componentRef.setInput('processes', [buildProcess({ status: ProcessStatus.DRAFT })]);
-    fixture.detectChanges();
-
-    expect(fixture.nativeElement.querySelector('button[title="Agregar anotación"]')).toBeNull();
-
-    fixture.componentRef.setInput('processes', [buildProcess({ status: ProcessStatus.ACTIVE })]);
-    fixture.detectChanges();
-
-    expect(fixture.nativeElement.querySelector('button[title="Agregar anotación"]')).not.toBeNull();
-  });
-
-  it('emite edit con el proceso al hacer clic en editar', () => {
-    const fixture = createComponent();
-    const process = buildProcess({ status: ProcessStatus.DRAFT });
+    const process = buildProcess();
     fixture.componentRef.setInput('processes', [process]);
     fixture.detectChanges();
 
-    const spy = jest.fn();
-    fixture.componentInstance.edit.subscribe(spy);
+    const link: HTMLAnchorElement = fixture.nativeElement.querySelector('a[href="/procesos/p1"]');
+    expect(link).not.toBeNull();
+    expect(link.textContent).toContain('Proceso de prueba');
+  });
 
-    fixture.nativeElement.querySelector('button[title="Editar proceso"]').click();
+  it('el botón "Ver detalle" también enlaza a /procesos/:id', () => {
+    const fixture = createComponent();
+    const process = buildProcess();
+    fixture.componentRef.setInput('processes', [process]);
+    fixture.detectChanges();
 
-    expect(spy).toHaveBeenCalledWith(process);
+    const links: HTMLAnchorElement[] = Array.from(
+      fixture.nativeElement.querySelectorAll('a[href="/procesos/p1"]'),
+    );
+    // Uno en la tarjeta de escritorio (ícono) y otro en la de mobile ("Ver detalle").
+    expect(links.length).toBeGreaterThanOrEqual(2);
   });
 
   it('emite delete con el proceso al hacer clic en eliminar', () => {
@@ -137,41 +126,21 @@ describe('ProcessesTableComponent', () => {
     expect(spy).toHaveBeenCalledWith(process);
   });
 
-  it('emite viewHistory, viewDeadlines y viewTasks con el proceso', () => {
+  // BUG-24: el bloque de escritorio ya no coexiste sin filtro con el de
+  // mobile — ahora lleva `hidden md:block`, simétrico al `md:hidden` del
+  // bloque mobile, evitando que ambos rendericen acciones a la vez.
+  it('BUG-24: el bloque de tarjetas de escritorio tiene la clase de visibilidad responsive que faltaba', () => {
     const fixture = createComponent();
-    const process = buildProcess();
-    fixture.componentRef.setInput('processes', [process]);
+    fixture.componentRef.setInput('processes', [buildProcess()]);
     fixture.detectChanges();
 
-    const historySpy = jest.fn();
-    const deadlinesSpy = jest.fn();
-    const tasksSpy = jest.fn();
-    fixture.componentInstance.viewHistory.subscribe(historySpy);
-    fixture.componentInstance.viewDeadlines.subscribe(deadlinesSpy);
-    fixture.componentInstance.viewTasks.subscribe(tasksSpy);
+    const desktopBlock: HTMLElement = fixture.nativeElement.querySelector('.space-y-4');
+    expect(desktopBlock).not.toBeNull();
+    expect(desktopBlock.classList.contains('hidden')).toBe(true);
+    expect(desktopBlock.classList.contains('md:block')).toBe(true);
 
-    fixture.nativeElement.querySelector('button[title="Ver historial"]').click();
-    fixture.nativeElement.querySelector('button[title="Ver plazos y audiencias"]').click();
-    fixture.nativeElement.querySelector('button[title="Ver tareas"]').click();
-
-    expect(historySpy).toHaveBeenCalledWith(process);
-    expect(deadlinesSpy).toHaveBeenCalledWith(process);
-    expect(tasksSpy).toHaveBeenCalledWith(process);
-  });
-
-  // F40 §PRO-07
-  it('emite viewCounterparties con el proceso', () => {
-    const fixture = createComponent();
-    const process = buildProcess();
-    fixture.componentRef.setInput('processes', [process]);
-    fixture.detectChanges();
-
-    const spy = jest.fn();
-    fixture.componentInstance.viewCounterparties.subscribe(spy);
-
-    fixture.nativeElement.querySelector('button[title="Ver contrapartes"]').click();
-
-    expect(spy).toHaveBeenCalledWith(process);
+    const mobileBlock: HTMLElement = fixture.nativeElement.querySelector('.grid.gap-4.md\\:hidden');
+    expect(mobileBlock).not.toBeNull();
   });
 
   it('muestra "Sin asesores asignados" cuando el proceso no tiene asesores', () => {

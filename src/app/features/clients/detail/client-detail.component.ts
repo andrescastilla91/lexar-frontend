@@ -272,7 +272,7 @@ type ClientDetailTab =
                   @for (process of processes(); track process.id) {
                     <li class="flex items-center justify-between gap-4 p-4">
                       <div>
-                        <a [routerLink]="['/procesos']" [queryParams]="{ openId: process.id }" class="font-medium text-text hover:text-navy-900">
+                        <a [routerLink]="['/procesos', process.id]" class="font-medium text-text hover:text-navy-900">
                           {{ process.title }}
                         </a>
                         <p class="text-xs text-subtle">{{ process.caseNumber || 'Sin radicado' }}</p>
