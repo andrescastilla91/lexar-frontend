@@ -1457,6 +1457,29 @@ describe('ProcessesComponent', () => {
     });
   });
 
+  describe('F40 §PRO-07 contrapartes', () => {
+    it('openCounterpartiesModal fija el proceso y abre el modal', async () => {
+      await configure();
+      const component = createComponent();
+
+      component.openCounterpartiesModal(process);
+
+      expect(component.counterpartiesModalOpen()).toBe(true);
+      expect(component.editingProcess()).toBe(process);
+    });
+
+    it('closeCounterpartiesModal cierra el modal y limpia el proceso', async () => {
+      await configure();
+      const component = createComponent();
+      component.openCounterpartiesModal(process);
+
+      component.closeCounterpartiesModal();
+
+      expect(component.counterpartiesModalOpen()).toBe(false);
+      expect(component.editingProcess()).toBeNull();
+    });
+  });
+
   describe('archivos: descarga y previsualización', () => {
     it('downloadFile en error muestra un toast (BUG-20: ya no usa alert nativo)', async () => {
       await configure({ files: { downloadFile: jest.fn().mockReturnValue(throwError(() => new Error('falló'))) } });

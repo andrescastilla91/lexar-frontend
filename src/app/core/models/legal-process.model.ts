@@ -4,7 +4,7 @@
 
 import { AdvisorResponse } from './advisor-backend.model';
 import { CatalogRef } from './catalog-backend.model';
-import { ClientMatterStatus } from './client-backend.model';
+import { ClientMatterStatus, ClientPersonType } from './client-backend.model';
 
 export enum ProcessStatus {
   DRAFT = 'DRAFT', // Borrador
@@ -110,4 +110,64 @@ export interface LegalProcess {
   riskLevel: 'Alto' | 'Medio' | 'Bajo';
   nextHearingDate: string;
   updatedAt: string;
+}
+
+
+/**
+ * F40 §CLI-12: resultado (no bloqueante) de cruzar un número de
+ * identificación contra las contrapartes registradas en los procesos del
+ * tenant (al crear un cliente) o contra los clientes del tenant (al
+ * registrar una contraparte, el caso inverso). `null`/`undefined` = sin
+ * coincidencia.
+ */
+export interface DocumentConflict {
+  legalProcessId: string;
+  legalProcessTitle: string;
+  /** Nombre del lado opuesto del cruce: la contraparte si se advirtió al crear un cliente, el cliente si se advirtió al crear una contraparte. */
+  matchedName: string;
+}
+
+/**
+ * F40 §PRO-07: la contraparte de un proceso — entidad propia (un proceso
+ * puede tener varias). Reutiliza `ClientPersonType`/el catálogo
+ * `document_type` de F33, mismo criterio que `Client`.
+ */
+export interface ProcessCounterpartyResponse {
+  id: string;
+  legalProcessId: string;
+  fullName: string;
+  personType: ClientPersonType;
+  documentType: CatalogRef | null;
+  identificationNumber: string;
+  attorneyName: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  /** F40 §CLI-12: solo viene poblado en la respuesta de create() — el cruce se hace una vez, al registrar la contraparte. */
+  documentConflict?: DocumentConflict | null;
+}
+
+export interface CreateProcessCounterpartyRequest {
+  legalProcessId: string;
+  fullName: string;
+  personType?: ClientPersonType;
+  documentTypeId?: string;
+  identificationNumber: string;
+  attorneyName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  notes?: string;
+}
+
+export interface UpdateProcessCounterpartyRequest {
+  fullName?: string;
+  personType?: ClientPersonType;
+  documentTypeId?: string;
+  identificationNumber?: string;
+  attorneyName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  notes?: string;
 }

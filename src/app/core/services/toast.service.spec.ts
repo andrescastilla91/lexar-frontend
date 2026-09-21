@@ -29,6 +29,17 @@ describe('ToastService', () => {
     expect(service.toasts()).toEqual([{ id: 1, type: 'error', message: 'Ocurrió un error' }]);
   });
 
+  // F40 §CLI-12: tipo nuevo para advertencias no bloqueantes (el cruce de
+  // conflicto de interés) — misma forma que success()/error(), solo cambia
+  // el tipo.
+  it('warning agrega un toast de tipo warning', () => {
+    service.warning('El documento ya figura como contraparte en otro proceso');
+
+    expect(service.toasts()).toEqual([
+      { id: 1, type: 'warning', message: 'El documento ya figura como contraparte en otro proceso' },
+    ]);
+  });
+
   it('cada push usa un id distinto e incremental', () => {
     service.success('uno');
     service.error('dos');

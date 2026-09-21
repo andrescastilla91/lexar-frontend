@@ -37,6 +37,18 @@ describe('ToastComponent', () => {
     expect(toastService.toasts()).toEqual([]);
   });
 
+  // F40 §CLI-12: tipo warning nuevo — verifica que se pinta con el borde
+  // ámbar (border-warning), distinto de success/error.
+  it('un toast warning se renderiza con la clase border-warning', () => {
+    const fixture = createComponent();
+    toastService.warning('El documento ya figura como contraparte en otro proceso');
+    fixture.detectChanges();
+
+    const toastEl = fixture.nativeElement.querySelector('.border-warning');
+    expect(toastEl).not.toBeNull();
+    expect(toastEl.textContent).toContain('El documento ya figura como contraparte en otro proceso');
+  });
+
   it('sin acción, no renderiza ningún enlace', () => {
     const fixture = createComponent();
     toastService.error('Algo falló');

@@ -1,6 +1,6 @@
 import { Injectable, signal } from '@angular/core';
 
-export type ToastType = 'success' | 'error';
+export type ToastType = 'success' | 'error' | 'warning';
 
 /**
  * F7-R3: acción opcional del toast (hoy solo la usa el CTA de upgrade de
@@ -37,6 +37,15 @@ export class ToastService {
 
   error(message: string, action?: ToastAction): void {
     this.push('error', message, action);
+  }
+
+  /**
+   * F40 §CLI-12: advertencias no bloqueantes (p. ej. el cruce de conflicto
+   * de interés al crear un cliente/contraparte) — distinto de `error()`
+   * porque la acción sí se completó, solo hay algo que revisar.
+   */
+  warning(message: string, action?: ToastAction): void {
+    this.push('warning', message, action);
   }
 
   dismiss(id: number): void {

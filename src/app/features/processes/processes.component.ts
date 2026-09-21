@@ -59,6 +59,7 @@ import { ProcessAnnotationModalComponent } from './components/process-annotation
 import { ProcessHistoryModalComponent } from './components/process-history-modal.component';
 import { ProcessDeadlinesModalComponent } from './components/process-deadlines-modal.component';
 import { ProcessTasksModalComponent } from './components/process-tasks-modal.component';
+import { ProcessCounterpartiesModalComponent } from './components/process-counterparties-modal.component'; // F40 §PRO-07
 import {
   getStatusLabel,
   getValidNextStatuses,
@@ -78,6 +79,7 @@ import {
     ProcessHistoryModalComponent,
     ProcessDeadlinesModalComponent,
     ProcessTasksModalComponent,
+    ProcessCounterpartiesModalComponent, // F40 §PRO-07
     FilePreviewModalComponent,
   ],
   template: `
@@ -318,6 +320,14 @@ import {
         (instantiateTemplate)="instantiateTaskTemplate($event)"
       />
 
+      <!-- F40 §PRO-07: Modal de contrapartes -->
+      <app-process-counterparties-modal
+        [isOpen]="counterpartiesModalOpen()"
+        [legalProcessId]="editingProcess()?.id ?? null"
+        [processTitle]="editingProcess()?.title ?? null"
+        (close)="closeCounterpartiesModal()"
+      />
+
       <!-- File Preview Modal -->
       <app-file-preview-modal
         [file]="previewingFile()"
@@ -351,6 +361,7 @@ import {
         (viewHistory)="openHistoryModal($event)"
         (viewDeadlines)="openDeadlinesModal($event)"
         (viewTasks)="openTasksModal($event)"
+        (viewCounterparties)="openCounterpartiesModal($event)"
         (annotate)="openAnnotationModal($event)"
         (delete)="deleteProcess($event)"
       />
@@ -423,6 +434,7 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   readonly isSubmittingDeadline = signal(false); // F13
   readonly deadlineFormError = signal<string | null>(null); // F13
   readonly tasksModalOpen = signal(false); // F14
+  readonly counterpartiesModalOpen = signal(false); // F40 §PRO-07
   readonly processTasks = signal<TaskResponse[]>([]); // F14
   readonly taskTemplates = signal<TaskTemplateResponse[]>([]); // F14
   readonly taskStatuses = signal<TaskStatusResponse[]>([]); // F14
@@ -1217,6 +1229,19 @@ export class ProcessesComponent implements OnInit, OnDestroy {
   }
 
   // F14: Abrir modal de tareas
+  // F40 §PRO-07: abre el modal de contrapartes — autocontenido, carga sus
+  // propios datos a partir de legalProcessId (mismo criterio que
+  // ClientMattersPanelComponent en la ficha del cliente).
+  openCounterpartiesModal(process: LegalProcessResponse): void {
+    this.editingProcess.set(process);
+    this.counterpartiesModalOpen.set(true);
+  }
+
+  closeCounterpartiesModal(): void {
+    this.counterpartiesModalOpen.set(false);
+    this.editingProcess.set(null);
+  }
+
   openTasksModal(process: LegalProcessResponse): void {
     this.editingProcess.set(process);
     this.tasksModalOpen.set(true);

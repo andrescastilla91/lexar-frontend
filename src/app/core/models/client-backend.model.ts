@@ -3,6 +3,7 @@
  */
 
 import { CatalogRef } from './catalog-backend.model';
+import { DocumentConflict } from './legal-process.model';
 
 /** F33: tipo de persona del cliente. */
 export enum ClientPersonType {
@@ -49,6 +50,12 @@ export interface ClientResponse {
    * de uno, `null`/`undefined` cuando no tiene asuntos con tipo asignado.
    * Solo viene poblado en el listado (`GET /clients`), no en la ficha. */
   contractTypeSummary?: CatalogRef | 'VARIOS' | null;
+  /**
+   * F40 §CLI-12: solo viene poblado en la respuesta de crear el cliente —
+   * coincidencia con una contraparte ya registrada en algún proceso de
+   * este tenant, si la hay. `undefined` en listado/ficha/edición.
+   */
+  documentConflict?: DocumentConflict | null;
 }
 
 export interface CreateClientRequest {

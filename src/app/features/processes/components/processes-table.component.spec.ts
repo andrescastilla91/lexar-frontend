@@ -159,6 +159,21 @@ describe('ProcessesTableComponent', () => {
     expect(tasksSpy).toHaveBeenCalledWith(process);
   });
 
+  // F40 §PRO-07
+  it('emite viewCounterparties con el proceso', () => {
+    const fixture = createComponent();
+    const process = buildProcess();
+    fixture.componentRef.setInput('processes', [process]);
+    fixture.detectChanges();
+
+    const spy = jest.fn();
+    fixture.componentInstance.viewCounterparties.subscribe(spy);
+
+    fixture.nativeElement.querySelector('button[title="Ver contrapartes"]').click();
+
+    expect(spy).toHaveBeenCalledWith(process);
+  });
+
   it('muestra "Sin asesores asignados" cuando el proceso no tiene asesores', () => {
     const fixture = createComponent();
     fixture.componentRef.setInput('processes', [buildProcess({ advisors: [] })]);
