@@ -18,6 +18,7 @@ const CATALOG_TABS: { id: CatalogType; label: string }[] = [
   { id: 'deadline_type', label: 'Tipos de plazo' },
   { id: 'laft_risk', label: 'Riesgo LA/FT' },
   { id: 'contract_type', label: 'Tipos de vinculación' },
+  { id: 'contingency', label: 'Contingencia' },
 ];
 
 const COLOR_OPTIONS: { value: string; label: string }[] = [

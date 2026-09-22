@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
-import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+import { DomSanitizer, SafeHtml, SafeResourceUrl } from '@angular/platform-browser';
 import { of, throwError, Subject } from 'rxjs';
 import { ProcessDetailComponent } from './process-detail.component';
 import { LegalProcessesService } from '../../../core/services/legal-processes.service';
@@ -66,6 +66,9 @@ describe('ProcessDetailComponent', () => {
     stage: { id: 'st1', code: 'INICIO', label: 'Inicio', color: null },
     riskLevel: { id: 'rl1', code: 'BAJO', label: 'Bajo', color: null },
     processType: { id: 'type-1', code: 'JUDICIAL', label: 'Judicial', color: null },
+    contingency: null,
+    amount: null,
+    currency: null,
     court: null,
     caseNumber: null,
     internalCode: 'RGJ-000001',
@@ -194,8 +197,14 @@ describe('ProcessDetailComponent', () => {
     confirmDialogMock = { confirm: jest.fn().mockResolvedValue(overrides.confirmResolves ?? true) };
     toastMock = { success: jest.fn(), error: jest.fn() };
 
+    // F40 §PRO-08 (ola 4b): ProcessDetailComponent ahora embebe ngx-editor
+    // (campo description y modal de anotación), cuyo SanitizeHtmlPipe interno
+    // también inyecta DomSanitizer y llama bypassSecurityTrustHtml() para
+    // pintar los íconos SVG del toolbar. Si el mock no lo implementa, TestBed
+    // explota con "this.sanitizer.bypassSecurityTrustHtml is not a function".
     const sanitizerMock = {
       bypassSecurityTrustResourceUrl: jest.fn((url: string): SafeResourceUrl => url as unknown as SafeResourceUrl),
+      bypassSecurityTrustHtml: jest.fn((html: string): SafeHtml => html as unknown as SafeHtml),
     };
 
     return TestBed.configureTestingModule({

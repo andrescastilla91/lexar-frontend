@@ -108,7 +108,7 @@ export interface HistoryFileRef {
                               }
                             }
                           </div>
-                          <p class="mt-1 text-sm text-text">{{ event.description }}</p>
+                          <div class="rich-text-content mt-1 text-sm text-text" [innerHTML]="event.description"></div>
 
                           <!-- Archivos adjuntos -->
                           @if (event.attachments && event.attachments.length > 0) {

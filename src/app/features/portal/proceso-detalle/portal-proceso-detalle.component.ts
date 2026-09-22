@@ -49,7 +49,7 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
                     </span>
                     <span class="text-xs text-subtle">{{ event.createdAt | date: 'd MMM y, h:mm a' }}</span>
                   </div>
-                  <p class="mt-2 text-sm text-text">{{ event.description }}</p>
+                  <div class="rich-text-content mt-2 text-sm text-text" [innerHTML]="event.description"></div>
                 </li>
               }
             </ol>

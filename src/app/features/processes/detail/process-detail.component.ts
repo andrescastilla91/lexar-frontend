@@ -2,6 +2,7 @@ import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+import { Editor, NgxEditorModule, Toolbar } from 'ngx-editor';
 import { Subscription, forkJoin, of } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
 import { LegalProcessesService } from '../../../core/services/legal-processes.service';
@@ -83,6 +84,7 @@ type ProcessDetailTab = 'datos' | 'contrapartes' | 'plazos' | 'tareas' | 'histor
     RouterLink,
     HasPermissionDirective,
     MultiSelectComponent,
+    NgxEditorModule,
     ProcessStatusModalComponent,
     ProcessAnnotationModalComponent,
     ProcessHistoryModalComponent,
@@ -184,14 +186,21 @@ type ProcessDetailTab = 'datos' | 'contrapartes' | 'plazos' | 'tareas' | 'histor
                 />
               </label>
 
-              <label class="block text-sm text-muted">
+              <div class="block text-sm text-muted">
                 Descripción
-                <textarea
-                  formControlName="description"
-                  rows="3"
-                  class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30 disabled:bg-surface-muted disabled:text-subtle"
-                ></textarea>
-              </label>
+                <!-- F40 §PRO-08 (ola 4b): editor WYSIWYG (ngx-editor) — el HTML
+                     que produce se sanitiza en el backend antes de guardar,
+                     nunca se confía en el HTML que manda el cliente. -->
+                <div class="NgxEditor__Wrapper mt-2 rounded-md border border-default shadow-card">
+                  <ngx-editor-menu [editor]="editor" [toolbar]="editorToolbar" />
+                  <ngx-editor
+                    [editor]="editor"
+                    formControlName="description"
+                    placeholder="Descripción del proceso…"
+                    class="min-h-[8rem] text-sm text-text"
+                  />
+                </div>
+              </div>
 
               <div class="grid gap-4 md:grid-cols-2">
                 <label class="text-sm text-muted">
@@ -252,6 +261,47 @@ type ProcessDetailTab = 'datos' | 'contrapartes' | 'plazos' | 'tareas' | 'histor
                   @if (isSelectedStageOutOfScope()) {
                     <p class="mt-1 text-xs text-warning">Esta etapa no está configurada para el tipo de proceso seleccionado.</p>
                   }
+                </label>
+              </div>
+
+              <!-- F40 §PRO-08 (ola 4b): cuantía, moneda y contingencia — información de
+                   valoración/riesgo financiero, se completa una vez el caso está siendo
+                   trabajado, no al momento de la apertura (por eso vive aquí y no en el
+                   modal de creación). -->
+              <div class="grid gap-4 md:grid-cols-3">
+                <label class="text-sm text-muted">
+                  Cuantía
+                  <input
+                    formControlName="amount"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0.00"
+                    class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30 disabled:bg-surface-muted disabled:text-subtle"
+                  />
+                </label>
+                <label class="text-sm text-muted">
+                  Moneda
+                  <select
+                    formControlName="currency"
+                    class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30 disabled:bg-surface-muted disabled:text-subtle"
+                  >
+                    <option value="COP">COP</option>
+                    <option value="USD">USD</option>
+                    <option value="EUR">EUR</option>
+                  </select>
+                </label>
+                <label class="text-sm text-muted">
+                  Contingencia
+                  <select
+                    formControlName="contingencyId"
+                    class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30 disabled:bg-surface-muted disabled:text-subtle"
+                  >
+                    <option value="">Sin clasificar</option>
+                    @for (contingency of contingencies(); track contingency.id) {
+                      <option [value]="contingency.id">{{ contingency.label }}</option>
+                    }
+                  </select>
                 </label>
               </div>
 
@@ -461,8 +511,28 @@ export class ProcessDetailComponent implements OnInit, OnDestroy {
   readonly advisors = signal<AdvisorResponse[]>([]);
   readonly matters = signal<ClientMatterResponse[]>([]);
   readonly processTypes = signal<CatalogItem[]>([]);
+  /** F40 §PRO-08 (ola 4b). */
+  readonly contingencies = signal<CatalogItem[]>([]);
   readonly stages = signal<CatalogItem[]>([]);
   readonly riskLevels = signal<CatalogItem[]>([]);
+
+  /**
+   * F40 §PRO-08 (ola 4b): primer editor WYSIWYG del producto (decisión de
+   * librería: `ngx-editor` — basado en ProseMirror, hecho específicamente
+   * para Angular standalone sin wrapper, y más liviano que la alternativa
+   * evaluada, `ngx-quill`/Quill — ver F40-ajustes-procesos-piloto.md). El
+   * HTML que produce se sanitiza de todos modos en el backend
+   * (`LegalProcessesService.sanitizeDescriptionHtml`) antes de persistir —
+   * nunca se confía en el HTML del cliente.
+   */
+  editor!: Editor;
+  readonly editorToolbar: Toolbar = [
+    ['bold', 'italic', 'underline', 'strike'],
+    ['ordered_list', 'bullet_list'],
+    [{ heading: ['h1', 'h2', 'h3'] }],
+    ['blockquote'],
+    ['link'],
+  ];
 
   protected readonly getStatusLabel = getStatusLabel;
   protected readonly getStatusClasses = getStatusClasses;
@@ -482,6 +552,9 @@ export class ProcessDetailComponent implements OnInit, OnDestroy {
     endDate: [''],
     matterId: [''],
     processTypeId: [''],
+    contingencyId: [''],
+    amount: [''],
+    currency: ['COP'],
   });
 
   readonly advisorItems = computed<MultiSelectItem[]>(() =>
@@ -604,8 +677,11 @@ export class ProcessDetailComponent implements OnInit, OnDestroy {
   });
 
   // Anotaciones (HU-16)
+  // F40 §PRO-08 (ola 4b): 2000 -> 50_000, mismo motivo que
+  // CreateAnnotationDto.description en el backend — el HTML del editor
+  // WYSIWYG infla el conteo de caracteres sobre el mismo texto.
   readonly annotationForm = this.fb.nonNullable.group({
-    description: ['', [Validators.required, Validators.maxLength(2000)]],
+    description: ['', [Validators.required, Validators.maxLength(50_000)]],
     markAsInternal: [false],
   });
   readonly annotationFiles = signal<File[]>([]);
@@ -635,6 +711,12 @@ export class ProcessDetailComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    // F40 §PRO-08 (ola 4b): el Editor de ngx-editor se instancia una sola
+    // vez por componente (no por proceso) — el mismo control de formulario
+    // se re-usa entre navegaciones a distintos `/procesos/:id` porque el
+    // componente completo se recrea por ruta.
+    this.editor = new Editor();
+
     const id = this.route.snapshot.paramMap.get('id');
     if (!id) {
       this.isLoading.set(false);
@@ -658,6 +740,7 @@ export class ProcessDetailComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.fileDeletedSubscription?.unsubscribe();
+    this.editor?.destroy();
   }
 
   private loadProcess(id: string): void {
@@ -693,6 +776,9 @@ export class ProcessDetailComponent implements OnInit, OnDestroy {
         endDate: process.endDate ? new Date(process.endDate).toISOString().slice(0, 10) : '',
         matterId: process.matterId || '',
         processTypeId: process.processType?.id || '',
+        contingencyId: process.contingency?.id || '',
+        amount: process.amount ?? '',
+        currency: process.currency || 'COP',
       },
       { emitEvent: false },
     );
@@ -705,6 +791,7 @@ export class ProcessDetailComponent implements OnInit, OnDestroy {
     this.catalogsService.getActiveCatalog('risk_level').subscribe((items) => this.riskLevels.set(items));
     this.catalogsService.getActiveCatalog('deadline_type').subscribe((items) => this.deadlineTypes.set(items));
     this.catalogsService.getActiveCatalog('process_type').subscribe((items) => this.processTypes.set(items));
+    this.catalogsService.getActiveCatalog('contingency').subscribe((items) => this.contingencies.set(items));
   }
 
   private loadAdvisors(): void {
@@ -761,6 +848,17 @@ export class ProcessDetailComponent implements OnInit, OnDestroy {
     };
   }
 
+  // F40 (2026-09-22): `caseNumber` (radicado) se sacó del bloqueo por
+  // estado. Tenía sentido bloquearlo cuando era el identificador principal
+  // del proceso, pero desde PRO-06 (ola 1) ese rol lo tiene `internalCode`
+  // (estable, generado por el sistema) — el radicado es metadato opcional
+  // que el juzgado asigna, con frecuencia DESPUÉS de activar el proceso
+  // (ver PRO-08 en el doc de F40), así que bloquearlo justo al activar
+  // impedía completarlo cuando más falta hacía. Tampoco hay ninguna regla
+  // de negocio en el backend que dependa de su inmutabilidad (a diferencia
+  // de `clientId`, que sigue bloqueado: cambiar el cliente de un proceso
+  // activo sí tiene implicaciones reales de facturación/portal/conflicto
+  // de interés).
   private configureEditableFields(status: ProcessStatus): void {
     Object.keys(this.editForm.controls).forEach((key) => {
       this.editForm.get(key)?.enable({ emitEvent: false });
@@ -770,15 +868,12 @@ export class ProcessDetailComponent implements OnInit, OnDestroy {
       case ProcessStatus.DRAFT:
         break;
       case ProcessStatus.ACTIVE:
-        this.editForm.get('caseNumber')?.disable({ emitEvent: false });
         this.editForm.get('clientId')?.disable({ emitEvent: false });
         break;
       case ProcessStatus.UNDER_REVIEW:
-        this.editForm.get('caseNumber')?.disable({ emitEvent: false });
         this.editForm.get('clientId')?.disable({ emitEvent: false });
         break;
       case ProcessStatus.SUSPENDED:
-        this.editForm.get('caseNumber')?.disable({ emitEvent: false });
         this.editForm.get('clientId')?.disable({ emitEvent: false });
         this.editForm.get('stageId')?.disable({ emitEvent: false });
         break;
@@ -820,6 +915,9 @@ export class ProcessDetailComponent implements OnInit, OnDestroy {
       advisorIds: formValue.advisorIds,
       matterId: formValue.matterId || undefined,
       processTypeId: formValue.processTypeId || undefined,
+      contingencyId: formValue.contingencyId || undefined,
+      amount: formValue.amount ? Number(formValue.amount) : undefined,
+      currency: formValue.currency || undefined,
     };
 
     this.legalProcessesService.updateLegalProcess(current.id, request).subscribe({

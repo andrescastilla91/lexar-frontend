@@ -1,3 +1,64 @@
 /* You can add global styles to this file, and also import other style files */
 @use "tailwindcss";
 @import "./styles/tokens.css";
+/* F40 §PRO-08 (ola 4b): ngx-editor NO publica un CSS separado — sus estilos
+   (toolbar, área editable, dropdowns) van embebidos en el propio componente
+   Angular con `encapsulation: ViewEncapsulation.None` (confirmado leyendo el
+   paquete instalado: no hay ningún .css en el tarball de npm, ni en v18 ni en
+   versiones anteriores), así que se aplican solos al usar <ngx-editor> — no
+   hace falta (ni existe) un import aquí. El look por defecto queda genérico
+   (blanco/gris); si se quiere que combine con los tokens del proyecto, la
+   librería expone custom properties --ngx-editor-* que aún no se han
+   sobreescrito — pendiente si el propietario lo pide tras ver el resultado. */
+
+/* Bug reportado 2026-09-21: viñetas/numeración y encabezados del WYSIWYG no
+   se veían. ProseMirror sí genera <ul>/<ol>/<li>/<h1-3> reales al usar la
+   toolbar (comportamiento documentado de la librería) — la causa más
+   probable, a falta de poder abrir un navegador desde este entorno para
+   confirmarlo en el DOM real, es el preflight de Tailwind (@layer base):
+   resetea `list-style: none` en ul/ol y `font-size: inherit` en los
+   headings para toda la app, y ese layer también alcanza el contenido que
+   ProseMirror inyecta dentro de <ngx-editor> aunque venga de otra librería.
+   Reglas sin @layer (como estas) ganan automáticamente sobre cualquier
+   @layer sin necesidad de !important ni de más especificidad — por eso
+   alcanza con reponer aquí lo que Tailwind resetea, sólo para el contenido
+   del editor. Falta que el propietario confirme visualmente que esto lo
+   resuelve.
+
+   F40 §PRO-08 (ola 4b): `.rich-text-content` es el mismo bloque de reglas
+   aplicado al HTML ya guardado que se muestra fuera del editor (Historial
+   interno y línea de tiempo del portal del cliente, ambos vía [innerHTML])
+   — mismo motivo: sin esto, una anotación con lista o encabezado se vería
+   sin viñetas/tamaño ahí también. */
+.NgxEditor__Content, .rich-text-content {
+  ul {
+    list-style: disc;
+    padding-left: 1.5rem;
+    margin: 0 0 10px;
+  }
+
+  ol {
+    list-style: decimal;
+    padding-left: 1.5rem;
+    margin: 0 0 10px;
+  }
+
+  ul ul, ol ol, ul ol, ol ul {
+    margin: 0;
+  }
+
+  li {
+    margin-bottom: 2px;
+  }
+
+  h1, h2, h3 {
+    font-family: var(--font-sans);
+    font-weight: 600;
+    line-height: 1.25;
+    margin: 0.6em 0 0.4em;
+  }
+
+  h1 { font-size: 1.5rem; }
+  h2 { font-size: 1.25rem; }
+  h3 { font-size: 1.1rem; }
+}

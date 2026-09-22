@@ -26,6 +26,13 @@ export interface LegalProcessResponse {
   /** F40 §PRO-04: nulo en procesos preexistentes o creados sin tipo — misma
    * "Decisión de transición" que `matterId` (F34 §3), nunca retroactivo. */
   processType: CatalogRef | null;
+  /** F40 §PRO-08 (ola 4b): nulo en procesos preexistentes o creados sin
+   * contingencia clasificada — misma "Decisión de transición" que processType. */
+  contingency: CatalogRef | null;
+  /** F40 §PRO-08 (ola 4b): cuantía del proceso — numeric serializado como string por TypeORM/el backend. */
+  amount: string | null;
+  /** F40 §PRO-08 (ola 4b): ISO-4217 de 3 letras, sin catálogo (mismo patrón que billing). */
+  currency: string | null;
   court: string | null;
   caseNumber: string | null;
   /** F40 §PRO-06: código interno del despacho — lo genera el sistema, inmutable, único por tenant. Nunca se envía al crear/editar. */
@@ -66,6 +73,9 @@ export interface CreateLegalProcessRequest {
   stageId?: string;
   riskLevelId?: string;
   processTypeId?: string;
+  contingencyId?: string;
+  amount?: number;
+  currency?: string;
   court?: string;
   caseNumber?: string;
   startDate?: string;
@@ -82,6 +92,9 @@ export interface UpdateLegalProcessRequest {
   stageId?: string;
   riskLevelId?: string;
   processTypeId?: string;
+  contingencyId?: string;
+  amount?: number;
+  currency?: string;
   court?: string;
   caseNumber?: string;
   startDate?: string;

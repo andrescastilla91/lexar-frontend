@@ -10,7 +10,8 @@ export type CatalogType =
   | 'deadline_type'
   | 'laft_risk'
   | 'contract_type'
-  | 'process_type';
+  | 'process_type'
+  | 'contingency';
 
 /** F33 §1: solo relevante para `document_type`. `null` = aplica a ambos. */
 export type CatalogPersonTypeScope = 'NATURAL' | 'JURIDICA';

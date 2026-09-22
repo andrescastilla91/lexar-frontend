@@ -94,7 +94,12 @@ export class ProcessesPage {
 
     this.datosTabScope = this.page.locator('app-process-detail');
     this.matterSelect = this.datosTabScope.locator('select[formcontrolname="matterId"]');
-    this.descriptionInput = this.datosTabScope.locator('textarea[formcontrolname="description"]');
+    // F40 §PRO-08 (ola 4b): description pasó de <textarea> a <ngx-editor>
+    // (ProseMirror) — el elemento editable real es el div .NgxEditor__Content
+    // que ProseMirror monta dentro del host <ngx-editor>, no el host mismo.
+    this.descriptionInput = this.datosTabScope.locator(
+      'ngx-editor[formcontrolname="description"] .NgxEditor__Content',
+    );
     this.caseNumberInput = this.datosTabScope.locator('input[formcontrolname="caseNumber"]');
     this.saveDatosButton = this.datosTabScope.getByRole('button', { name: 'Guardar cambios' });
 
@@ -108,12 +113,14 @@ export class ProcessesPage {
     this.updateStatusButton = statusModalScope.getByRole('button', { name: 'Actualizar estado' });
 
     // F40 Ola 4a: escopado a <app-process-annotation-modal> — la pestaña
-    // "Datos" de la ficha tiene su propio `textarea[formcontrolname=
-    // "description"]` (activeTab() arranca en 'datos', así que convive en
+    // "Datos" de la ficha tiene su propio <ngx-editor formcontrolname=
+    // "description"> (activeTab() arranca en 'datos', así que convive en
     // el DOM con el overlay de anotación en cuanto este se abre) — sin
     // este scope, fill() choca con 2 elementos (violación de modo estricto).
     const annotationModalScope = this.page.locator('app-process-annotation-modal');
-    this.annotationDescriptionInput = annotationModalScope.locator('textarea[formcontrolname="description"]');
+    this.annotationDescriptionInput = annotationModalScope.locator(
+      'ngx-editor[formcontrolname="description"] .NgxEditor__Content',
+    );
     this.annotationFileInput = this.page.locator('input[type="file"]');
     this.saveAnnotationButton = this.page.getByRole('button', { name: 'Guardar anotación' });
     this.annotationMarkInternalCheckbox = annotationModalScope.getByLabel(

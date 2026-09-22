@@ -13,6 +13,9 @@ describe('ProcessesTableComponent', () => {
       stage: null,
       riskLevel: null,
       processType: null, // F40 §PRO-04
+      contingency: null, // F40 §PRO-08 (ola 4b)
+      amount: null,
+      currency: null,
       court: null,
       caseNumber: 'PROC-2026-000001',
       internalCode: 'RGJ-000001',
