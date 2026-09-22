@@ -22,6 +22,8 @@ import { ProcessEvent, ProcessEventType } from '../../../core/models/process-eve
 import { DeadlineResponse, DeadlineStatus } from '../../../core/models/deadline.model';
 import { TaskPriority, TaskResponse } from '../../../core/models/task.model';
 import { TaskStatusResponse } from '../../../core/models/task-status.model';
+import { ClientMatterResponse } from '../../../core/models/client-backend.model';
+import { CatalogItem } from '../../../core/models/catalog-backend.model';
 
 /**
  * F40 Ola 4a: cubre la lógica que se trasladó desde processes.component.ts
@@ -288,6 +290,26 @@ describe('ProcessDetailComponent', () => {
       expect(component.process()).toBeNull();
       expect(fixture.nativeElement.textContent).toContain('Proceso no encontrado');
     });
+
+    it('precarga contingencia, cuantía y moneda cuando el proceso los trae (F40 §PRO-08)', async () => {
+      await configure({
+        legalProcesses: {
+          getLegalProcess: jest.fn().mockReturnValue(
+            of({
+              ...process,
+              contingency: { id: 'cont-1', code: 'PROBABLE', label: 'Probable', color: 'danger' },
+              amount: '1500000',
+              currency: 'USD',
+            }),
+          ),
+        },
+      });
+      const { component } = createComponent();
+
+      expect(component.editForm.value.contingencyId).toBe('cont-1');
+      expect(component.editForm.value.amount).toBe('1500000');
+      expect(component.editForm.value.currency).toBe('USD');
+    });
   });
 
   describe('tabs', () => {
@@ -330,6 +352,19 @@ describe('ProcessDetailComponent', () => {
       expect(component.errorMessage()).toBe('Cliente inválido');
       expect(toastMock.error).toHaveBeenCalledWith('Cliente inválido');
     });
+
+    it('envía cuantía numérica, moneda y contingencia al guardar cuando están diligenciadas (F40 §PRO-08)', async () => {
+      await configure();
+      const { component } = createComponent();
+      component.editForm.patchValue({ contingencyId: 'cont-1', amount: '2500000', currency: 'EUR' });
+
+      component.saveDatos();
+
+      expect(legalProcessesServiceMock.updateLegalProcess).toHaveBeenCalledWith(
+        'p1',
+        expect.objectContaining({ contingencyId: 'cont-1', amount: 2500000, currency: 'EUR' }),
+      );
+    });
   });
 
   describe('cambiar estado (HU-14)', () => {
@@ -360,6 +395,104 @@ describe('ProcessDetailComponent', () => {
       );
       expect(component.process()?.status).toBe(ProcessStatus.ACTIVE);
       expect(component.statusModalOpen()).toBe(false);
+    });
+
+    // F40 §PRO-08 / QA-GATE-1: configureEditableFields() bloquea distintos
+    // campos por estado (ver comentario junto al método) — antes de esto
+    // solo DRAFT (carga inicial) y ACTIVE (test de arriba) se ejercitaban.
+    it.each([
+      ProcessStatus.UNDER_REVIEW,
+      ProcessStatus.SUSPENDED,
+      ProcessStatus.COMPLETED,
+      ProcessStatus.CANCELLED,
+      ProcessStatus.ARCHIVED,
+    ])('al pasar a %s, bloquea cliente (y todo el resto si es un estado terminal)', async (status) => {
+      await configure({
+        legalProcesses: {
+          updateProcessStatus: jest.fn().mockReturnValue(of({ ...process, status })),
+        },
+      });
+      const { component } = createComponent();
+      component.statusForm.patchValue({ status, notes: '' });
+
+      await component.updateStatus();
+
+      expect(component.editForm.get('clientId')?.disabled).toBe(true);
+    });
+  });
+
+  describe('processStatusMessage (F40 §PRO-08 / QA-GATE-1)', () => {
+    it('devuelve el mensaje correcto para cada estado no editable', async () => {
+      await configure();
+      const { component } = createComponent();
+
+      const cases: Array<[ProcessStatus, string]> = [
+        [ProcessStatus.COMPLETED, 'Este proceso está completado. No se pueden realizar cambios.'],
+        [ProcessStatus.CANCELLED, 'Este proceso está cancelado. No se pueden realizar cambios.'],
+        [ProcessStatus.ARCHIVED, 'Este proceso está archivado. No se pueden realizar cambios.'],
+        [ProcessStatus.ACTIVE, 'El número de caso y el cliente no pueden modificarse una vez el proceso está activo.'],
+        [ProcessStatus.UNDER_REVIEW, 'El proceso está en revisión. Algunas modificaciones están restringidas.'],
+        [ProcessStatus.SUSPENDED, 'El proceso está suspendido. La etapa no puede modificarse.'],
+      ];
+
+      for (const [status, expected] of cases) {
+        component.process.set({ ...process, status });
+        expect(component.processStatusMessage()).toBe(expected);
+      }
+    });
+
+    it('no muestra mensaje cuando no hay proceso cargado', async () => {
+      await configure();
+      const { component } = createComponent();
+
+      component.process.set(null);
+
+      expect(component.processStatusMessage()).toBeNull();
+    });
+  });
+
+  describe('filteredStages / isSelectedStageOutOfScope / selectedMatter (F40 QA-GATE-1)', () => {
+    it('filtra etapas por tipo de proceso y conserva la etapa seleccionada aunque quede fuera de alcance', async () => {
+      await configure();
+      const { component } = createComponent();
+      const baseStage = {
+        catalogType: 'process_stage' as const,
+        sortOrder: 1,
+        isActive: true,
+        isSystem: false,
+        personTypeScope: null,
+        color: null,
+      };
+      component.stages.set([
+        { ...baseStage, id: 'st-a', code: 'A', label: 'Etapa A', processTypeScope: 'type-1' } as CatalogItem,
+        { ...baseStage, id: 'st-b', code: 'B', label: 'Etapa B', processTypeScope: 'type-2' } as CatalogItem,
+        { ...baseStage, id: 'st-c', code: 'C', label: 'Etapa C', processTypeScope: null } as CatalogItem,
+      ]);
+
+      component.editForm.patchValue({ processTypeId: 'type-1', stageId: 'st-b' });
+      expect(component.isSelectedStageOutOfScope()).toBe(true);
+      expect(component.filteredStages().map((s) => s.id)).toEqual(['st-a', 'st-c', 'st-b']);
+
+      component.editForm.patchValue({ stageId: 'st-a' });
+      expect(component.isSelectedStageOutOfScope()).toBe(false);
+
+      component.editForm.patchValue({ processTypeId: '', stageId: '' });
+      expect(component.isSelectedStageOutOfScope()).toBe(false);
+    });
+
+    it('resuelve la subcarpeta (matter) seleccionada, o null si no hay coincidencia o selección', async () => {
+      await configure();
+      const { component } = createComponent();
+      component.matters.set([{ id: 'm1' } as unknown as ClientMatterResponse]);
+
+      component.editForm.patchValue({ matterId: 'm1' });
+      expect(component.selectedMatter()?.id).toBe('m1');
+
+      component.editForm.patchValue({ matterId: 'no-existe' });
+      expect(component.selectedMatter()).toBeNull();
+
+      component.editForm.patchValue({ matterId: '' });
+      expect(component.selectedMatter()).toBeNull();
     });
   });
 
