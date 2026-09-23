@@ -140,6 +140,12 @@ export const routes: Routes = [
 					import('./features/admin/permissions/admin-permissions.component').then((m) => m.AdminPermissionsComponent),
 			},
 			{
+				path: 'holidays',
+				title: 'Festivos',
+				loadComponent: () =>
+					import('./features/admin/holidays/admin-holidays.component').then((m) => m.AdminHolidaysComponent),
+			},
+			{
 				path: '',
 				pathMatch: 'full',
 				redirectTo: 'tenants',
@@ -223,6 +229,12 @@ export const routes: Routes = [
 				path: 'calendario',
 				title: 'Calendario',
 				loadComponent: () => import('./features/calendar/calendar.component').then((m) => m.CalendarComponent),
+			},
+			{
+				path: 'calendario/plazos/:id',
+				title: 'Ficha de plazo',
+				loadComponent: () =>
+					import('./features/calendar/detail/deadline-detail.component').then((m) => m.DeadlineDetailComponent),
 			},
 			{
 				path: 'tareas',

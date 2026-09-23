@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { DeadlinesService } from './deadlines.service';
-import { DeadlineResponse, DeadlineStatus } from '../models/deadline.model';
+import { DeadlineResponse, DeadlineScope, DeadlineStatus } from '../models/deadline.model';
 import { environment } from '../../../environments/environment';
 import { errorInterceptor } from '../interceptors/error.interceptor';
 import { PlanUpgradeService } from './plan-upgrade.service';
@@ -23,6 +23,8 @@ describe('DeadlinesService', () => {
     notes: null,
     status: DeadlineStatus.PENDING,
     assignees: [],
+    scope: null,
+    blocksAgenda: false,
     createdBy: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
@@ -91,6 +93,43 @@ describe('DeadlinesService', () => {
     service.create('process-1', { title: 't', typeId: 'x', dueAt: 'x' }).subscribe({ error: (e) => (error = e) });
 
     httpMock.expectOne(`${apiUrl}/legal-processes/process-1/deadlines`).flush('error', { status: 500, statusText: 'Server Error' });
+
+    expect(error?.message).toBe('Error interno del servidor');
+  });
+
+  it('F41 §CAL-01: createGeneral hace POST a /deadlines (sin processId en la ruta)', () => {
+    let result: DeadlineResponse | undefined;
+    service
+      .createGeneral({
+        title: 'Capacitación interna',
+        typeId: 'type-1',
+        dueAt: '2026-09-01T10:00:00.000Z',
+        scope: DeadlineScope.TEAM,
+        blocksAgenda: true,
+      })
+      .subscribe((r) => (result = r));
+
+    const req = httpMock.expectOne(`${apiUrl}/deadlines`);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({
+      title: 'Capacitación interna',
+      typeId: 'type-1',
+      dueAt: '2026-09-01T10:00:00.000Z',
+      scope: DeadlineScope.TEAM,
+      blocksAgenda: true,
+    });
+    req.flush({ message: 'ok', deadline });
+
+    expect(result).toEqual(deadline);
+  });
+
+  it('F41 §CAL-01: createGeneral en un 500, usa el genérico del interceptor', () => {
+    let error: Error | undefined;
+    service
+      .createGeneral({ title: 't', typeId: 'x', dueAt: 'x' })
+      .subscribe({ error: (e) => (error = e) });
+
+    httpMock.expectOne(`${apiUrl}/deadlines`).flush('error', { status: 500, statusText: 'Server Error' });
 
     expect(error?.message).toBe('Error interno del servidor');
   });

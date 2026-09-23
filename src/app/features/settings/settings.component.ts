@@ -1,8 +1,10 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormBuilder } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { CompanyService } from '../../core/services/company.service';
 import { CompanyProfile } from '../../core/models/company.model';
+import { UsersService } from '../../core/services/users.service';
+import { MultiSelectItem } from '../../shared/components/multi-select/multi-select.component';
 import { ToastService } from '../../core/services/toast.service';
 import { PlanUpgradeService } from '../../core/services/plan-upgrade.service';
 import { SettingsLegalFormComponent } from './components/settings-legal-form.component';
@@ -16,6 +18,10 @@ import { SettingsSecurityFormComponent } from './components/settings-security-fo
 import { SettingsNotificationsComponent } from './components/settings-notifications.component';
 import { SettingsPortalVisibilityComponent } from './components/settings-portal-visibility.component';
 import { SettingsDashboardWidgetsComponent } from './components/settings-dashboard-widgets.component';
+import {
+  SettingsScheduleFormComponent,
+  WORKING_DAY_KEYS,
+} from './components/settings-schedule-form.component';
 
 type SettingsTab =
   | 'legal'
@@ -28,7 +34,8 @@ type SettingsTab =
   | 'security'
   | 'notifications'
   | 'portal-visibility'
-  | 'dashboard-widgets';
+  | 'dashboard-widgets'
+  | 'schedule';
 
 const SETTINGS_TAB_IDS: SettingsTab[] = [
   'legal',
@@ -42,6 +49,7 @@ const SETTINGS_TAB_IDS: SettingsTab[] = [
   'notifications',
   'portal-visibility',
   'dashboard-widgets',
+  'schedule',
 ];
 
 @Component({
@@ -59,6 +67,7 @@ const SETTINGS_TAB_IDS: SettingsTab[] = [
     SettingsNotificationsComponent,
     SettingsPortalVisibilityComponent,
     SettingsDashboardWidgetsComponent,
+    SettingsScheduleFormComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -172,6 +181,18 @@ const SETTINGS_TAB_IDS: SettingsTab[] = [
             @case ('dashboard-widgets') {
               <app-settings-dashboard-widgets />
             }
+            @case ('schedule') {
+              <app-settings-schedule-form
+                [form]="scheduleForm"
+                [userOptions]="scheduleUserOptions()"
+                [selectedExceptionUserIds]="selectedExceptionUserIdsArray()"
+                [isLoadingUsers]="isLoadingScheduleUsers()"
+                [isSubmitting]="isSubmittingSchedule()"
+                [errorMessage]="scheduleError()"
+                (submit)="onSubmitSchedule()"
+                (exceptionUserIdsChange)="setExceptionUserIds($event)"
+              />
+            }
           }
         </div>
       </div>
@@ -184,6 +205,7 @@ export class SettingsComponent implements OnInit {
   private readonly toast = inject(ToastService);
   private readonly planUpgrade = inject(PlanUpgradeService);
   private readonly route = inject(ActivatedRoute);
+  private readonly usersService = inject(UsersService);
 
   readonly tabs: { id: SettingsTab; label: string }[] = [
     { id: 'legal', label: 'Datos legales' },
@@ -197,6 +219,7 @@ export class SettingsComponent implements OnInit {
     { id: 'notifications', label: 'Notificaciones' },
     { id: 'portal-visibility', label: 'Portal del cliente' },
     { id: 'dashboard-widgets', label: 'Tablero' },
+    { id: 'schedule', label: 'Horario' },
   ];
   readonly activeTab = signal<SettingsTab>('legal');
   // F7-R3: CTA de upgrade — cuando otra pantalla topa con un gate de plan,
@@ -216,6 +239,15 @@ export class SettingsComponent implements OnInit {
   readonly billingError = signal<string | null>(null);
   readonly brandError = signal<string | null>(null);
   readonly securityError = signal<string | null>(null);
+  readonly scheduleError = signal<string | null>(null);
+
+  readonly isSubmittingSchedule = signal(false);
+  readonly isLoadingScheduleUsers = signal(false);
+  readonly scheduleUserOptions = signal<MultiSelectItem[]>([]);
+  readonly selectedExceptionUserIds = signal<Set<string>>(new Set());
+  readonly selectedExceptionUserIdsArray = computed(() =>
+    Array.from(this.selectedExceptionUserIds()),
+  );
 
   readonly legalForm = this.fb.nonNullable.group({
     legalName: [''],
@@ -245,11 +277,26 @@ export class SettingsComponent implements OnInit {
     require2fa: [false],
   });
 
+  readonly scheduleForm = this.fb.nonNullable.group({
+    workingDays: this.fb.nonNullable.group({
+      mon: [true],
+      tue: [true],
+      wed: [true],
+      thu: [true],
+      fri: [true],
+      sat: [false],
+      sun: [false],
+    }),
+    businessHoursStart: [''],
+    businessHoursEnd: [''],
+  });
+
   ngOnInit(): void {
     this.companyService.getCompany().subscribe({
       next: (company) => this.applyCompany(company),
       error: () => this.legalError.set('No se pudo cargar la configuración de la empresa.'),
     });
+    this.loadScheduleUsers();
 
     const queryParams = this.route.snapshot.queryParamMap;
     const tab = queryParams.get('tab');
@@ -421,5 +468,79 @@ export class SettingsComponent implements OnInit {
     this.securityForm.patchValue({
       require2fa: company.require2fa,
     });
+    const isoWorkingDays = new Set(company.workingDays);
+    this.scheduleForm.controls.workingDays.patchValue(
+      Object.fromEntries(
+        WORKING_DAY_KEYS.map((day) => [day.key, isoWorkingDays.has(day.iso)]),
+      ),
+    );
+    this.scheduleForm.patchValue({
+      businessHoursStart: company.businessHoursStart ?? '',
+      businessHoursEnd: company.businessHoursEnd ?? '',
+    });
+    this.selectedExceptionUserIds.set(
+      new Set(company.nonWorkingDayExceptionUsers.map((user) => user.id)),
+    );
+  }
+
+  // F41 §CAL-04: reutiliza el listado paginado de usuarios de F4 con un
+  // límite alto en vez de crear un endpoint de "candidatos" dedicado (a
+  // diferencia del picker de aprobadores de F14, este no filtra por
+  // permiso — cualquier usuario de la empresa puede ir en la excepción).
+  // Empresas con más de 100 usuarios no verán el resto en el picker.
+  private loadScheduleUsers(): void {
+    this.isLoadingScheduleUsers.set(true);
+    this.usersService.getUsers(1, 100).subscribe({
+      next: (res) => {
+        this.scheduleUserOptions.set(
+          res.users.map((user) => ({
+            id: user.id,
+            label: `${user.firstName} ${user.lastName}`.trim(),
+          })),
+        );
+        this.isLoadingScheduleUsers.set(false);
+      },
+      error: () => this.isLoadingScheduleUsers.set(false),
+    });
+  }
+
+  setExceptionUserIds(ids: string[]): void {
+    this.selectedExceptionUserIds.set(new Set(ids));
+  }
+
+  onSubmitSchedule(): void {
+    if (this.isSubmittingSchedule()) {
+      return;
+    }
+
+    this.isSubmittingSchedule.set(true);
+    this.scheduleError.set(null);
+
+    const workingDaysValue = this.scheduleForm.controls.workingDays.getRawValue();
+    const workingDays = WORKING_DAY_KEYS.filter((day) => workingDaysValue[day.key]).map(
+      (day) => day.iso,
+    );
+    const { businessHoursStart, businessHoursEnd } = this.scheduleForm.getRawValue();
+
+    this.companyService
+      .updateCompany({
+        workingDays,
+        businessHoursStart: businessHoursStart || null,
+        businessHoursEnd: businessHoursEnd || null,
+        nonWorkingDayExceptionUserIds: Array.from(this.selectedExceptionUserIds()),
+      })
+      .subscribe({
+        next: (company) => {
+          this.applyCompany(company);
+          this.isSubmittingSchedule.set(false);
+          this.toast.success('Horario guardado correctamente.');
+        },
+        error: (error) => {
+          const message = error.message || 'No se pudo guardar el horario.';
+          this.scheduleError.set(message);
+          this.isSubmittingSchedule.set(false);
+          this.toast.error(message);
+        },
+      });
   }
 }

@@ -17,6 +17,7 @@ import { CatalogsService } from '../../../core/services/catalogs.service';
 import { ConfirmDialogService } from '../../../core/services/confirm-dialog.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { PortalVisibilityPolicyService } from '../../../core/services/portal-visibility-policy.service';
+import { PermissionsService } from '../../../core/services/permissions.service';
 import { HasPermissionDirective } from '../../../core/directives/has-permission.directive';
 import { MultiSelectComponent, MultiSelectItem } from '../../../shared/components/multi-select/multi-select.component';
 import { AdvisorResponse } from '../../../core/models/advisor-backend.model';
@@ -28,7 +29,11 @@ import {
   UpdateLegalProcessRequest,
   UpdateProcessStatusRequest,
 } from '../../../core/models/legal-process.model';
-import { CreateDeadlineRequest, DeadlineResponse, DeadlineStatus } from '../../../core/models/deadline.model';
+import {
+  CreateDeadlineRequest,
+  DeadlineResponse,
+  DeadlineStatus,
+} from '../../../core/models/deadline.model';
 import { CreateTaskRequest, TaskResponse, TaskTemplateResponse } from '../../../core/models/task.model';
 import { TaskStatusResponse } from '../../../core/models/task-status.model';
 import { ProcessEvent, ProcessEventType } from '../../../core/models/process-event.model';
@@ -37,7 +42,8 @@ import { FilePreviewModalComponent } from '../../../core/components/file-preview
 import { ProcessStatusModalComponent } from '../components/process-status-modal.component';
 import { ProcessAnnotationModalComponent } from '../components/process-annotation-modal.component';
 import { ProcessHistoryModalComponent } from '../components/process-history-modal.component';
-import { ProcessDeadlinesModalComponent } from '../components/process-deadlines-modal.component';
+import { ProcessDeadlinesListComponent } from '../components/process-deadlines-list.component';
+import { DeadlineFormModalComponent } from '../../../shared/components/deadline-form-modal/deadline-form-modal.component';
 import { ProcessTasksModalComponent } from '../components/process-tasks-modal.component';
 import { ProcessCounterpartiesModalComponent } from '../components/process-counterparties-modal.component';
 import {
@@ -88,7 +94,8 @@ type ProcessDetailTab = 'datos' | 'contrapartes' | 'plazos' | 'tareas' | 'histor
     ProcessStatusModalComponent,
     ProcessAnnotationModalComponent,
     ProcessHistoryModalComponent,
-    ProcessDeadlinesModalComponent,
+    ProcessDeadlinesListComponent,
+    DeadlineFormModalComponent,
     ProcessTasksModalComponent,
     ProcessCounterpartiesModalComponent,
     FilePreviewModalComponent,
@@ -382,21 +389,27 @@ type ProcessDetailTab = 'datos' | 'contrapartes' | 'plazos' | 'tareas' | 'histor
             />
           }
           @case ('plazos') {
-            <app-process-deadlines-modal
-              [isOpen]="true"
-              [embedded]="true"
-              [processTitle]="process()!.title"
+            <app-process-deadlines-list
               [isLoading]="isLoadingDeadlines()"
-              [isSubmitting]="isSubmittingDeadline()"
-              [errorMessage]="deadlineFormError()"
               [deadlines]="processDeadlines()"
-              [deadlineTypes]="deadlineTypes()"
-              [advisors]="process()!.advisors ?? []"
-              [form]="deadlineForm"
-              (submit)="submitDeadline()"
-              (toggleAssignee)="toggleDeadlineAssignee($event)"
+              [canEdit]="canEditDeadline()"
+              (create)="openCreateDeadlineModal()"
               (markDone)="markDeadlineDone($event)"
               (deleteDeadline)="deleteDeadlineItem($event)"
+              (edit)="goToEditDeadline($event)"
+            />
+            <app-deadline-form-modal
+              [isOpen]="createDeadlineModalOpen()"
+              [isSubmitting]="isSubmittingDeadline()"
+              [errorMessage]="deadlineFormError()"
+              [form]="deadlineForm"
+              [showProcessField]="false"
+              [deadlineTypes]="deadlineTypes()"
+              [advisors]="advisors()"
+              [relatedAdvisorUserIds]="processAdvisorUserIds()"
+              (formCancel)="closeCreateDeadlineModal()"
+              (formSubmit)="submitCreateDeadline()"
+              (assigneesChange)="onDeadlineAssigneesChange($event)"
             />
           }
           @case ('tareas') {
@@ -484,6 +497,7 @@ export class ProcessDetailComponent implements OnInit, OnDestroy {
   private readonly catalogsService = inject(CatalogsService);
   private readonly filesService = inject(FilesService);
   private readonly deadlinesService = inject(DeadlinesService);
+  private readonly permissionsService = inject(PermissionsService);
   private readonly tasksService = inject(TasksService);
   private readonly taskStatusesService = inject(TaskStatusesService);
   private readonly visibilityPolicyService = inject(PortalVisibilityPolicyService);
@@ -509,6 +523,12 @@ export class ProcessDetailComponent implements OnInit, OnDestroy {
 
   readonly clients = signal<ClientResponse[]>([]);
   readonly advisors = signal<AdvisorResponse[]>([]);
+  /** F41 (ola 4, correcciones #2): ids de usuario de los asesores ya
+   * relacionados con este proceso — para priorizarlos en
+   * DeadlineFormModalComponent. */
+  readonly processAdvisorUserIds = computed<string[]>(() =>
+    (this.process()?.advisors ?? []).map((advisor) => advisor.userId),
+  );
   readonly matters = signal<ClientMatterResponse[]>([]);
   readonly processTypes = signal<CatalogItem[]>([]);
   /** F40 §PRO-08 (ola 4b). */
@@ -653,14 +673,23 @@ export class ProcessDetailComponent implements OnInit, OnDestroy {
   readonly isLoadingDeadlines = signal(false);
   readonly isSubmittingDeadline = signal(false);
   readonly deadlineFormError = signal<string | null>(null);
+  /** F41 (ola 4, rediseño 2026-09-23): SOLO campos de alta — Notas, Cómputo
+   * del término y Duración se completan en la ficha de edición
+   * (/calendario/plazos/:id) tras crear, nunca aquí (ver
+   * DeadlineFormModalComponent). La edición de un plazo existente ya no
+   * pasa por este formulario — navega a esa ficha (ver goToEditDeadline). */
   readonly deadlineForm = this.fb.nonNullable.group({
     title: ['', [Validators.required, Validators.maxLength(200)]],
     typeId: ['', [Validators.required]],
     dueAt: ['', [Validators.required]],
     allDay: [false],
-    notes: [''],
     assigneeUserIds: [[] as string[]],
   });
+  readonly createDeadlineModalOpen = signal(false);
+  /** F41 (ola 4): gatea el botón "Editar" de cada fila del listado. */
+  readonly canEditDeadline = computed(() =>
+    this.permissionsService.hasPermission('deadlines.update'),
+  );
 
   // Tareas (F14)
   readonly processTasks = signal<TaskResponse[]>([]);
@@ -721,6 +750,14 @@ export class ProcessDetailComponent implements OnInit, OnDestroy {
     if (!id) {
       this.isLoading.set(false);
       return;
+    }
+    // F41 (ola 4, rediseño 2026-09-23): al volver desde la ficha de un
+    // plazo (/calendario/plazos/:id?returnTo=proceso&...&tab=plazos, ver
+    // DeadlineDetailComponent/goToEditDeadline), reabre la pestaña Plazos
+    // en vez de la de "Datos" por defecto.
+    const tab = this.route.snapshot.queryParamMap.get('tab');
+    if (tab === 'plazos') {
+      this.activeTab.set('plazos');
     }
     this.loadCatalogs();
     this.loadAdvisors();
@@ -1024,17 +1061,72 @@ export class ProcessDetailComponent implements OnInit, OnDestroy {
     });
   }
 
-  toggleDeadlineAssignee(userId: string): void {
-    const currentIds = this.deadlineForm.get('assigneeUserIds')?.value || [];
-    const index = currentIds.indexOf(userId);
-    if (index > -1) {
-      this.deadlineForm.patchValue({ assigneeUserIds: currentIds.filter((id: string) => id !== userId) });
-    } else {
-      this.deadlineForm.patchValue({ assigneeUserIds: [...currentIds, userId] });
+  /** F41 (ola 4): reemplaza toggleDeadlineAssignee() — app-multi-select
+   * emite la lista completa de seleccionados en vez de un id a la vez. */
+  /** F41 (ola 4, correcciones #2): si se agrega a alguien que no está
+   * entre los asesores relacionados con el proceso, se avisa antes de
+   * aplicar la selección — no se bloquea, solo se confirma (mismo patrón
+   * que CalendarComponent.onAssigneesChange). */
+  async onDeadlineAssigneesChange(userIds: string[]): Promise<void> {
+    const previousIds: string[] = this.deadlineForm.get('assigneeUserIds')?.value || [];
+    const addedIds = userIds.filter((id) => !previousIds.includes(id));
+    const relatedIds = new Set(this.processAdvisorUserIds());
+    const unrelatedAdded = addedIds.filter((id) => !relatedIds.has(id));
+
+    if (unrelatedAdded.length > 0) {
+      const items = this.advisors()
+        .filter((advisor) => !!advisor.user)
+        .map((advisor) => ({ id: advisor.user!.id, label: `${advisor.user!.firstName} ${advisor.user!.lastName}` }));
+      const names = unrelatedAdded
+        .map((id) => items.find((item) => item.id === id)?.label ?? id)
+        .join(', ');
+      const confirmed = await this.confirmDialog.confirm({
+        title: 'Asesor no relacionado con el proceso',
+        message: `${names} no pertenece a los asesores asignados a este proceso. ¿Igual quieres asignarlo a este plazo?`,
+      });
+      if (!confirmed) {
+        this.deadlineForm.patchValue({ assigneeUserIds: previousIds });
+        return;
+      }
     }
+
+    this.deadlineForm.patchValue({ assigneeUserIds: userIds });
   }
 
-  submitDeadline(): void {
+  openCreateDeadlineModal(): void {
+    this.deadlineFormError.set(null);
+    this.deadlineForm.reset({
+      title: '',
+      typeId: '',
+      dueAt: '',
+      allDay: false,
+      assigneeUserIds: [],
+    });
+    this.createDeadlineModalOpen.set(true);
+  }
+
+  closeCreateDeadlineModal(): void {
+    this.createDeadlineModalOpen.set(false);
+    this.deadlineFormError.set(null);
+  }
+
+  /** F41 (ola 4, rediseño 2026-09-23): "editar" ya no reutiliza el
+   * formulario de alta — navega a la ficha dedicada
+   * (/calendario/plazos/:id, ver DeadlineDetailComponent), que además es
+   * donde ahora viven Notas, Cómputo del término y Duración. `tab: 'plazos'`
+   * hace que, al volver, ProcessDetailComponent reabra esta pestaña en vez
+   * de la de "Datos" por defecto. */
+  goToEditDeadline(deadline: DeadlineResponse): void {
+    if (!this.canEditDeadline()) {
+      this.toast.error('No tienes permiso para editar plazos o audiencias.');
+      return;
+    }
+    this.router.navigate(['/calendario/plazos', deadline.id], {
+      queryParams: { returnTo: 'proceso', processId: this.process()!.id, tab: 'plazos' },
+    });
+  }
+
+  submitCreateDeadline(): void {
     const current = this.process();
     if (this.isSubmittingDeadline() || !current) {
       return;
@@ -1054,23 +1146,20 @@ export class ProcessDetailComponent implements OnInit, OnDestroy {
       typeId: formValue.typeId,
       dueAt: new Date(formValue.dueAt).toISOString(),
       allDay: formValue.allDay,
-      notes: formValue.notes || undefined,
       assigneeUserIds: formValue.assigneeUserIds,
     };
 
     this.deadlinesService.create(current.id, request).subscribe({
-      next: () => {
+      next: (created) => {
         this.isSubmittingDeadline.set(false);
         this.toast.success('Plazo creado correctamente.');
-        this.deadlineForm.reset({
-          title: '',
-          typeId: '',
-          dueAt: '',
-          allDay: false,
-          notes: '',
-          assigneeUserIds: [],
+        this.closeCreateDeadlineModal();
+        // F41 (ola 4, rediseño 2026-09-23): mismo patrón que
+        // CalendarComponent — al crear, se navega directo a la ficha de
+        // detalle para completar Notas, Cómputo del término y Duración.
+        this.router.navigate(['/calendario/plazos', created.id], {
+          queryParams: { returnTo: 'proceso', processId: current.id, tab: 'plazos' },
         });
-        this.loadDeadlines(current.id);
       },
       error: (error) => {
         console.error('Error creating deadline:', error);
@@ -1085,7 +1174,10 @@ export class ProcessDetailComponent implements OnInit, OnDestroy {
     this.deadlinesService.update(deadline.id, { status: DeadlineStatus.DONE }).subscribe({
       next: () => {
         this.toast.success('Plazo marcado como completado.');
-        this.loadDeadlines(deadline.processId);
+        // F41 §CAL-01: DeadlineResponse.processId ahora puede ser null (evento
+        // general), pero esta lista siempre está scopeada al proceso de esta
+        // página — se recarga con el proceso actual, no con el del plazo.
+        this.loadDeadlines(this.process()!.id);
       },
       error: (error) => {
         console.error('Error updating deadline:', error);
@@ -1107,7 +1199,7 @@ export class ProcessDetailComponent implements OnInit, OnDestroy {
     this.deadlinesService.delete(deadline.id).subscribe({
       next: () => {
         this.toast.success('Plazo eliminado correctamente.');
-        this.loadDeadlines(deadline.processId);
+        this.loadDeadlines(this.process()!.id);
       },
       error: (error) => {
         console.error('Error deleting deadline:', error);

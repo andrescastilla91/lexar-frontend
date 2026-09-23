@@ -1,4 +1,4 @@
-import { Component, ViewChild, computed, inject, signal } from '@angular/core';
+import { AfterViewInit, ChangeDetectionStrategy, Component, ViewChild, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {
@@ -14,16 +14,21 @@ import timeGridPlugin from '@fullcalendar/timegrid';
 import { DeadlinesService } from '../../core/services/deadlines.service';
 import { CatalogsService } from '../../core/services/catalogs.service';
 import { AdvisorsService } from '../../core/services/advisors.service';
+import { UsersService } from '../../core/services/users.service';
 import { LegalProcessesService } from '../../core/services/legal-processes.service';
 import { ConfirmDialogService } from '../../core/services/confirm-dialog.service';
 import { ToastService } from '../../core/services/toast.service';
 import { AuthService } from '../../core/services/auth.service';
 import { PermissionsService } from '../../core/services/permissions.service';
+import { CompanyService } from '../../core/services/company.service';
+import { DeadlineFormModalComponent } from '../../shared/components/deadline-form-modal/deadline-form-modal.component';
 import { AdvisorResponse } from '../../core/models/advisor-backend.model';
+import { AssignableUser } from '../../core/models/user-backend.model';
 import { CatalogItem } from '../../core/models/catalog-backend.model';
 import {
   CreateDeadlineRequest,
   DeadlineResponse,
+  DeadlineScope,
   DeadlineStatus,
 } from '../../core/models/deadline.model';
 import { LegalProcessResponse } from '../../core/models/legal-process.model';
@@ -35,10 +40,23 @@ import {
 } from '../../core/utils/deadline-format.util';
 import { formatDate } from '../processes/utils/process-format.utils';
 
+/**
+ * F41 (ola 4, rediseño 2026-09-23): el modal de alta embebido (¡~400 líneas
+ * de plantilla!) se reemplaza por <app-deadline-form-modal>, compartido con
+ * la pestaña Plazos de ProcessDetailComponent — mismo formulario en los dos
+ * sitios. Editar un plazo/evento ya no reutiliza este modal: navega a su
+ * ficha dedicada (/calendario/plazos/:id, ver DeadlineDetailComponent), que
+ * además es donde ahora vive Notas (ngx-editor) — sacarlo de este
+ * componente resuelve por construcción el bug donde cada tecla perdía el
+ * foco (nacía en el mismo componente que <full-calendar>, así que
+ * disparaba su re-render sin importar OnPush; OnPush no aísla eventos que
+ * nacen en su propio template).
+ */
 @Component({
   selector: 'app-calendar',
   standalone: true,
-  imports: [ReactiveFormsModule, FullCalendarModule, RouterLink],
+  imports: [ReactiveFormsModule, FullCalendarModule, RouterLink, DeadlineFormModalComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="space-y-6">
       <header
@@ -50,35 +68,38 @@ import { formatDate } from '../processes/utils/process-format.utils';
             Plazos y audiencias de todos los procesos del despacho.
           </p>
         </div>
-        <button
-          type="button"
-          class="flex items-center gap-2 rounded-md bg-navy-900 px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:bg-navy-950"
-          (click)="openCreateModal()"
-        >
-          <svg
-            class="h-4 w-4"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-            viewBox="0 0 24 24"
+        @if (canCreateDeadline()) {
+          <button
+            type="button"
+            class="flex items-center gap-2 rounded-md bg-navy-900 px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:bg-navy-950"
+            (click)="openCreateModal()"
           >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M12 4.5v15m7.5-7.5h-15"
-            />
-          </svg>
-          Nuevo plazo
-        </button>
+            <svg
+              class="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M12 4.5v15m7.5-7.5h-15"
+              />
+            </svg>
+            Nuevo plazo
+          </button>
+        }
       </header>
 
       @if (processes().length === 0) {
         <div
-          class="rounded-lg border border-default bg-warning-tint px-4 py-3 text-sm text-warning"
+          class="rounded-lg border border-default bg-info-tint px-4 py-3 text-sm text-info"
         >
-          Aún no tienes procesos registrados. Crea un proceso en
+          Aún no tienes procesos registrados. Puedes crear un evento general
+          (reunión, capacitación) sin proceso, o crear uno en
           <a routerLink="/procesos" class="font-semibold underline">Procesos</a>
-          antes de poder registrar plazos o audiencias.
+          para registrar plazos y audiencias de un expediente.
         </div>
       }
 
@@ -243,6 +264,15 @@ import { formatDate } from '../processes/utils/process-format.utils';
           </div>
 
           <div class="mt-6 flex gap-2">
+            @if (canEditDeadline()) {
+              <button
+                type="button"
+                (click)="goToEdit(deadline)"
+                class="flex-1 rounded-md border border-default px-4 py-2 text-sm font-semibold text-text transition hover:bg-surface-muted"
+              >
+                Editar
+              </button>
+            }
             @if (deadline.status === DeadlineStatus.PENDING) {
               <button
                 type="button"
@@ -264,148 +294,25 @@ import { formatDate } from '../processes/utils/process-format.utils';
       </div>
     }
 
-    <!-- Modal de creación de plazo -->
-    @if (createModalOpen()) {
-      <div
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-      >
-        <form
-          class="w-full max-w-lg grid gap-4 rounded-lg border border-default bg-surface p-4 md:p-6 shadow-2xl max-h-[90vh] overflow-y-auto"
-          [formGroup]="createForm"
-          (ngSubmit)="submitCreate()"
-        >
-          <h3 class="text-lg font-semibold text-text">
-            Nuevo plazo o audiencia
-          </h3>
-
-          <label class="text-sm text-muted">
-            Proceso *
-            <select
-              formControlName="processId"
-              class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
-            >
-              <option value="">Seleccionar proceso</option>
-              @for (process of processes(); track process.id) {
-                <option [value]="process.id">{{ process.title }}</option>
-              }
-            </select>
-          </label>
-
-          <div class="grid gap-4 md:grid-cols-2">
-            <label class="text-sm text-muted">
-              Título *
-              <input
-                formControlName="title"
-                type="text"
-                placeholder="Ej. Audiencia de conciliación"
-                class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
-              />
-            </label>
-            <label class="text-sm text-muted">
-              Tipo *
-              <select
-                formControlName="typeId"
-                class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
-              >
-                <option value="">Seleccionar tipo</option>
-                @for (type of deadlineTypes(); track type.id) {
-                  <option [value]="type.id">{{ type.label }}</option>
-                }
-              </select>
-            </label>
-          </div>
-
-          <div class="grid gap-4 md:grid-cols-2">
-            <label class="text-sm text-muted">
-              Fecha y hora *
-              <input
-                formControlName="dueAt"
-                type="datetime-local"
-                class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
-              />
-            </label>
-            <label
-              class="mt-6 flex items-center gap-2 text-sm text-muted md:mt-8"
-            >
-              <input
-                formControlName="allDay"
-                type="checkbox"
-                class="h-4 w-4 rounded border-strong text-navy-900 focus:ring-2 focus:ring-navy-900/30"
-              />
-              Todo el día
-            </label>
-          </div>
-
-          <label class="text-sm text-muted">
-            Notas
-            <textarea
-              formControlName="notes"
-              rows="2"
-              placeholder="Detalles adicionales"
-              class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
-            ></textarea>
-          </label>
-
-          @if (advisors().length > 0) {
-            <div class="text-sm text-muted">
-              <label class="mb-2 block">Asignar a</label>
-              <div
-                class="max-h-32 overflow-y-auto rounded-md border border-default bg-surface-muted p-2 shadow-card"
-              >
-                <div class="space-y-1">
-                  @for (advisor of advisors(); track advisor.id) {
-                    @if (advisor.user) {
-                      <label
-                        class="flex cursor-pointer items-center gap-3 rounded-lg p-2 transition hover:bg-surface"
-                      >
-                        <input
-                          type="checkbox"
-                          [checked]="isAssigneeSelected(advisor.user.id)"
-                          (change)="toggleAssignee(advisor.user.id)"
-                          class="h-4 w-4 rounded border-strong text-navy-900 focus:ring-2 focus:ring-navy-900/30"
-                        />
-                        <span class="text-xs font-medium text-text">
-                          {{ advisor.user.firstName }}
-                          {{ advisor.user.lastName }}
-                        </span>
-                      </label>
-                    }
-                  }
-                </div>
-              </div>
-            </div>
-          }
-
-          @if (createError()) {
-            <p
-              class="rounded-md border border-danger bg-danger-tint px-3 py-2 text-sm text-danger"
-            >
-              {{ createError() }}
-            </p>
-          }
-
-          <div class="flex gap-2">
-            <button
-              type="submit"
-              class="rounded-md bg-navy-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-navy-950 disabled:opacity-50 disabled:cursor-not-allowed"
-              [disabled]="isCreating() || createForm.invalid"
-            >
-              Crear plazo
-            </button>
-            <button
-              type="button"
-              (click)="closeCreateModal()"
-              class="rounded-md border border-default px-4 py-2 text-sm font-semibold text-muted transition hover:bg-surface-muted"
-            >
-              Cancelar
-            </button>
-          </div>
-        </form>
-      </div>
-    }
+    <app-deadline-form-modal
+      [isOpen]="createModalOpen()"
+      [isSubmitting]="isCreating()"
+      [errorMessage]="createError()"
+      [form]="createForm"
+      [showProcessField]="true"
+      [processes]="processes()"
+      [deadlineTypes]="deadlineTypes()"
+      [canCreateTeamScope]="canCreateTeamScope()"
+      [assignableUsers]="assignableUsers()"
+      [advisors]="advisors()"
+      [relatedAdvisorUserIds]="relatedAdvisorUserIdsFor(createForm.get('processId')?.value)"
+      (formCancel)="closeCreateModal()"
+      (formSubmit)="submitCreate()"
+      (assigneesChange)="onAssigneesChange($event)"
+    />
   `,
 })
-export class CalendarComponent {
+export class CalendarComponent implements AfterViewInit {
   @ViewChild('calendar') calendarComponent?: FullCalendarComponent;
 
   private readonly fb = inject(FormBuilder);
@@ -414,11 +321,13 @@ export class CalendarComponent {
   private readonly router = inject(Router);
   private readonly catalogsService = inject(CatalogsService);
   private readonly advisorsService = inject(AdvisorsService);
+  private readonly usersService = inject(UsersService);
   private readonly legalProcessesService = inject(LegalProcessesService);
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly toast = inject(ToastService);
   private readonly authService = inject(AuthService);
   private readonly permissionsService = inject(PermissionsService);
+  private readonly companyService = inject(CompanyService);
 
   /** F36 (ola 5): si el usuario tiene deadlines.view.all — gobierna el texto
    * explicativo para quien no lo tiene, mismo patrón que DocumentsComponent
@@ -427,7 +336,46 @@ export class CalendarComponent {
     this.permissionsService.hasPermission('deadlines.view.all'),
   );
 
+  /** F41 §CAL-01: quién puede crear un evento general de alcance "todo el equipo". */
+  readonly canCreateTeamScope = computed(() =>
+    this.permissionsService.hasPermission('deadlines.create.team-scope'),
+  );
+
+  /** F41 (ola 4): sin este permiso ni el botón "Nuevo plazo" ni el click en
+   * una fecha del calendario deben abrir el modal de creación — antes se
+   * abría igual y solo fallaba al enviar, mostrando el error crudo del
+   * backend (ver openCreateModal() y submitCreate()). */
+  readonly canCreateDeadline = computed(() =>
+    this.permissionsService.hasPermission('deadlines.create'),
+  );
+
+  /** F41 (ola 4): gatea el botón "Editar" del panel de detalle — sin este
+   * permiso, `update()` en el backend ya lo rechaza igual, pero ocultarlo
+   * evita el viaje de red que solo puede terminar en 403. */
+  readonly canEditDeadline = computed(() =>
+    this.permissionsService.hasPermission('deadlines.update'),
+  );
+
   readonly advisors = signal<AdvisorResponse[]>([]);
+  /** F41 (ola 4, correcciones #2): usuarios de la empresa (no solo
+   * asesores) para "asignar a" en un evento general — un coordinador o
+   * gerente puede no ser asesor. */
+  readonly assignableUsers = signal<AssignableUser[]>([]);
+
+  /** F41 (ola 4, correcciones #2): ids de usuario de los asesores ya
+   * relacionados con el proceso elegido en el formulario de alta — para
+   * priorizarlos en <app-deadline-form-modal> (marcados como "Asesor del
+   * proceso") y para saber cuándo avisar que alguien no pertenece. No es un
+   * `computed()` porque se llama con el valor de `createForm.get('processId')`
+   * leído directamente en la plantilla, no una signal. */
+  relatedAdvisorUserIdsFor(processId: string | null | undefined): string[] {
+    if (!processId) {
+      return [];
+    }
+    const process = this.processes().find((p) => p.id === processId);
+    return (process?.advisors ?? []).map((advisor) => advisor.userId);
+  }
+
   readonly deadlineTypes = signal<CatalogItem[]>([]);
   readonly processes = signal<LegalProcessResponse[]>([]);
   readonly selectedDeadline = signal<DeadlineResponse | null>(null);
@@ -440,26 +388,25 @@ export class CalendarComponent {
     () => this.authService.currentUser()?.id ?? null,
   );
 
-  protected readonly DeadlineStatus = DeadlineStatus;
-  protected readonly formatDate = formatDate;
-  protected readonly getCatalogBadgeClasses = getCatalogBadgeClasses;
-  protected readonly getDeadlineStatusClasses = getDeadlineStatusClasses;
-  protected readonly getDeadlineStatusLabel = getDeadlineStatusLabel;
-
-  readonly filterForm = this.fb.nonNullable.group({
+  readonly filterForm = this.fb.group({
     assignee: [''],
     type: [''],
     processId: [''],
   });
 
+  /** F41 (ola 4, rediseño 2026-09-23): SOLO campos de alta — Notas, Cómputo
+   * del término y Duración se completan en la ficha de edición
+   * (/calendario/plazos/:id) tras crear, nunca aquí (ver
+   * DeadlineFormModalComponent). */
   readonly createForm = this.fb.nonNullable.group({
-    processId: ['', [Validators.required]],
+    processId: [''],
     title: ['', [Validators.required, Validators.maxLength(200)]],
     typeId: ['', [Validators.required]],
     dueAt: ['', [Validators.required]],
     allDay: [false],
-    notes: [''],
     assigneeUserIds: [[] as string[]],
+    scope: [DeadlineScope.ONLY_ME],
+    blocksAgenda: [false],
   });
 
   readonly calendarOptions: CalendarOptions = {
@@ -515,6 +462,10 @@ export class CalendarComponent {
       next: (response) => this.advisors.set(response.advisors),
       error: (error) => console.error('Error loading advisors:', error),
     });
+    this.usersService.getAssignableUsers().subscribe({
+      next: (response) => this.assignableUsers.set(response.users),
+      error: (error) => console.error('Error loading assignable users:', error),
+    });
     this.catalogsService
       .getActiveCatalog('deadline_type')
       .subscribe((items) => this.deadlineTypes.set(items));
@@ -530,6 +481,42 @@ export class CalendarComponent {
         this.onlyMine.set(false);
       }
       this.calendarComponent?.getApi().refetchEvents();
+    });
+
+    // F41 (ola 4, correcciones): "todo el equipo" y "solo para mí" no
+    // admiten seleccionar asistentes puntuales (solo "asesor seleccionado"
+    // lo hace) — al cambiar a cualquiera de los dos se limpian los
+    // asignados ya marcados, para que el estado del formulario no quede
+    // desincronizado del multi-select oculto (ver DeadlineFormModalComponent).
+    this.createForm.get('scope')?.valueChanges.subscribe((scope) => {
+      if (scope !== DeadlineScope.SELECTED) {
+        this.createForm.patchValue({ assigneeUserIds: [] });
+      }
+    });
+  }
+
+  /**
+   * F41 §CAL-04 (ola 4): el horario laboral es solo un aviso NO bloqueante
+   * (F41.md) — acá se usa únicamente para atenuar visualmente los días no
+   * hábiles de la empresa en el calendario (`.fc-non-business`, estilo
+   * nativo de FullCalendar), sin impedir nada. `businessHours` de
+   * FullCalendar usa 0=domingo..6=sábado; la empresa guarda ISO 8601
+   * (1=lunes..7=domingo, ver Company entity). Se aplica en
+   * `ngAfterViewInit` (no en el constructor) para garantizar que
+   * `calendarComponent` ya esté resuelto por el `@ViewChild` cuando la
+   * respuesta del backend llegue, sin depender de qué tan rápido resuelva.
+   */
+  ngAfterViewInit(): void {
+    this.companyService.getCompany().subscribe({
+      next: (company) => {
+        const daysOfWeek = (company.workingDays ?? [1, 2, 3, 4, 5]).map(
+          (isoDay) => (isoDay === 7 ? 0 : isoDay),
+        );
+        this.calendarComponent
+          ?.getApi()
+          .setOption('businessHours', { daysOfWeek, startTime: '00:00', endTime: '24:00' });
+      },
+      error: () => {},
     });
   }
 
@@ -605,6 +592,10 @@ export class CalendarComponent {
   }
 
   openCreateModal(prefillDate?: Date): void {
+    if (!this.canCreateDeadline()) {
+      this.toast.error('No tienes permiso para crear plazos o eventos.');
+      return;
+    }
     this.createError.set(null);
     this.createForm.reset({
       processId: '',
@@ -612,10 +603,25 @@ export class CalendarComponent {
       typeId: '',
       dueAt: prefillDate ? this.toLocalDateTimeInput(prefillDate) : '',
       allDay: false,
-      notes: '',
       assigneeUserIds: [],
+      scope: DeadlineScope.ONLY_ME,
+      blocksAgenda: false,
     });
     this.createModalOpen.set(true);
+  }
+
+  /** F41 (ola 4, rediseño 2026-09-23): "editar" ya no reutiliza el modal de
+   * alta — navega a la ficha dedicada, que además es donde ahora viven
+   * Notas, Cómputo del término y Duración. */
+  goToEdit(deadline: DeadlineResponse): void {
+    if (!this.canEditDeadline()) {
+      this.toast.error('No tienes permiso para editar plazos o eventos.');
+      return;
+    }
+    this.closeDetail();
+    this.router.navigate(['/calendario/plazos', deadline.id], {
+      queryParams: { returnTo: 'calendario' },
+    });
   }
 
   closeCreateModal(): void {
@@ -628,22 +634,40 @@ export class CalendarComponent {
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
   }
 
-  isAssigneeSelected(userId: string): boolean {
-    const selectedIds = this.createForm.get('assigneeUserIds')?.value || [];
-    return selectedIds.includes(userId);
-  }
+  /** F41 (ola 4): reemplaza isAssigneeSelected()/toggleAssignee() — ahora
+   * el `app-multi-select` (BUG-06), dentro de DeadlineFormModalComponent,
+   * es dueño de su propio estado de UI y solo emite la lista final de ids
+   * seleccionados. */
+  /** F41 (ola 4, correcciones #2): si el evento pertenece a un proceso y se
+   * agrega a alguien que no está entre sus asesores relacionados, se avisa
+   * antes de aplicar la selección — no se bloquea, solo se confirma. */
+  async onAssigneesChange(userIds: string[]): Promise<void> {
+    const processId = this.createForm.get('processId')?.value;
+    const previousIds: string[] = this.createForm.get('assigneeUserIds')?.value || [];
+    const addedIds = userIds.filter((id) => !previousIds.includes(id));
 
-  toggleAssignee(userId: string): void {
-    const currentIds = this.createForm.get('assigneeUserIds')?.value || [];
-    const index = currentIds.indexOf(userId);
-
-    if (index > -1) {
-      this.createForm.patchValue({
-        assigneeUserIds: currentIds.filter((id: string) => id !== userId),
-      });
-    } else {
-      this.createForm.patchValue({ assigneeUserIds: [...currentIds, userId] });
+    if (processId && addedIds.length > 0) {
+      const relatedIds = new Set(this.relatedAdvisorUserIdsFor(processId));
+      const unrelatedAdded = addedIds.filter((id) => !relatedIds.has(id));
+      if (unrelatedAdded.length > 0) {
+        const items = this.advisors()
+          .filter((advisor) => !!advisor.user)
+          .map((advisor) => ({ id: advisor.user!.id, label: `${advisor.user!.firstName} ${advisor.user!.lastName}` }));
+        const names = unrelatedAdded
+          .map((id) => items.find((item) => item.id === id)?.label ?? id)
+          .join(', ');
+        const confirmed = await this.confirmDialog.confirm({
+          title: 'Asesor no relacionado con el proceso',
+          message: `${names} no pertenece a los asesores asignados a este proceso. ¿Igual quieres asignarlo a este plazo?`,
+        });
+        if (!confirmed) {
+          this.createForm.patchValue({ assigneeUserIds: previousIds });
+          return;
+        }
+      }
     }
+
+    this.createForm.patchValue({ assigneeUserIds: userIds });
   }
 
   submitCreate(): void {
@@ -652,12 +676,7 @@ export class CalendarComponent {
     }
 
     const formValue = this.createForm.getRawValue();
-    if (
-      !formValue.processId ||
-      !formValue.title ||
-      !formValue.typeId ||
-      !formValue.dueAt
-    ) {
+    if (!formValue.title || !formValue.typeId || !formValue.dueAt) {
       this.createForm.markAllAsTouched();
       this.createError.set('Completa los campos obligatorios.');
       return;
@@ -671,21 +690,47 @@ export class CalendarComponent {
       typeId: formValue.typeId,
       dueAt: new Date(formValue.dueAt).toISOString(),
       allDay: formValue.allDay,
-      notes: formValue.notes || undefined,
       assigneeUserIds: formValue.assigneeUserIds,
     };
 
-    this.deadlinesService.create(formValue.processId, request).subscribe({
-      next: () => {
+    // F41 §CAL-01: sin proceso, el evento es general — scope/blocksAgenda
+    // solo tienen sentido en ese caso.
+    const creation$ = formValue.processId
+      ? this.deadlinesService.create(formValue.processId, request)
+      : this.deadlinesService.createGeneral({
+          ...request,
+          scope: formValue.scope,
+          blocksAgenda: formValue.blocksAgenda,
+        });
+
+    creation$.subscribe({
+      next: (created) => {
         this.isCreating.set(false);
-        this.toast.success('Plazo creado correctamente.');
+        this.toast.success(
+          formValue.processId
+            ? 'Plazo creado correctamente.'
+            : 'Evento creado correctamente.',
+        );
         this.closeCreateModal();
-        this.calendarComponent?.getApi().refetchEvents();
+        // F41 (ola 4, rediseño 2026-09-23): mismo patrón que
+        // UserFormComponent/ProcessFormComponent — al crear, se navega
+        // directo a la ficha de detalle, donde se completan Notas, Cómputo
+        // del término y Duración.
+        this.router.navigate(['/calendario/plazos', created.id], {
+          queryParams: { returnTo: 'calendario' },
+        });
       },
       error: (error) => {
         console.error('Error creating deadline:', error);
-        this.createError.set(error.message || 'Error al crear el plazo');
-        this.toast.error(error.message || 'Error al crear el plazo');
+        // F41 (ola 4): defensa adicional si el permiso se revocó justo
+        // entre abrir el modal (ya gateado por canCreateDeadline()) y
+        // enviar el formulario — nunca mostrar el mensaje crudo del guard.
+        const message =
+          error.status === 403
+            ? 'No tienes permiso para crear plazos o eventos.'
+            : error.message || 'Error al crear el plazo';
+        this.createError.set(message);
+        this.toast.error(message);
         this.isCreating.set(false);
       },
     });
@@ -713,4 +758,10 @@ export class CalendarComponent {
       },
     });
   }
+
+  protected readonly DeadlineStatus = DeadlineStatus;
+  protected readonly getCatalogBadgeClasses = getCatalogBadgeClasses;
+  protected readonly getDeadlineStatusClasses = getDeadlineStatusClasses;
+  protected readonly getDeadlineStatusLabel = getDeadlineStatusLabel;
+  protected readonly formatDate = formatDate;
 }

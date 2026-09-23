@@ -52,6 +52,8 @@ Build: `npx ng build` (configuración production por defecto) · Tests: `npm tes
 
 **E2E (Playwright):** `npm run e2e` requiere el backend corriendo en el puerto 3040 (`npm run start:dev` en `lexar-backend`, apuntando a Postgres) y este frontend (`npm start`, se levanta solo vía `webServer` de Playwright si no está corriendo). Cada test registra su propio tenant real vía `POST /auth/register` (`e2e/shared/tenant-fixture.ts`), sin tokens fabricados. Specs en `e2e/specs/`; page objects en `e2e/pages/`. `npm run e2e:ui` para el modo interactivo.
 
+**Panel de plataforma (super-admin, F9/F41 §CAL-04): sin e2e a propósito.** Solo `route-guard.spec.ts` cubre que un usuario sin sesión de platform admin sea redirigido a `/admin/login` (no requiere login real). Cualquier flujo que sí requiera loguear un platform admin de verdad se valida manualmente — decisión de producto, no una omisión.
+
 Para agregar un caso nuevo: si es lógica de guard/interceptor/servicio → spec Jest junto al archivo (`*.spec.ts`); si es un flujo de usuario a través de rutas reales → spec Playwright en `e2e/specs/`, reutilizando `tenant-fixture` y los page objects existentes.
 
 ## Arquitectura de despliegue

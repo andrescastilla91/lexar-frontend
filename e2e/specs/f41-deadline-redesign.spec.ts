@@ -4,25 +4,23 @@ import { E2E_API_ORIGIN } from '../shared/environment';
 import { LoginPage } from '../pages/login.page';
 import { CalendarPage } from '../pages/calendar.page';
 import { DeadlineDetailPage } from '../pages/deadline-detail.page';
+import { ProcessesPage } from '../pages/processes.page';
 
 /**
- * E2E del flujo 5 (HU-FE-E2E-2): Calendario/plazos con recordatorio visible (F13).
+ * E2E propio del rediseño F41 (ola 4, 2026-09-23): modal de alta único
+ * (compartido entre Calendario y la pestaña "Plazos" de Procesos) + ficha
+ * de edición dedicada en /calendario/plazos/:id, con retorno al origen vía
+ * `returnTo`/`processId`/`tab`. Motivado por el rechazo del usuario al
+ * primer rediseño (formulario con campos que aparecían/desaparecían y se
+ * movían de lugar, y un bug de foco al escribir Notas dentro de
+ * CalendarComponent). Notas terminó como <textarea> plano, no ngx-editor
+ * (decisión 2026-09-23): el mismo bug de foco reapareció incluso en la
+ * ficha nueva sin FullCalendar, así que se abandonó el texto enriquecido
+ * para no bloquear el resto de la feature — ver DeadlineDetailComponent.
  *
- * El backend no expone ningún "recordatorio" configurable desde la UI (el
- * memory del proyecto confirma que los escalones de recordatorio no son
- * configurables por catálogo) — no hay campo de anticipación en
- * calendar.component.ts. Lo "visible" que puede verificar un e2e de UI es:
- * el plazo aparece como evento en el calendario apenas se crea, y su estado
- * (Pendiente / Completado) se refleja como badge visible en el panel de
- * detalle y como estilo del evento (tachado al completarse).
- *
- * F41 (ola 4, rediseño 2026-09-23): el modal de creación ya no incluye
- * Notas (se movió a la ficha /calendario/plazos/:id) y, al crear, la app
- * navega directo a esa ficha en vez de quedarse en /calendario — estos
- * tres tests vuelven al calendario explícitamente (por la ficha o por el
- * panel de detalle) antes de verificar el estado del evento en
- * FullCalendar. La cobertura propia del rediseño (ficha de edición, Notas,
- * retorno desde Procesos) vive en f41-deadline-redesign.spec.ts.
+ * Estos tests verifican justo lo que calendar.spec.ts no cubre: la ficha
+ * en sí (Notas persiste al guardar), y los dos orígenes posibles
+ * (Calendario y Procesos) volviendo cada uno a su lugar.
  */
 
 async function loginAsAdmin(page: Page, tenant: TestTenant): Promise<void> {
@@ -32,14 +30,10 @@ async function loginAsAdmin(page: Page, tenant: TestTenant): Promise<void> {
   await expect(page).toHaveURL(/\/dashboard$/);
 }
 
-/**
- * El formulario de creación de plazos exige un proceso legal existente
- * (calendar.component.ts: `processes().length === 0` bloquea el flujo). Se
- * crea vía API directa, autenticada con las mismas credenciales del tenant
- * — evita construir page objects de clients/processes solo para este setup
- * (ver HU-FE-E2E-2, flujo 5, nota de la instrucción original sobre
- * "APIRequestContext autenticado").
- */
+/** Mismo helper que calendar.spec.ts (crea cliente + proceso por API,
+ * autenticado con las credenciales del tenant) — duplicado a propósito,
+ * mismo patrón que el resto de specs de este proyecto (cada spec es
+ * autocontenido, ver tasks.spec.ts/documents-scope.spec.ts). */
 async function createLegalProcessViaApi(
   tenant: TestTenant,
 ): Promise<{ processTitle: string }> {
@@ -55,9 +49,6 @@ async function createLegalProcessViaApi(
   }
 
   const suffix = `${Date.now()}${Math.floor(Math.random() * 10_000)}`;
-  // `fullName` e `identificationNumber` son los únicos campos requeridos de
-  // CreateClientDto — F33 eliminó `email` del modelo Client (reemplazado
-  // por ClientContact), así que ya no se envía aquí.
   const clientResponse = await api.post('/api/clients', {
     data: {
       fullName: `Cliente E2E ${suffix}`,
@@ -71,7 +62,7 @@ async function createLegalProcessViaApi(
   }
   const clientBody = (await clientResponse.json()) as { client: { id: string } };
 
-  const processTitle = `Proceso E2E Calendario ${suffix}`;
+  const processTitle = `Proceso E2E F41 ${suffix}`;
   const processResponse = await api.post('/api/legal-processes', {
     data: { title: processTitle, clientId: clientBody.client.id },
   });
@@ -85,8 +76,8 @@ async function createLegalProcessViaApi(
   return { processTitle };
 }
 
-/** Fecha/hora futura en el formato `datetime-local` que espera el input
- * (mismo cálculo que `toLocalDateTimeInput` en calendar.component.ts). */
+/** Fecha/hora futura en el formato `datetime-local` (mismo cálculo que
+ * `toLocalDateTimeInput` en calendar.component.ts / deadline-detail.component.ts). */
 function futureDateTimeLocal(daysAhead: number): string {
   const date = new Date();
   date.setDate(date.getDate() + daysAhead);
@@ -95,8 +86,8 @@ function futureDateTimeLocal(daysAhead: number): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-test.describe('Calendario / plazos con recordatorio visible (F13)', () => {
-  test('crear un plazo navega a su ficha con estado "Pendiente" visible, y aparece en el calendario al volver', async ({
+test.describe('F41 (ola 4, rediseño 2026-09-23): ficha dedicada de plazo/evento', () => {
+  test('crear→navegar→editar Notas→volver: el texto se guarda completo y el plazo sigue en el calendario', async ({
     page,
     tenant,
   }) => {
@@ -107,7 +98,7 @@ test.describe('Calendario / plazos con recordatorio visible (F13)', () => {
     const deadlineDetailPage = new DeadlineDetailPage(page);
     await calendarPage.goto();
 
-    const deadlineTitle = `Audiencia E2E ${Date.now()}`;
+    const deadlineTitle = `Audiencia F41 ${Date.now()}`;
     await calendarPage.openCreateModal();
     await calendarPage.fillCreateForm({
       processTitle,
@@ -116,20 +107,29 @@ test.describe('Calendario / plazos con recordatorio visible (F13)', () => {
       dueAt: futureDateTimeLocal(1),
     });
     await calendarPage.submitCreate();
-
     await expect(page.getByText('Plazo creado correctamente.')).toBeVisible();
-    // F41 (ola 4): al crear, la app navega a la ficha dedicada del plazo,
-    // no se queda en /calendario.
-    await expect(page).toHaveURL(/\/calendario\/plazos\/[^/]+$/);
+    await expect(page).toHaveURL(/\/calendario\/plazos\/[^/]+\?returnTo=calendario$/);
     await expect(deadlineDetailPage.heading).toHaveText(deadlineTitle);
-    await expect(page.getByText('Pendiente', { exact: true })).toBeVisible();
+
+    // Notas es un <textarea> plano (2026-09-23: se intentó con ngx-editor,
+    // incluso en esta ficha sin FullCalendar, y el mismo bug de foco
+    // reapareció igual — ver DeadlineDetailComponent). Este test verifica
+    // que el campo persiste de verdad, no que "existe".
+    const notes = 'Notas escritas por Playwright (F41).';
+    await deadlineDetailPage.fillNotes(notes);
+    await deadlineDetailPage.save();
+    await expect(page.getByText('Plazo actualizado correctamente.')).toBeVisible();
+    // Recargar confirma que el backend persistió el texto, no solo que el
+    // DOM local lo mostraba.
+    await page.reload();
+    await expect(deadlineDetailPage.notesTextarea).toHaveValue(notes);
 
     await deadlineDetailPage.goBack();
     await expect(page).toHaveURL(/\/calendario$/);
     await expect(calendarPage.eventByTitle(deadlineTitle)).toBeVisible();
   });
 
-  test('marcar un plazo como completado actualiza su estado visible y lo tacha en el calendario', async ({
+  test('abrir el detalle de un plazo en el calendario y pulsar Editar navega a su ficha; Volver regresa al calendario', async ({
     page,
     tenant,
   }) => {
@@ -140,7 +140,7 @@ test.describe('Calendario / plazos con recordatorio visible (F13)', () => {
     const deadlineDetailPage = new DeadlineDetailPage(page);
     await calendarPage.goto();
 
-    const deadlineTitle = `Vencimiento E2E ${Date.now()}`;
+    const deadlineTitle = `Vencimiento F41 ${Date.now()}`;
     await calendarPage.openCreateModal();
     await calendarPage.fillCreateForm({
       processTitle,
@@ -150,52 +150,49 @@ test.describe('Calendario / plazos con recordatorio visible (F13)', () => {
     });
     await calendarPage.submitCreate();
     await expect(page.getByText('Plazo creado correctamente.')).toBeVisible();
-    // F41 (ola 4): vuelve al calendario para ejercitar el panel de detalle
-    // de FullCalendar (openEventDetail/markSelectedDone), no el botón
-    // "Marcar como completado" de la ficha — ese camino nuevo tiene su
-    // propia cobertura en f41-deadline-redesign.spec.ts.
     await deadlineDetailPage.goBack();
     await expect(page).toHaveURL(/\/calendario$/);
 
     await calendarPage.openEventDetail(deadlineTitle);
-    await calendarPage.markSelectedDone();
+    await calendarPage.editSelected();
 
-    await expect(page.getByText('Plazo marcado como completado.')).toBeVisible();
-    // El evento sigue visible en el calendario pero con las clases de
-    // "completado" (opacity-60 + line-through) que le pone
-    // `toEventInput()` — ver calendar.component.ts.
-    await expect(calendarPage.eventByTitle(deadlineTitle)).toHaveClass(/opacity-60/);
+    await expect(page).toHaveURL(/\/calendario\/plazos\/[^/]+\?returnTo=calendario$/);
+    await expect(deadlineDetailPage.heading).toHaveText(deadlineTitle);
 
-    await calendarPage.openEventDetail(deadlineTitle);
-    await expect(page.getByText('Completado', { exact: true })).toBeVisible();
+    await deadlineDetailPage.goBack();
+    await expect(page).toHaveURL(/\/calendario$/);
+    await expect(calendarPage.eventByTitle(deadlineTitle)).toBeVisible();
   });
 
-  test('eliminar un plazo lo quita del calendario', async ({ page, tenant }) => {
+  test('crear un plazo desde la pestaña "Plazos" de un proceso navega a su ficha, y Volver reabre esa pestaña con el plazo listado', async ({
+    page,
+    tenant,
+  }) => {
     const { processTitle } = await createLegalProcessViaApi(tenant);
     await loginAsAdmin(page, tenant);
 
-    const calendarPage = new CalendarPage(page);
+    const processesPage = new ProcessesPage(page);
     const deadlineDetailPage = new DeadlineDetailPage(page);
-    await calendarPage.goto();
+    await processesPage.goto();
+    await processesPage.openProcessDetail(processTitle);
+    await processesPage.openPlazosTab();
 
-    const deadlineTitle = `Plazo a eliminar E2E ${Date.now()}`;
-    await calendarPage.openCreateModal();
-    await calendarPage.fillCreateForm({
-      processTitle,
+    const deadlineTitle = `Plazo desde Proceso F41 ${Date.now()}`;
+    await processesPage.createPlazo({
       title: deadlineTitle,
       typeLabel: 'Audiencia',
       dueAt: futureDateTimeLocal(3),
     });
-    await calendarPage.submitCreate();
     await expect(page.getByText('Plazo creado correctamente.')).toBeVisible();
+    // F41 (ola 4): mismo modal/ficha compartidos con Calendario — pero acá
+    // el origen queda marcado como "proceso" para que "Volver" regrese a
+    // la pestaña Plazos de ESTE proceso, no a /calendario.
+    await expect(page).toHaveURL(/\/calendario\/plazos\/[^/]+\?returnTo=proceso&processId=[^&]+&tab=plazos$/);
+    await expect(deadlineDetailPage.heading).toHaveText(deadlineTitle);
+
     await deadlineDetailPage.goBack();
-    await expect(page).toHaveURL(/\/calendario$/);
-    await expect(calendarPage.eventByTitle(deadlineTitle)).toBeVisible();
-
-    await calendarPage.openEventDetail(deadlineTitle);
-    await calendarPage.deleteSelected();
-
-    await expect(page.getByText('Plazo eliminado correctamente.')).toBeVisible();
-    await expect(calendarPage.eventByTitle(deadlineTitle)).toHaveCount(0);
+    await expect(page).toHaveURL(/\/procesos\/[^/]+\?tab=plazos$/);
+    await expect(processesPage.processTitleHeading(processTitle)).toBeVisible();
+    await expect(processesPage.deadlineRow(deadlineTitle)).toBeVisible();
   });
 });

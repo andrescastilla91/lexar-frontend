@@ -6,17 +6,26 @@ import { ActivatedRoute, Router, RouterLink, provideRouter } from '@angular/rout
 import { of, throwError } from 'rxjs';
 import { EventInput } from '@fullcalendar/core';
 import { CalendarComponent } from './calendar.component';
+import { DeadlineFormModalComponent } from '../../shared/components/deadline-form-modal/deadline-form-modal.component';
 import { DeadlinesService } from '../../core/services/deadlines.service';
 import { CatalogsService } from '../../core/services/catalogs.service';
 import { AdvisorsService } from '../../core/services/advisors.service';
 import { LegalProcessesService } from '../../core/services/legal-processes.service';
+import { UsersService } from '../../core/services/users.service';
 import { ConfirmDialogService } from '../../core/services/confirm-dialog.service';
 import { ToastService } from '../../core/services/toast.service';
 import { AuthService } from '../../core/services/auth.service';
 import { PermissionsService } from '../../core/services/permissions.service';
+import { CompanyService } from '../../core/services/company.service';
 import { AdvisorResponse } from '../../core/models/advisor-backend.model';
+import { AssignableUser } from '../../core/models/user-backend.model';
 import { CatalogItem } from '../../core/models/catalog-backend.model';
-import { DeadlineResponse, DeadlineStatus } from '../../core/models/deadline.model';
+import {
+  DeadlineComputationType,
+  DeadlineResponse,
+  DeadlineScope,
+  DeadlineStatus,
+} from '../../core/models/deadline.model';
 import { LegalProcessResponse, ProcessStatus } from '../../core/models/legal-process.model';
 import { AuthUser } from '../../core/models/auth.model';
 
@@ -33,7 +42,7 @@ import { AuthUser } from '../../core/models/auth.model';
 })
 class FullCalendarStubComponent {
   @Input() options: unknown;
-  readonly api = { refetchEvents: jest.fn(), changeView: jest.fn() };
+  readonly api = { refetchEvents: jest.fn(), changeView: jest.fn(), setOption: jest.fn() };
   getApi() {
     return this.api;
   }
@@ -61,16 +70,19 @@ describe('CalendarComponent', () => {
     getAll: jest.Mock;
     getOne: jest.Mock;
     create: jest.Mock;
+    createGeneral: jest.Mock;
     update: jest.Mock;
     delete: jest.Mock;
   };
   let catalogsServiceMock: { getActiveCatalog: jest.Mock };
   let advisorsServiceMock: { getAdvisors: jest.Mock };
+  let usersServiceMock: { getAssignableUsers: jest.Mock };
   let legalProcessesServiceMock: { getLegalProcesses: jest.Mock };
   let confirmDialogServiceMock: { confirm: jest.Mock };
   let toastServiceMock: { success: jest.Mock; error: jest.Mock };
   let authServiceMock: { currentUser: jest.Mock };
   let permissionsServiceMock: { hasPermission: jest.Mock; hasAnyPermission: jest.Mock };
+  let companyServiceMock: { getCompany: jest.Mock };
   let consoleErrorSpy: jest.SpyInstance;
   let navigateSpy: jest.SpyInstance;
 
@@ -88,6 +100,13 @@ describe('CalendarComponent', () => {
     createdAt: '2026-01-01',
     updatedAt: '2026-01-01',
     user: { id: 'user-1', firstName: 'Laura', lastName: 'Gómez', email: 'laura@lexar.com' },
+  };
+
+  const assignableUser: AssignableUser = {
+    id: 'user-9',
+    firstName: 'Marcela',
+    lastName: 'Coordinadora',
+    email: 'marcela@lexar.com',
   };
 
   const deadlineType: CatalogItem = {
@@ -139,13 +158,33 @@ describe('CalendarComponent', () => {
     notes: null,
     status: DeadlineStatus.PENDING,
     assignees: [],
+    // F41 §CAL-01: null/false — este plazo de fixture está colgado de un
+    // proceso (proc-1), scope/blocksAgenda solo aplican a eventos generales.
+    scope: null,
+    blocksAgenda: false,
+    durationMinutes: null,
+    computationType: DeadlineComputationType.BUSINESS_DAYS,
+    needsReview: false,
     createdBy: null,
     createdAt: '2026-08-01T00:00:00Z',
     updatedAt: '2026-08-01T00:00:00Z',
   };
 
   function configure(
-    options: { openId?: string | null; currentUser?: AuthUser | null; hasFullDeadlineAccess?: boolean } = {},
+    options: {
+      openId?: string | null;
+      currentUser?: AuthUser | null;
+      hasFullDeadlineAccess?: boolean;
+      canCreateTeamScope?: boolean;
+      /** F41 (ola 4): deadlines.create — gatea el botón "Nuevo plazo" y el
+       * modal de creación (ver canCreateDeadline() en el componente).
+       * Por defecto true: la mayoría de estos tests ejercitan el flujo de
+       * creación en sí, no el gating de permisos. */
+      canCreateDeadline?: boolean;
+      /** F41 (ola 4): deadlines.update — gatea el botón "Editar" del panel
+       * de detalle. Por defecto true, mismo criterio que canCreateDeadline. */
+      canEditDeadline?: boolean;
+    } = {},
   ) {
     const { openId = null, currentUser = { id: 'user-1', email: 'a@x.com', roles: [], permissions: [] } } = options;
 
@@ -153,12 +192,16 @@ describe('CalendarComponent', () => {
       getAll: jest.fn().mockReturnValue(of([deadline])),
       getOne: jest.fn().mockReturnValue(of(deadline)),
       create: jest.fn().mockReturnValue(of(deadline)),
+      createGeneral: jest.fn().mockReturnValue(of(deadline)),
       update: jest.fn().mockReturnValue(of(deadline)),
       delete: jest.fn().mockReturnValue(of(undefined)),
     };
     catalogsServiceMock = { getActiveCatalog: jest.fn().mockReturnValue(of([deadlineType])) };
     advisorsServiceMock = {
       getAdvisors: jest.fn().mockReturnValue(of({ advisors: [advisor], total: 1, page: 1, limit: 100 })),
+    };
+    usersServiceMock = {
+      getAssignableUsers: jest.fn().mockReturnValue(of({ users: [assignableUser] })),
     };
     legalProcessesServiceMock = {
       getLegalProcesses: jest.fn().mockReturnValue(
@@ -170,8 +213,22 @@ describe('CalendarComponent', () => {
     authServiceMock = { currentUser: jest.fn().mockReturnValue(currentUser) };
     // F36 (ola 5): mock directo del servicio (no de AuthService), mismo
     // patrón que processes.component.spec.ts / tasks.component.spec.ts.
+    companyServiceMock = {
+      getCompany: jest.fn().mockReturnValue(of({ workingDays: [1, 2, 3, 4, 5] })),
+    };
     permissionsServiceMock = {
-      hasPermission: jest.fn().mockReturnValue(options.hasFullDeadlineAccess ?? false),
+      hasPermission: jest.fn((code: string) => {
+        if (code === 'deadlines.create.team-scope') {
+          return options.canCreateTeamScope ?? false;
+        }
+        if (code === 'deadlines.create') {
+          return options.canCreateDeadline ?? true;
+        }
+        if (code === 'deadlines.update') {
+          return options.canEditDeadline ?? true;
+        }
+        return options.hasFullDeadlineAccess ?? false;
+      }),
       hasAnyPermission: jest.fn().mockReturnValue(options.hasFullDeadlineAccess ?? false),
     };
 
@@ -186,16 +243,24 @@ describe('CalendarComponent', () => {
         { provide: DeadlinesService, useValue: deadlinesServiceMock },
         { provide: CatalogsService, useValue: catalogsServiceMock },
         { provide: AdvisorsService, useValue: advisorsServiceMock },
+        { provide: UsersService, useValue: usersServiceMock },
         { provide: LegalProcessesService, useValue: legalProcessesServiceMock },
         { provide: ConfirmDialogService, useValue: confirmDialogServiceMock },
         { provide: ToastService, useValue: toastServiceMock },
         { provide: AuthService, useValue: authServiceMock },
         { provide: PermissionsService, useValue: permissionsServiceMock },
+        { provide: CompanyService, useValue: companyServiceMock },
         { provide: ActivatedRoute, useValue: activatedRouteMock },
       ],
     })
       .overrideComponent(CalendarComponent, {
-        set: { imports: [ReactiveFormsModule, RouterLink, FullCalendarStubComponent] },
+        set: {
+          // F41 (ola 4, rediseño 2026-09-23): el modal de creación se
+          // reemplazó por <app-deadline-form-modal> (componente real, con
+          // su propia batería de tests) — solo <full-calendar> se stubea,
+          // porque es la librería pesada/dependiente de layout.
+          imports: [ReactiveFormsModule, RouterLink, FullCalendarStubComponent, DeadlineFormModalComponent],
+        },
       })
       .compileComponents()
       .then(() => {
@@ -240,6 +305,30 @@ describe('CalendarComponent', () => {
     expect(component.advisors()).toEqual([advisor]);
     expect(component.deadlineTypes()).toEqual([deadlineType]);
     expect(component.processes()).toEqual([process]);
+  });
+
+  it('F41 §CAL-04 (ola 4): atenúa los días no hábiles de la empresa en el calendario (businessHours)', async () => {
+    await configure();
+    const { fixture } = createComponent();
+    const stub = getStub(fixture);
+
+    expect(stub.api.setOption).toHaveBeenCalledWith('businessHours', {
+      daysOfWeek: [1, 2, 3, 4, 5],
+      startTime: '00:00',
+      endTime: '24:00',
+    });
+  });
+
+  it('F41 §CAL-04 (ola 4): convierte domingo (ISO 7) al 0 que espera FullCalendar', async () => {
+    await configure();
+    companyServiceMock.getCompany.mockReturnValue(of({ workingDays: [1, 2, 3, 4, 5, 6, 7] }));
+    const { fixture } = createComponent();
+    const stub = getStub(fixture);
+
+    expect(stub.api.setOption).toHaveBeenCalledWith(
+      'businessHours',
+      expect.objectContaining({ daysOfWeek: [1, 2, 3, 4, 5, 6, 0] }),
+    );
   });
 
   it('si falla la carga de asesores o procesos, registra el error en consola sin romper', async () => {
@@ -433,17 +522,121 @@ describe('CalendarComponent', () => {
     expect(component.createError()).toBeNull();
   });
 
-  it('isAssigneeSelected y toggleAssignee agregan y quitan ids del formulario', async () => {
+  it('el modal de creación recibe processes/deadlineTypes/canCreateTeamScope (F41 rediseño 2026-09-23)', async () => {
+    await configure({ canCreateTeamScope: true });
+    const { fixture } = createComponent();
+    fixture.componentInstance.openCreateModal();
+    fixture.detectChanges();
+
+    const modal = fixture.debugElement.query(By.directive(DeadlineFormModalComponent))
+      .componentInstance as DeadlineFormModalComponent;
+    expect(modal.isOpen()).toBe(true);
+    expect(modal.processes()).toEqual([process]);
+    expect(modal.deadlineTypes()).toEqual([deadlineType]);
+    expect(modal.canCreateTeamScope()).toBe(true);
+    expect(modal.showProcessField()).toBe(true);
+  });
+
+  it('onAssigneesChange (F41 ola 4: app-multi-select) reemplaza assigneeUserIds en el formulario', async () => {
     await configure();
     const { component } = createComponent();
 
-    expect(component.isAssigneeSelected('user-1')).toBe(false);
+    expect(component.createForm.get('assigneeUserIds')?.value).toEqual([]);
 
-    component.toggleAssignee('user-1');
-    expect(component.isAssigneeSelected('user-1')).toBe(true);
+    await component.onAssigneesChange(['user-1', 'user-2']);
+    expect(component.createForm.get('assigneeUserIds')?.value).toEqual(['user-1', 'user-2']);
 
-    component.toggleAssignee('user-1');
-    expect(component.isAssigneeSelected('user-1')).toBe(false);
+    await component.onAssigneesChange([]);
+    expect(component.createForm.get('assigneeUserIds')?.value).toEqual([]);
+  });
+
+  it('F41 (ola 4, reporte #4): elegir alcance "todo el equipo" limpia los asignados ya marcados', async () => {
+    await configure({ canCreateTeamScope: true });
+    const { component } = createComponent();
+
+    await component.onAssigneesChange(['user-1']);
+    expect(component.createForm.get('assigneeUserIds')?.value).toEqual(['user-1']);
+
+    component.createForm.patchValue({ scope: DeadlineScope.TEAM });
+    expect(component.createForm.get('assigneeUserIds')?.value).toEqual([]);
+  });
+
+  it('F41 (ola 4, correcciones #1): elegir "solo para mí" también limpia los asignados ya marcados', async () => {
+    await configure();
+    const { component } = createComponent();
+
+    await component.onAssigneesChange(['user-1']);
+    expect(component.createForm.get('assigneeUserIds')?.value).toEqual(['user-1']);
+
+    component.createForm.patchValue({ scope: DeadlineScope.ONLY_ME });
+    expect(component.createForm.get('assigneeUserIds')?.value).toEqual([]);
+  });
+
+  describe('F41 (ola 4, correcciones #2): relatedAdvisorUserIdsFor — fuente de "asignar a" según el proceso', () => {
+    it('sin proceso, no hay asesores relacionados que priorizar', async () => {
+      await configure();
+      const { component } = createComponent();
+
+      expect(component.relatedAdvisorUserIdsFor('')).toEqual([]);
+      expect(component.relatedAdvisorUserIdsFor(null)).toEqual([]);
+    });
+
+    it('con proceso, devuelve los userId de sus asesores relacionados', async () => {
+      await configure();
+      const { component } = createComponent();
+      component.processes.set([{ ...process, advisors: [advisor] }]);
+
+      expect(component.relatedAdvisorUserIdsFor('proc-1')).toEqual(['user-1']);
+    });
+
+    it('con un proceso sin asesores relacionados, devuelve un array vacío', async () => {
+      await configure();
+      const { component } = createComponent();
+      component.processes.set([{ ...process, advisors: [] }]);
+
+      expect(component.relatedAdvisorUserIdsFor('proc-1')).toEqual([]);
+    });
+  });
+
+  describe('F41 (ola 4, correcciones #2): confirmación al asignar a alguien no relacionado con el proceso', () => {
+    it('pide confirmación y, si se acepta, aplica la selección', async () => {
+      await configure();
+      const { component } = createComponent();
+      component.createForm.patchValue({ processId: 'proc-1' });
+      component.processes.set([{ ...process, advisors: [] }]);
+      confirmDialogServiceMock.confirm.mockResolvedValue(true);
+
+      await component.onAssigneesChange(['user-1']);
+
+      expect(confirmDialogServiceMock.confirm).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'Asesor no relacionado con el proceso' }),
+      );
+      expect(component.createForm.get('assigneeUserIds')?.value).toEqual(['user-1']);
+    });
+
+    it('si se rechaza la confirmación, revierte a la selección anterior', async () => {
+      await configure();
+      const { component } = createComponent();
+      component.createForm.patchValue({ processId: 'proc-1', assigneeUserIds: [] });
+      component.processes.set([{ ...process, advisors: [] }]);
+      confirmDialogServiceMock.confirm.mockResolvedValue(false);
+
+      await component.onAssigneesChange(['user-1']);
+
+      expect(component.createForm.get('assigneeUserIds')?.value).toEqual([]);
+    });
+
+    it('si el asesor agregado sí está relacionado con el proceso, no pide confirmación', async () => {
+      await configure();
+      const { component } = createComponent();
+      component.createForm.patchValue({ processId: 'proc-1' });
+      component.processes.set([{ ...process, advisors: [advisor] }]);
+
+      await component.onAssigneesChange(['user-1']);
+
+      expect(confirmDialogServiceMock.confirm).not.toHaveBeenCalled();
+      expect(component.createForm.get('assigneeUserIds')?.value).toEqual(['user-1']);
+    });
   });
 
   it('submitCreate no hace nada si ya hay una creación en curso', async () => {
@@ -467,18 +660,22 @@ describe('CalendarComponent', () => {
     expect(component.createForm.touched).toBe(true);
   });
 
-  it('submitCreate con datos válidos, crea el plazo y cierra el modal', async () => {
+  it('submitCreate con datos válidos, crea el plazo, cierra el modal y navega a su ficha de edición', async () => {
     await configure();
-    const { component, fixture } = createComponent();
-    const stub = getStub(fixture);
+    const { component } = createComponent();
     component.createForm.setValue({
       processId: 'proc-1',
       title: 'Nueva audiencia',
       typeId: 'type-1',
       dueAt: '2026-09-20T10:00',
       allDay: false,
-      notes: 'Notas',
+      // scope: SELECTED — es el único scope que conserva assigneeUserIds (ver
+      // el listener de scope.valueChanges en calendar.component.ts, que limpia
+      // assigneeUserIds para cualquier otro scope); ONLY_ME/TEAM no admiten
+      // asignados puntuales por diseño.
       assigneeUserIds: ['user-1'],
+      scope: DeadlineScope.SELECTED,
+      blocksAgenda: false,
     });
 
     component.submitCreate();
@@ -488,13 +685,84 @@ describe('CalendarComponent', () => {
       typeId: 'type-1',
       dueAt: new Date('2026-09-20T10:00').toISOString(),
       allDay: false,
-      notes: 'Notas',
       assigneeUserIds: ['user-1'],
     });
+    expect(deadlinesServiceMock.createGeneral).not.toHaveBeenCalled();
     expect(toastServiceMock.success).toHaveBeenCalled();
     expect(component.isCreating()).toBe(false);
     expect(component.createModalOpen()).toBe(false);
-    expect(stub.api.refetchEvents).toHaveBeenCalled();
+    // F41 (ola 4, rediseño 2026-09-23): ya no recarga el calendario in-place
+    // — navega directo a la ficha del plazo recién creado (Notas, Cómputo
+    // del término y Duración se completan ahí).
+    expect(navigateSpy).toHaveBeenCalledWith(['/calendario/plazos', deadline.id], {
+      queryParams: { returnTo: 'calendario' },
+    });
+  });
+
+  it('F41 §CAL-01: submitCreate sin proceso crea un evento general con scope/blocksAgenda', async () => {
+    await configure();
+    const { component } = createComponent();
+    component.createForm.setValue({
+      processId: '',
+      title: 'Capacitación interna',
+      typeId: 'type-1',
+      dueAt: '2026-09-20T10:00',
+      allDay: false,
+      assigneeUserIds: [],
+      scope: DeadlineScope.SELECTED,
+      blocksAgenda: true,
+    });
+
+    component.submitCreate();
+
+    expect(deadlinesServiceMock.create).not.toHaveBeenCalled();
+    expect(deadlinesServiceMock.createGeneral).toHaveBeenCalledWith({
+      title: 'Capacitación interna',
+      typeId: 'type-1',
+      dueAt: new Date('2026-09-20T10:00').toISOString(),
+      allDay: false,
+      assigneeUserIds: [],
+      scope: DeadlineScope.SELECTED,
+      blocksAgenda: true,
+    });
+    expect(toastServiceMock.success).toHaveBeenCalledWith('Evento creado correctamente.');
+    expect(navigateSpy).toHaveBeenCalledWith(['/calendario/plazos', deadline.id], {
+      queryParams: { returnTo: 'calendario' },
+    });
+  });
+
+  describe('F41 (ola 4): sin deadlines.create, no se puede abrir el modal de creación', () => {
+    it('no renderiza el botón "Nuevo plazo"', async () => {
+      await configure({ canCreateDeadline: false });
+      const { fixture } = createComponent();
+      fixture.detectChanges();
+
+      expect(
+        fixture.nativeElement.textContent.includes('Nuevo plazo'),
+      ).toBe(false);
+    });
+
+    it('openCreateModal() no abre el modal y muestra un toast, en vez del error crudo del backend', async () => {
+      await configure({ canCreateDeadline: false });
+      const { component } = createComponent();
+
+      component.openCreateModal();
+
+      expect(component.createModalOpen()).toBe(false);
+      expect(toastServiceMock.error).toHaveBeenCalledWith(
+        'No tienes permiso para crear plazos o eventos.',
+      );
+    });
+
+    it('el click en una fecha del calendario tampoco abre el modal', async () => {
+      await configure({ canCreateDeadline: false });
+      const { component } = createComponent();
+      const dateClickFn = component.calendarOptions.dateClick as unknown as DateClickFn;
+
+      dateClickFn({ date: new Date('2026-01-01') });
+
+      expect(component.createModalOpen()).toBe(false);
+    });
   });
 
   it('submitCreate en error del backend, muestra el mensaje y libera el estado de creación', async () => {
@@ -507,8 +775,9 @@ describe('CalendarComponent', () => {
       typeId: 'type-1',
       dueAt: '2026-09-20T10:00',
       allDay: false,
-      notes: '',
       assigneeUserIds: [],
+      scope: DeadlineScope.ONLY_ME,
+      blocksAgenda: false,
     });
 
     component.submitCreate();
@@ -516,6 +785,33 @@ describe('CalendarComponent', () => {
     expect(component.createError()).toBe('Ya existe un plazo similar');
     expect(toastServiceMock.error).toHaveBeenCalledWith('Ya existe un plazo similar');
     expect(component.isCreating()).toBe(false);
+  });
+
+  describe('F41 (ola 4, rediseño 2026-09-23): "Editar" navega a la ficha dedicada del plazo', () => {
+    it('goToEdit cierra el detalle y navega a /calendario/plazos/:id con returnTo=calendario', async () => {
+      await configure();
+      const { component } = createComponent();
+      component.selectedDeadline.set(deadline);
+
+      component.goToEdit(deadline);
+
+      expect(component.selectedDeadline()).toBeNull();
+      expect(navigateSpy).toHaveBeenCalledWith(['/calendario/plazos', deadline.id], {
+        queryParams: { returnTo: 'calendario' },
+      });
+    });
+
+    it('sin deadlines.update, no navega y muestra un toast', async () => {
+      await configure({ canEditDeadline: false });
+      const { component } = createComponent();
+
+      component.goToEdit(deadline);
+
+      expect(navigateSpy).not.toHaveBeenCalledWith(['/calendario/plazos', deadline.id], expect.anything());
+      expect(toastServiceMock.error).toHaveBeenCalledWith(
+        'No tienes permiso para editar plazos o eventos.',
+      );
+    });
   });
 
   it('deleteDeadline si el usuario cancela la confirmación, no elimina', async () => {

@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
-import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { DomSanitizer, SafeHtml, SafeResourceUrl } from '@angular/platform-browser';
 import { of, throwError, Subject } from 'rxjs';
 import { ProcessDetailComponent } from './process-detail.component';
@@ -18,8 +18,9 @@ import { PermissionsService } from '../../../core/services/permissions.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { PortalVisibilityPolicyService } from '../../../core/services/portal-visibility-policy.service';
 import { LegalProcessResponse, ProcessStatus } from '../../../core/models/legal-process.model';
+import { AdvisorResponse } from '../../../core/models/advisor-backend.model';
 import { ProcessEvent, ProcessEventType } from '../../../core/models/process-event.model';
-import { DeadlineResponse, DeadlineStatus } from '../../../core/models/deadline.model';
+import { DeadlineComputationType, DeadlineResponse, DeadlineStatus } from '../../../core/models/deadline.model';
 import { TaskPriority, TaskResponse } from '../../../core/models/task.model';
 import { TaskStatusResponse } from '../../../core/models/task-status.model';
 import { ClientMatterResponse } from '../../../core/models/client-backend.model';
@@ -59,6 +60,7 @@ describe('ProcessDetailComponent', () => {
   let confirmDialogMock: { confirm: jest.Mock };
   let toastMock: { success: jest.Mock; error: jest.Mock };
   let routeId: string | null;
+  let routeQueryParams: Record<string, string>;
 
   const process: LegalProcessResponse = {
     id: 'p1',
@@ -109,9 +111,30 @@ describe('ProcessDetailComponent', () => {
     notes: null,
     status: DeadlineStatus.PENDING,
     assignees: [],
+    scope: null,
+    blocksAgenda: false,
+    durationMinutes: null,
+    computationType: DeadlineComputationType.BUSINESS_DAYS,
+    needsReview: false,
     createdBy: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
+  };
+
+  const advisor: AdvisorResponse = {
+    id: 'adv1',
+    userId: 'u1',
+    specialties: [],
+    phone: null,
+    professionalCard: null,
+    mobileSecondary: null,
+    rating: null,
+    experienceYears: 3,
+    isActive: true,
+    companyId: 'c1',
+    createdAt: '2026-01-01',
+    updatedAt: '2026-01-01',
+    user: { id: 'u1', firstName: 'Ana', lastName: 'Gómez', email: 'ana@lexar.com' },
   };
 
   const taskStatus: TaskStatusResponse = {
@@ -155,9 +178,11 @@ describe('ProcessDetailComponent', () => {
   function configure(overrides: {
     legalProcesses?: Partial<typeof legalProcessesServiceMock>;
     routeId?: string | null;
+    queryParams?: Record<string, string>;
     confirmResolves?: boolean;
   } = {}) {
     routeId = overrides.routeId === undefined ? 'p1' : overrides.routeId;
+    routeQueryParams = overrides.queryParams ?? {};
 
     legalProcessesServiceMock = {
       getLegalProcess: jest.fn().mockReturnValue(of(process)),
@@ -234,7 +259,12 @@ describe('ProcessDetailComponent', () => {
         { provide: ToastService, useValue: toastMock },
         {
           provide: ActivatedRoute,
-          useValue: { snapshot: { paramMap: convertToParamMap(routeId ? { id: routeId } : {}) } },
+          useValue: {
+            snapshot: {
+              paramMap: convertToParamMap(routeId ? { id: routeId } : {}),
+              queryParamMap: convertToParamMap(routeQueryParams),
+            },
+          },
         },
         // F40 Ola 4a — fix (2026-09-21, unit tests reales): HasPermissionDirective
         // ("Guardar cambios" en Datos, botones internos de Contrapartes/Tareas)
@@ -257,7 +287,8 @@ describe('ProcessDetailComponent', () => {
   function createComponent() {
     const fixture = TestBed.createComponent(ProcessDetailComponent);
     fixture.detectChanges();
-    return { fixture, component: fixture.componentInstance };
+    const router = TestBed.inject(Router);
+    return { fixture, component: fixture.componentInstance, router };
   }
 
   describe('carga inicial', () => {
@@ -505,15 +536,125 @@ describe('ProcessDetailComponent', () => {
       expect(component.processDeadlines()).toEqual([deadline]);
     });
 
-    it('submitDeadline crea el plazo y recarga el listado', async () => {
+    describe('F41 (ola 4, correcciones #2): asignación de plazos, asesores del proceso', () => {
+      it('processAdvisorUserIds lee los userId de los asesores del proceso', async () => {
+        await configure({
+          legalProcesses: {
+            getLegalProcess: jest.fn().mockReturnValue(of({ ...process, advisors: [advisor] })),
+          },
+        });
+        const { component } = createComponent();
+
+        expect(component.processAdvisorUserIds()).toEqual(['u1']);
+      });
+
+      it('asignar a un asesor relacionado con el proceso no pide confirmación', async () => {
+        await configure({
+          legalProcesses: {
+            getLegalProcess: jest.fn().mockReturnValue(of({ ...process, advisors: [advisor] })),
+          },
+        });
+        const { component } = createComponent();
+        component.advisors.set([advisor]);
+
+        await component.onDeadlineAssigneesChange(['u1']);
+
+        expect(confirmDialogMock.confirm).not.toHaveBeenCalled();
+        expect(component.deadlineForm.get('assigneeUserIds')?.value).toEqual(['u1']);
+      });
+
+      it('asignar a alguien no relacionado con el proceso pide confirmación y, si se acepta, aplica la selección', async () => {
+        await configure({ confirmResolves: true });
+        const { component } = createComponent();
+        component.advisors.set([advisor]);
+
+        await component.onDeadlineAssigneesChange(['u1']);
+
+        expect(confirmDialogMock.confirm).toHaveBeenCalledWith(
+          expect.objectContaining({ title: 'Asesor no relacionado con el proceso' }),
+        );
+        expect(component.deadlineForm.get('assigneeUserIds')?.value).toEqual(['u1']);
+      });
+
+      it('si se rechaza la confirmación, revierte a la selección anterior', async () => {
+        await configure({ confirmResolves: false });
+        const { component } = createComponent();
+        component.advisors.set([advisor]);
+        component.deadlineForm.patchValue({ assigneeUserIds: [] });
+
+        await component.onDeadlineAssigneesChange(['u1']);
+
+        expect(component.deadlineForm.get('assigneeUserIds')?.value).toEqual([]);
+      });
+    });
+
+    it('openCreateDeadlineModal abre el modal y limpia el formulario/error previos', async () => {
       await configure();
       const { component } = createComponent();
+      component.deadlineFormError.set('error previo');
+
+      component.openCreateDeadlineModal();
+
+      expect(component.createDeadlineModalOpen()).toBe(true);
+      expect(component.deadlineFormError()).toBeNull();
+      expect(component.deadlineForm.getRawValue().title).toBe('');
+    });
+
+    it('closeCreateDeadlineModal cierra el modal', async () => {
+      await configure();
+      const { component } = createComponent();
+      component.openCreateDeadlineModal();
+
+      component.closeCreateDeadlineModal();
+
+      expect(component.createDeadlineModalOpen()).toBe(false);
+    });
+
+    it('submitCreateDeadline crea el plazo y navega a su ficha de edición (F41 rediseño 2026-09-23)', async () => {
+      await configure();
+      const { component, router } = createComponent();
+      const navigateSpy = jest.spyOn(router, 'navigate').mockResolvedValue(true);
       component.deadlineForm.patchValue({ title: 'Audiencia', typeId: 'ty1', dueAt: '2026-03-01T10:00' });
 
-      component.submitDeadline();
+      component.submitCreateDeadline();
 
       expect(deadlinesServiceMock.create).toHaveBeenCalledWith('p1', expect.objectContaining({ title: 'Audiencia' }));
       expect(toastMock.success).toHaveBeenCalled();
+      expect(component.createDeadlineModalOpen()).toBe(false);
+      expect(navigateSpy).toHaveBeenCalledWith(['/calendario/plazos', 'd1'], {
+        queryParams: { returnTo: 'proceso', processId: 'p1', tab: 'plazos' },
+      });
+    });
+
+    describe('edición (F41 ola 4, rediseño 2026-09-23)', () => {
+      it('goToEditDeadline navega a la ficha de edición del plazo, con retorno a esta pestaña', async () => {
+        await configure();
+        const { component, router } = createComponent();
+        const navigateSpy = jest.spyOn(router, 'navigate').mockResolvedValue(true);
+
+        component.goToEditDeadline(deadline);
+
+        expect(navigateSpy).toHaveBeenCalledWith(['/calendario/plazos', 'd1'], {
+          queryParams: { returnTo: 'proceso', processId: 'p1', tab: 'plazos' },
+        });
+      });
+
+    });
+  });
+
+  describe('F41 (ola 4, rediseño 2026-09-23): retorno desde la ficha de un plazo (?tab=plazos)', () => {
+    it('reabre la pestaña Plazos cuando se llega con ?tab=plazos', async () => {
+      await configure({ queryParams: { tab: 'plazos' } });
+      const { component } = createComponent();
+
+      expect(component.activeTab()).toBe('plazos');
+    });
+
+    it('sin ?tab=plazos, la pestaña activa por defecto sigue siendo Datos', async () => {
+      await configure();
+      const { component } = createComponent();
+
+      expect(component.activeTab()).toBe('datos');
     });
   });
 

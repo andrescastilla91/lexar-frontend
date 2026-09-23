@@ -20,8 +20,19 @@ export interface CompanyProfile {
   processCodePrefix: string | null;
   /** F40 §PRO-06: correlativo actual — deshabilita la edición del prefijo una vez hay procesos creados. */
   processCodeCounter: number;
+  /** F41 §CAL-04: días hábiles por defecto, ISO 8601 (1=lunes..7=domingo). */
+  workingDays: number[];
+  businessHoursStart: string | null;
+  businessHoursEnd: string | null;
+  nonWorkingDayExceptionUsers: CompanyScheduleExceptionUser[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface CompanyScheduleExceptionUser {
+  id: string;
+  firstName: string;
+  lastName: string;
 }
 
 export interface UpdateCompanyRequest {
@@ -39,6 +50,11 @@ export interface UpdateCompanyRequest {
   require2fa?: boolean;
   /** F40 §PRO-06: 3 caracteres alfanuméricos en mayúscula (p. ej. "RGJ"). */
   processCodePrefix?: string;
+  /** F41 §CAL-04: se envía SIEMPRE la lista completa (no un delta). */
+  workingDays?: number[];
+  businessHoursStart?: string | null;
+  businessHoursEnd?: string | null;
+  nonWorkingDayExceptionUserIds?: string[];
 }
 
 export interface CompanyLogoSignedUrlResponse {

@@ -5,10 +5,15 @@ import { Locator, Page } from '@playwright/test';
  * Selectores por rol/texto visible, sin test-ids, igual que el resto de
  * page objects de este proyecto (ver login.page.ts, settings-catalogs.page.ts).
  *
- * El formulario de creación y el formulario de filtros comparten el mismo
- * `formcontrolname="processId"` (ver calendar.component.ts) — hay que
- * escopar los selectores del modal de creación a su propio `<form>` (tiene
- * el heading "Nuevo plazo o audiencia") para no ambigüedad con el filtro.
+ * F41 (ola 4, rediseño 2026-09-23): el modal de creación se recortó a los
+ * campos esenciales (Proceso, Título, Tipo, Fecha/hora, Todo el día,
+ * Asignación) — Notas, Cómputo del término y Duración se movieron a la
+ * ficha de edición dedicada (`/calendario/plazos/:id`, ver
+ * DeadlineDetailPage) y ya no se llenan desde este modal. Al crear, la app
+ * navega directo a esa ficha (mismo patrón que UserFormComponent /
+ * ProcessFormComponent → ficha de detalle) en vez de quedarse en
+ * /calendario, así que `submitCreate()` deja al llamador en la ficha, no
+ * en el calendario.
  */
 export class CalendarPage {
   readonly newDeadlineButton: Locator;
@@ -19,20 +24,32 @@ export class CalendarPage {
   readonly markDoneButton: Locator;
   readonly deleteButton: Locator;
   readonly confirmDeleteButton: Locator;
+  // F41 (ola 4): botón "Editar" del panel de detalle — navega a la ficha
+  // dedicada en vez de reabrir este mismo modal en modo edición (ver
+  // CalendarComponent.goToEdit()).
+  readonly editButton: Locator;
 
   constructor(private readonly page: Page) {
     this.newDeadlineButton = page.getByRole('button', { name: 'Nuevo plazo' });
     this.createForm = page
       .locator('form')
-      .filter({ has: page.getByRole('heading', { name: 'Nuevo plazo o audiencia' }) });
-    this.createSubmitButton = this.createForm.getByRole('button', { name: 'Crear plazo' });
+      .filter({
+        has: page.getByRole('heading', {
+          name: /^Nuevo (plazo o audiencia|evento general)$/,
+        }),
+      });
+    // El texto cambia entre "Crear plazo" (con proceso) y "Crear evento"
+    // (evento general) — ver DeadlineFormModalComponent.
+    this.createSubmitButton = this.createForm.getByRole('button', { name: /^Crear (plazo|evento)$/ });
     this.createCancelButton = this.createForm.getByRole('button', { name: 'Cancelar' });
     this.createError = this.createForm.locator('p.text-danger');
-    // Panel de detalle del plazo seleccionado — solo hay uno abierto a la
-    // vez (mutuamente excluyente con el modal de creación), así que no hace
-    // falta escoparlo como al `createForm`.
+    // Panel de detalle del plazo seleccionado (abierto al hacer click en un
+    // evento de FullCalendar) — solo hay uno abierto a la vez (mutuamente
+    // excluyente con el modal de creación), así que no hace falta escoparlo
+    // como al `createForm`.
     this.markDoneButton = page.getByRole('button', { name: 'Marcar completado' });
     this.deleteButton = page.getByRole('button', { name: 'Eliminar' });
+    this.editButton = page.getByRole('button', { name: 'Editar' });
     // app-confirm-dialog (global, montado en el layout) — deleteDeadline()
     // pasa por ConfirmDialogService antes de llamar al backend, sin
     // personalizar confirmLabel, así que el botón queda con el default
@@ -53,7 +70,6 @@ export class CalendarPage {
     title: string;
     typeLabel: string;
     dueAt: string;
-    notes?: string;
   }): Promise<void> {
     await this.createForm
       .locator('select[formcontrolname="processId"]')
@@ -63,11 +79,12 @@ export class CalendarPage {
       .locator('select[formcontrolname="typeId"]')
       .selectOption({ label: options.typeLabel });
     await this.createForm.locator('input[formcontrolname="dueAt"]').fill(options.dueAt);
-    if (options.notes) {
-      await this.createForm.locator('textarea[formcontrolname="notes"]').fill(options.notes);
-    }
   }
 
+  /** Envía el modal de creación — F41 (ola 4): tras el éxito la app navega
+   * a la ficha del plazo creado (`/calendario/plazos/:id`), no se queda en
+   * /calendario. El llamador debe esperar esa navegación, no el cierre del
+   * modal. */
   async submitCreate(): Promise<void> {
     await this.createSubmitButton.click();
   }
@@ -96,5 +113,11 @@ export class CalendarPage {
   async deleteSelected(): Promise<void> {
     await this.deleteButton.click();
     await this.confirmDeleteButton.click();
+  }
+
+  /** Click "Editar" en el panel de detalle — navega a
+   * /calendario/plazos/:id?returnTo=calendario (ver DeadlineDetailPage). */
+  async editSelected(): Promise<void> {
+    await this.editButton.click();
   }
 }

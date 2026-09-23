@@ -11,6 +11,7 @@ import { Entitlements } from '../../core/models/subscription-backend.model';
 import { PortalVisibilityPolicyService } from '../../core/services/portal-visibility-policy.service';
 import { DashboardWidgetsService } from '../../core/services/dashboard-widgets.service';
 import { AiChatService } from '../../core/services/ai-chat.service';
+import { UsersService } from '../../core/services/users.service';
 
 describe('SettingsComponent', () => {
   let companyServiceMock: {
@@ -37,6 +38,7 @@ describe('SettingsComponent', () => {
   // F7-R4 (#292): SettingsPlanComponent también inyecta AiChatService para la
   // barra de consumo de IA — mismo motivo que subscriptionServiceMock arriba.
   let aiChatServiceMock: { getUsage: jest.Mock };
+  let usersServiceMock: { getUsers: jest.Mock };
   let queryParams: Record<string, string>;
 
   const baseEntitlements: Entitlements = {
@@ -80,6 +82,10 @@ describe('SettingsComponent', () => {
     require2fa: false,
     processCodePrefix: null,
     processCodeCounter: 0,
+    workingDays: [1, 2, 3, 4, 5],
+    businessHoursStart: null,
+    businessHoursEnd: null,
+    nonWorkingDayExceptionUsers: [],
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
   };
@@ -112,6 +118,9 @@ describe('SettingsComponent', () => {
     aiChatServiceMock = {
       getUsage: jest.fn().mockReturnValue(of({ used: 7, limit: 20, periodStart: '2026-09-01', periodEnd: '2026-10-01' })),
     };
+    usersServiceMock = {
+      getUsers: jest.fn().mockReturnValue(of({ message: '', users: [], total: 0, page: 1, limit: 100 })),
+    };
     queryParams = initialQueryParams;
 
     TestBed.configureTestingModule({
@@ -124,6 +133,7 @@ describe('SettingsComponent', () => {
         { provide: PortalVisibilityPolicyService, useValue: portalVisibilityPolicyServiceMock },
         { provide: DashboardWidgetsService, useValue: dashboardWidgetsServiceMock },
         { provide: AiChatService, useValue: aiChatServiceMock },
+        { provide: UsersService, useValue: usersServiceMock },
         {
           provide: ActivatedRoute,
           useValue: { snapshot: { queryParamMap: convertToParamMap(queryParams) } },
@@ -266,9 +276,9 @@ describe('SettingsComponent', () => {
   // select de siempre (celular Y tablet, sin cambios de comportamiento en
   // ese rango); desde 1024px se muestra un sidebar real a la izquierda en
   // vez de una lista apilada arriba del contenido.
-  // F32 PR3: se agregó la pestaña "Tablero" — pasa de 10 a 11 secciones
+  // F41 §CAL-04 (ola 3): se agregó la pestaña "Horario" — pasa de 11 a 12 secciones
   // (F27 ya había hecho el mismo ajuste de 9 a 10 al agregar "Portal del cliente").
-  it('el sidebar de escritorio está oculto por debajo de lg y visible desde lg, con las 11 secciones', () => {
+  it('el sidebar de escritorio está oculto por debajo de lg y visible desde lg, con las 12 secciones', () => {
     const fixture = TestBed.createComponent(SettingsComponent);
     fixture.detectChanges();
 
@@ -278,17 +288,17 @@ describe('SettingsComponent', () => {
     expect(nav?.className).toContain('hidden');
     expect(nav?.className).toContain('lg:flex');
     expect(nav?.className).toContain('lg:flex-col');
-    expect(buttons?.length).toBe(11);
+    expect(buttons?.length).toBe(12);
   });
 
-  it('el select cubre mobile y tablet (oculto solo desde lg), con las mismas 11 opciones', () => {
+  it('el select cubre mobile y tablet (oculto solo desde lg), con las mismas 12 opciones', () => {
     const fixture = TestBed.createComponent(SettingsComponent);
     fixture.detectChanges();
 
     const mobileWrapper = fixture.nativeElement.querySelector('.lg\\:hidden');
     const options = mobileWrapper?.querySelectorAll('option');
 
-    expect(options?.length).toBe(11);
+    expect(options?.length).toBe(12);
   });
 
   it('click en un ítem del sidebar cambia de tab directamente', () => {
@@ -407,5 +417,76 @@ describe('SettingsComponent', () => {
 
     expect(component.company()?.require2fa).toBe(true);
     expect(toastServiceMock.success).toHaveBeenCalledWith('Política de seguridad guardada correctamente.');
+  });
+
+  // F41 §CAL-04 (ola 3): pestaña "Horario".
+  it('carga los usuarios de la empresa para el picker de excepción al iniciar', () => {
+    createComponent();
+    expect(usersServiceMock.getUsers).toHaveBeenCalledWith(1, 100);
+  });
+
+  it('applyCompany traduce workingDays (ISO) a los checkboxes del form', () => {
+    const company: CompanyProfile = { ...baseCompany, workingDays: [1, 2, 3, 4, 5, 6] };
+    companyServiceMock.getCompany.mockReturnValue(of(company));
+    const component = createComponent();
+
+    expect(component.scheduleForm.controls.workingDays.getRawValue()).toEqual({
+      mon: true,
+      tue: true,
+      wed: true,
+      thu: true,
+      fri: true,
+      sat: true,
+      sun: false,
+    });
+  });
+
+  it('onSubmitSchedule: envía los días marcados como ISO y el horario laboral', () => {
+    companyServiceMock.updateCompany.mockReturnValue(of(baseCompany));
+    const component = createComponent();
+    component.scheduleForm.controls.workingDays.patchValue({ sat: true });
+    component.scheduleForm.patchValue({ businessHoursStart: '08:00', businessHoursEnd: '18:00' });
+
+    component.onSubmitSchedule();
+
+    expect(companyServiceMock.updateCompany).toHaveBeenCalledWith({
+      workingDays: [1, 2, 3, 4, 5, 6],
+      businessHoursStart: '08:00',
+      businessHoursEnd: '18:00',
+      nonWorkingDayExceptionUserIds: [],
+    });
+  });
+
+  it('onSubmitSchedule: envía null cuando se limpia el horario laboral (no lo omite)', () => {
+    companyServiceMock.updateCompany.mockReturnValue(of(baseCompany));
+    const component = createComponent();
+
+    component.onSubmitSchedule();
+
+    expect(companyServiceMock.updateCompany).toHaveBeenCalledWith(
+      expect.objectContaining({ businessHoursStart: null, businessHoursEnd: null }),
+    );
+  });
+
+  it('onSubmitSchedule: en error muestra el mensaje y el toast', () => {
+    companyServiceMock.updateCompany.mockReturnValue(throwError(() => ({ message: 'No se pudo guardar' })));
+    const component = createComponent();
+
+    component.onSubmitSchedule();
+
+    expect(component.scheduleError()).toBe('No se pudo guardar');
+    expect(toastServiceMock.error).toHaveBeenCalledWith('No se pudo guardar');
+  });
+
+  it('setExceptionUserIds actualiza la selección para el próximo submit', () => {
+    companyServiceMock.updateCompany.mockReturnValue(of(baseCompany));
+    const component = createComponent();
+
+    component.setExceptionUserIds(['u1', 'u2']);
+    component.onSubmitSchedule();
+
+    expect(companyServiceMock.updateCompany).toHaveBeenCalledWith(
+      expect.objectContaining({ nonWorkingDayExceptionUserIds: ['u1', 'u2'] }),
+    );
   });
 });

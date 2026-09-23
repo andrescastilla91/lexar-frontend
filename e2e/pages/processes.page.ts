@@ -76,6 +76,20 @@ export class ProcessesPage {
   // process-annotation-modal.component.ts.
   readonly annotationMarkInternalCheckbox: Locator;
 
+  // F41 (ola 4, rediseño 2026-09-23): pestaña "Plazos" de la ficha —
+  // listado (`app-process-deadlines-list`) + modal de alta compartido con
+  // Calendario (`app-deadline-form-modal`, sin el selector de Proceso: ver
+  // showProcessField=false en process-detail.component.ts). La edición ya
+  // no vive aquí — "Editar plazo" navega a /calendario/plazos/:id (ver
+  // DeadlineDetailPage).
+  private readonly plazosListScope: Locator;
+  readonly newPlazoButton: Locator;
+  private readonly plazoFormScope: Locator;
+  readonly plazoTitleInput: Locator;
+  readonly plazoTypeSelect: Locator;
+  readonly plazoDueAtInput: Locator;
+  readonly plazoSubmitButton: Locator;
+
   constructor(private readonly page: Page) {
     this.newProcessButton = this.page.getByRole('button', { name: 'Nuevo proceso' });
     // Escopados a <app-process-form> (el modal de crear/editar): la barra de
@@ -126,6 +140,19 @@ export class ProcessesPage {
     this.annotationMarkInternalCheckbox = annotationModalScope.getByLabel(
       'Marcar como interna (no visible para el cliente)',
     );
+
+    this.plazosListScope = this.page.locator('app-process-deadlines-list');
+    this.newPlazoButton = this.plazosListScope.getByRole('button', { name: 'Nuevo plazo' });
+    // Heading "Nuevo plazo" a secas (sin "o audiencia"/"evento general")
+    // solo ocurre cuando showProcessField()=false — ver
+    // DeadlineFormModalComponent, distinto del modal de Calendario.
+    this.plazoFormScope = this.page
+      .locator('form')
+      .filter({ has: this.page.getByRole('heading', { name: 'Nuevo plazo', exact: true }) });
+    this.plazoTitleInput = this.plazoFormScope.locator('input[formcontrolname="title"]');
+    this.plazoTypeSelect = this.plazoFormScope.locator('select[formcontrolname="typeId"]');
+    this.plazoDueAtInput = this.plazoFormScope.locator('input[formcontrolname="dueAt"]');
+    this.plazoSubmitButton = this.plazoFormScope.getByRole('button', { name: 'Crear plazo' });
   }
 
   async goto(): Promise<void> {
@@ -396,5 +423,33 @@ export class ProcessesPage {
 
   processCard(title: string): Locator {
     return this.page.locator('div.p-6.shadow-card').filter({ has: this.processCardTitleLink(title) });
+  }
+
+  // F41 (ola 4, rediseño 2026-09-23): abre la pestaña "Plazos" de la ficha
+  // de detalle (mismo patrón que openHistory() para "Historial").
+  async openPlazosTab(): Promise<void> {
+    await this.datosTabScope
+      .locator('nav')
+      .getByRole('button', { name: 'Plazos', exact: true })
+      .click();
+  }
+
+  // Crea un plazo desde la pestaña "Plazos" — el proceso ya es fijo
+  // (showProcessField=false en DeadlineFormModalComponent), así que a
+  // diferencia de CalendarPage.fillCreateForm() no hay selector de
+  // Proceso que elegir. Al enviar, la app navega a la ficha del plazo
+  // (/calendario/plazos/:id?returnTo=proceso&processId=...&tab=plazos).
+  async createPlazo(data: { title: string; typeLabel: string; dueAt: string }): Promise<void> {
+    await this.newPlazoButton.click();
+    await this.plazoTitleInput.fill(data.title);
+    await this.plazoTypeSelect.selectOption({ label: data.typeLabel });
+    await this.plazoDueAtInput.fill(data.dueAt);
+    await this.plazoSubmitButton.click();
+  }
+
+  deadlineRow(title: string): Locator {
+    return this.plazosListScope.locator('div.rounded-lg.border.border-default.bg-surface.p-3').filter({
+      hasText: title,
+    });
   }
 }

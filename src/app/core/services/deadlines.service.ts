@@ -65,6 +65,21 @@ export class DeadlinesService {
       );
   }
 
+  /** F41 §CAL-01: evento general, sin proceso. */
+  createGeneral(data: CreateDeadlineRequest): Observable<DeadlineResponse> {
+    return this.http
+      .post<DeadlineItemResponse>(`${this.apiUrl}/deadlines`, data)
+      .pipe(
+        map((response) => response.deadline),
+        catchError((error) => {
+          console.error('Error al crear evento:', error);
+          return throwError(
+            () => new Error(error.message || 'Error al crear evento'),
+          );
+        }),
+      );
+  }
+
   /** Listado global de plazos (calendario, "mis plazos"), con filtros opcionales. */
   getAll(filters?: QueryDeadlinesFilters): Observable<DeadlineResponse[]> {
     const params: Record<string, string> = {};
