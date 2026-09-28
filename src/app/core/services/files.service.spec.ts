@@ -281,4 +281,84 @@ describe('FilesService', () => {
     expect(service.formatFileSize(1024)).toBe('1 KB');
     expect(service.formatFileSize(1048576)).toBe('1 MB');
   });
+
+  describe('F37 §DOC-01 (ola 2) — explorador de documentos', () => {
+    it('getDocumentTreeClients hace GET a /files/tree/clients', () => {
+      let result: unknown;
+      service.getDocumentTreeClients().subscribe((r) => (result = r));
+
+      const req = httpMock.expectOne(`${apiUrl}/tree/clients`);
+      expect(req.request.method).toBe('GET');
+      const clients = [{ id: 'c1', label: 'Cliente 1', documentCount: 3 }];
+      req.flush(clients);
+
+      expect(result).toEqual(clients);
+    });
+
+    it('getDocumentTreeClientNodes hace GET a /files/tree/clients/:id/nodes', () => {
+      let result: unknown;
+      service.getDocumentTreeClientNodes('c1').subscribe((r) => (result = r));
+
+      const req = httpMock.expectOne(`${apiUrl}/tree/clients/c1/nodes`);
+      expect(req.request.method).toBe('GET');
+      req.flush([]);
+
+      expect(result).toEqual([]);
+    });
+
+    it('getDocumentTreeTypes envía matterId cuando se pasa', () => {
+      service.getDocumentTreeTypes('c1', 'm1').subscribe();
+
+      const req = httpMock.expectOne(
+        (r) => r.url === `${apiUrl}/tree/document-types`,
+      );
+      expect(req.request.params.get('clientId')).toBe('c1');
+      expect(req.request.params.get('matterId')).toBe('m1');
+      expect(req.request.params.has('processId')).toBe(false);
+      req.flush([]);
+    });
+
+    it('getDocumentTreeTypes envía processId cuando no hay matterId', () => {
+      service.getDocumentTreeTypes('c1', null, 'p1').subscribe();
+
+      const req = httpMock.expectOne(
+        (r) => r.url === `${apiUrl}/tree/document-types`,
+      );
+      expect(req.request.params.get('processId')).toBe('p1');
+      expect(req.request.params.has('matterId')).toBe(false);
+      req.flush([]);
+    });
+
+    it('getDocumentTreeTypes no envía matterId ni processId para el nodo "general"', () => {
+      service.getDocumentTreeTypes('c1').subscribe();
+
+      const req = httpMock.expectOne(
+        (r) => r.url === `${apiUrl}/tree/document-types`,
+      );
+      expect(req.request.params.has('matterId')).toBe(false);
+      expect(req.request.params.has('processId')).toBe(false);
+      req.flush([]);
+    });
+
+    it('getDocumentTreeDocuments envía clientId/documentTypeId/página/límite', () => {
+      let result: unknown;
+      service
+        .getDocumentTreeDocuments('c1', 'dt1', 'm1', undefined, 2, 10)
+        .subscribe((r) => (result = r));
+
+      const req = httpMock.expectOne(
+        (r) => r.url === `${apiUrl}/tree/documents`,
+      );
+      expect(req.request.method).toBe('GET');
+      expect(req.request.params.get('clientId')).toBe('c1');
+      expect(req.request.params.get('documentTypeId')).toBe('dt1');
+      expect(req.request.params.get('matterId')).toBe('m1');
+      expect(req.request.params.get('page')).toBe('2');
+      expect(req.request.params.get('limit')).toBe('10');
+      const response = { data: [file], total: 1, page: 2, limit: 10 };
+      req.flush(response);
+
+      expect(result).toEqual(response);
+    });
+  });
 });

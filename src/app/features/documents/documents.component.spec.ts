@@ -42,6 +42,13 @@ describe('DocumentsComponent', () => {
     deleteFile: jest.Mock;
     formatFileSize: jest.Mock;
     getFileIcon: jest.Mock;
+    // F37 §DOC-01 (ola 2): DocumentsExplorerComponent es la vista por
+    // defecto de DocumentsComponent — sin estos mocks, su ngOnInit revienta
+    // en cada test de este archivo ("...is not a function").
+    getDocumentTreeClients: jest.Mock;
+    getDocumentTreeClientNodes: jest.Mock;
+    getDocumentTreeTypes: jest.Mock;
+    getDocumentTreeDocuments: jest.Mock;
   };
   let processesServiceMock: { getLegalProcesses: jest.Mock };
   let clientsServiceMock: { getClients: jest.Mock };
@@ -59,6 +66,12 @@ describe('DocumentsComponent', () => {
       deleteFile: jest.fn(),
       formatFileSize: jest.fn().mockReturnValue('1 KB'),
       getFileIcon: jest.fn().mockReturnValue('M0 0'),
+      getDocumentTreeClients: jest.fn().mockReturnValue(of([])),
+      getDocumentTreeClientNodes: jest.fn().mockReturnValue(of([])),
+      getDocumentTreeTypes: jest.fn().mockReturnValue(of([])),
+      getDocumentTreeDocuments: jest
+        .fn()
+        .mockReturnValue(of({ data: [], total: 0, page: 1, limit: 50 })),
     };
     processesServiceMock = {
       getLegalProcesses: jest.fn().mockReturnValue(
@@ -214,6 +227,12 @@ describe('DocumentsComponent', () => {
       deleteFile: jest.fn(),
       formatFileSize: jest.fn().mockReturnValue('1 KB'),
       getFileIcon: jest.fn().mockReturnValue('M0 0'),
+      getDocumentTreeClients: jest.fn().mockReturnValue(of([])),
+      getDocumentTreeClientNodes: jest.fn().mockReturnValue(of([])),
+      getDocumentTreeTypes: jest.fn().mockReturnValue(of([])),
+      getDocumentTreeDocuments: jest
+        .fn()
+        .mockReturnValue(of({ data: [], total: 0, page: 1, limit: 50 })),
     };
     processesServiceMock = { getLegalProcesses: jest.fn().mockReturnValue(of({ message: '', legalProcesses: [], total: 0, page: 1, limit: 100 })) };
     clientsServiceMock = { getClients: jest.fn().mockReturnValue(of({ message: '', clients: [], total: 0, page: 1, limit: 100 })) };

@@ -124,3 +124,38 @@ export interface FileUploadProgress {
   error?: string;
   result?: FileModel;
 }
+
+
+/**
+ * F37 §DOC-01 (ola 2) — nivel 0 del explorador: clientes con documentos.
+ */
+export interface DocumentTreeClientNode {
+  id: string;
+  label: string;
+  documentCount: number;
+}
+
+export type DocumentTreeGroupKind = 'matter' | 'process' | 'general';
+
+/**
+ * F37 §DOC-01 (ola 2) — nivel 1 del explorador: asuntos/procesos de un
+ * cliente, más el bucket "general" (documentos del cliente sin asunto ni
+ * proceso).
+ */
+export interface DocumentTreeGroupNode {
+  kind: DocumentTreeGroupKind;
+  id: string | null;
+  label: string;
+  documentCount: number;
+}
+
+/**
+ * F37 §DOC-01 (ola 2) — nivel 2 del explorador: tipos documentales dentro
+ * de un nodo.
+ */
+export interface DocumentTreeTypeNode {
+  documentTypeId: string;
+  label: string;
+  color: string | null;
+  documentCount: number;
+}

@@ -12,6 +12,9 @@ import {
   ListFilesParams,
   ListFilesResponse,
   FileUploadProgress,
+  DocumentTreeClientNode,
+  DocumentTreeGroupNode,
+  DocumentTreeTypeNode,
 } from '../models/file.model';
 
 @Injectable({
@@ -72,6 +75,69 @@ export class FilesService {
    */
   getFilesByEntity(entityType: string, entityId: string): Observable<FileModel[]> {
     return this.http.get<FileModel[]>(`${this.apiUrl}/entity/${entityType}/${entityId}`);
+  }
+
+  /**
+   * F37 §DOC-01 (ola 2) — nivel 0 del explorador: clientes con documentos.
+   */
+  getDocumentTreeClients(): Observable<DocumentTreeClientNode[]> {
+    return this.http.get<DocumentTreeClientNode[]>(`${this.apiUrl}/tree/clients`);
+  }
+
+  /**
+   * F37 §DOC-01 (ola 2) — nivel 1: asuntos/procesos de un cliente, más el
+   * bucket "general".
+   */
+  getDocumentTreeClientNodes(clientId: string): Observable<DocumentTreeGroupNode[]> {
+    return this.http.get<DocumentTreeGroupNode[]>(
+      `${this.apiUrl}/tree/clients/${clientId}/nodes`,
+    );
+  }
+
+  /**
+   * F37 §DOC-01 (ola 2) — nivel 2: tipos documentales dentro de un nodo.
+   * `matterId`/`processId` son mutuamente excluyentes; sin ninguno de los
+   * dos se pide el bucket "general" del cliente.
+   */
+  getDocumentTreeTypes(
+    clientId: string,
+    matterId?: string | null,
+    processId?: string | null,
+  ): Observable<DocumentTreeTypeNode[]> {
+    let params = new HttpParams().set('clientId', clientId);
+    if (matterId) {
+      params = params.set('matterId', matterId);
+    } else if (processId) {
+      params = params.set('processId', processId);
+    }
+    return this.http.get<DocumentTreeTypeNode[]>(`${this.apiUrl}/tree/document-types`, {
+      params,
+    });
+  }
+
+  /**
+   * F37 §DOC-01 (ola 2) — hoja del explorador: documentos de un tipo
+   * documental dentro de un nodo.
+   */
+  getDocumentTreeDocuments(
+    clientId: string,
+    documentTypeId: string,
+    matterId?: string | null,
+    processId?: string | null,
+    page = 1,
+    limit = 50,
+  ): Observable<ListFilesResponse> {
+    let params = new HttpParams()
+      .set('clientId', clientId)
+      .set('documentTypeId', documentTypeId)
+      .set('page', page.toString())
+      .set('limit', limit.toString());
+    if (matterId) {
+      params = params.set('matterId', matterId);
+    } else if (processId) {
+      params = params.set('processId', processId);
+    }
+    return this.http.get<ListFilesResponse>(`${this.apiUrl}/tree/documents`, { params });
   }
 
   /**
