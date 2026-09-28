@@ -11,7 +11,13 @@ export type CatalogType =
   | 'laft_risk'
   | 'contract_type'
   | 'process_type'
-  | 'contingency';
+  | 'contingency'
+  /**
+   * F37 §DOC-02: clasificación de archivos del expediente (contrato,
+   * poder, memorial, etc.) — distinto de 'document_type', que es el tipo
+   * de documento de IDENTIFICACIÓN del cliente (cédula, NIT, pasaporte).
+   */
+  | 'case_document_type';
 
 /** F33 §1: solo relevante para `document_type`. `null` = aplica a ambos. */
 export type CatalogPersonTypeScope = 'NATURAL' | 'JURIDICA';

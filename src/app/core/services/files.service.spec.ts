@@ -213,6 +213,27 @@ describe('FilesService', () => {
     expect(result).toEqual(file);
   });
 
+  it('uploadFile: F37 §DOC-02 — reenvía documentTypeId al registrar', async () => {
+    const testFile = new File(['contenido'], 'contrato.pdf', { type: 'application/pdf' });
+    const fetchMock = jest.fn().mockResolvedValue({ ok: true, statusText: 'OK' });
+    (global as unknown as { fetch: jest.Mock }).fetch = fetchMock;
+
+    service
+      .uploadFile(testFile, 'legal_process', 'process-1', undefined, undefined, 'doc-type-1')
+      .subscribe();
+
+    const signedReq = httpMock.expectOne(`${apiUrl}/signed-url`);
+    signedReq.flush({ url: 'https://s3/upload', key: 'key-1', bucket: 'bucket-1', expiresIn: 900 });
+
+    await flushMicrotasks();
+
+    const registerReq = httpMock.expectOne(apiUrl);
+    expect(registerReq.request.body).toEqual(
+      expect.objectContaining({ documentTypeId: 'doc-type-1' }),
+    );
+    registerReq.flush(file);
+  });
+
   it('uploadFile propaga el error cuando la subida a S3 falla', async () => {
     const testFile = new File(['contenido'], 'contrato.pdf', { type: 'application/pdf' });
     const fetchMock = jest.fn().mockResolvedValue({ ok: false, statusText: 'Forbidden' });

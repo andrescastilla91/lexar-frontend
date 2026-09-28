@@ -19,6 +19,9 @@ const CATALOG_TABS: { id: CatalogType; label: string }[] = [
   { id: 'laft_risk', label: 'Riesgo LA/FT' },
   { id: 'contract_type', label: 'Tipos de vinculación' },
   { id: 'contingency', label: 'Contingencia' },
+  // F37 §DOC-02: distinto de 'document_type' (identificación del cliente) —
+  // clasifica los archivos cargados a un cliente/proceso.
+  { id: 'case_document_type', label: 'Tipos de documento (archivos)' },
 ];
 
 const COLOR_OPTIONS: { value: string; label: string }[] = [

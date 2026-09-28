@@ -109,6 +109,7 @@ export class FilesService {
     entityId: string,
     metadata?: Record<string, any>,
     annotationEventId?: string,
+    documentTypeId?: string,
   ): Observable<FileModel> {
     const uploadId = `${Date.now()}-${file.name}`;
     
@@ -161,6 +162,7 @@ export class FilesService {
               entityId,
               metadata,
               annotationEventId, // Pasar el ID de anotación si existe
+              documentTypeId, // F37 §DOC-02
             };
 
             return this.registerFile(registerRequest);

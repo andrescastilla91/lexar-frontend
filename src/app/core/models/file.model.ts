@@ -23,6 +23,11 @@ export interface FileModel {
   updatedAt: Date;
   /** F16: toggle "compartir con cliente" en el portal. */
   visibleToClient?: boolean;
+  // F37 §DOC-02 (ola 1) — derivados por el backend, nunca se envían al crear.
+  clientId?: string | null;
+  matterId?: string | null;
+  processId?: string | null;
+  documentTypeId?: string | null;
 }
 
 /**
@@ -60,6 +65,9 @@ export interface RegisterFileRequest {
   entityId: string;
   metadata?: Record<string, any>;
   annotationEventId?: string; // ID del evento de anotación para adjuntar el archivo
+  /** F37 §DOC-02: obligatorio para entityType 'legal_process'/'client' salvo
+   * cuando annotationEventId está presente (evidencia de anotación). */
+  documentTypeId?: string;
 }
 
 /**

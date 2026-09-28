@@ -4,6 +4,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { FilesService } from '../../core/services/files.service';
 import { LegalProcessesService } from '../../core/services/legal-processes.service';
 import { ClientsService } from '../../core/services/clients.service';
+import { CatalogsService } from '../../core/services/catalogs.service';
 import { FileModel } from '../../core/models/file.model';
 import { HasPermissionDirective } from '../../core/directives/has-permission.directive';
 import { PermissionsService } from '../../core/services/permissions.service';
@@ -59,6 +60,7 @@ import { DocumentsListComponent, DocumentRow } from './components/documents-list
         [uploadError]="uploadError()"
         [processes]="processOptions()"
         [clients]="clientOptions()"
+        [documentTypes]="documentTypeOptions()"
         (entityTypeChange)="onEntityTypeChange()"
         (fileSelected)="onFileSelected($event)"
         (submit)="handleUpload()"
@@ -93,6 +95,7 @@ export class DocumentsComponent implements OnInit {
   private readonly filesService = inject(FilesService);
   private readonly processesService = inject(LegalProcessesService);
   private readonly clientsService = inject(ClientsService);
+  private readonly catalogsService = inject(CatalogsService);
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly permissionsService = inject(PermissionsService);
   private readonly toast = inject(ToastService);
@@ -100,6 +103,9 @@ export class DocumentsComponent implements OnInit {
   readonly files = signal<FileModel[]>([]);
   readonly processes = signal<{ id: string; title: string }[]>([]);
   readonly clients = signal<{ id: string; fullName: string }[]>([]);
+  // F37 §DOC-02: catálogo de clasificación de archivos, distinto del
+  // 'document_type' de identificación del cliente.
+  readonly documentTypes = signal<{ id: string; label: string }[]>([]);
   readonly loading = signal(false);
   readonly isUploading = signal(false);
   readonly uploadError = signal<string | null>(null);
@@ -119,6 +125,7 @@ export class DocumentsComponent implements OnInit {
   readonly uploadForm = this.fb.nonNullable.group({
     entityType: ['legal_process', Validators.required],
     entityId: ['', Validators.required],
+    documentTypeId: ['', Validators.required],
   });
 
   readonly processOptions = computed(() =>
@@ -128,6 +135,8 @@ export class DocumentsComponent implements OnInit {
   readonly clientOptions = computed(() =>
     this.clients().map((client) => ({ id: client.id, label: client.fullName }))
   );
+
+  readonly documentTypeOptions = computed(() => this.documentTypes());
 
   readonly selectedFileSizeLabel = computed(() => {
     const file = this.selectedFile();
@@ -158,6 +167,12 @@ export class DocumentsComponent implements OnInit {
     this.clientsService.getClients(1, 100).subscribe({
       next: (response) => this.clients.set(response.clients),
       error: (err) => console.error('Error loading clients:', err),
+    });
+
+    this.catalogsService.getActiveCatalog('case_document_type').subscribe({
+      next: (items) =>
+        this.documentTypes.set(items.map((item) => ({ id: item.id, label: item.label }))),
+      error: (err) => console.error('Error loading document types:', err),
     });
   }
 
@@ -223,12 +238,19 @@ export class DocumentsComponent implements OnInit {
     const formValue = this.uploadForm.getRawValue();
 
     this.filesService
-      .uploadFile(file, formValue.entityType, formValue.entityId)
+      .uploadFile(
+        file,
+        formValue.entityType,
+        formValue.entityId,
+        undefined,
+        undefined,
+        formValue.documentTypeId,
+      )
       .subscribe({
         next: () => {
           this.isUploading.set(false);
           this.selectedFile.set(null);
-          this.uploadForm.reset({ entityType: 'legal_process', entityId: '' });
+          this.uploadForm.reset({ entityType: 'legal_process', entityId: '', documentTypeId: '' });
           this.uploadPanelOpen.set(false);
           this.loadFiles();
         },

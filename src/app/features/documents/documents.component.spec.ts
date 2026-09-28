@@ -5,6 +5,7 @@ import { DocumentsComponent } from './documents.component';
 import { FilesService } from '../../core/services/files.service';
 import { LegalProcessesService } from '../../core/services/legal-processes.service';
 import { ClientsService } from '../../core/services/clients.service';
+import { CatalogsService } from '../../core/services/catalogs.service';
 import { ConfirmDialogService } from '../../core/services/confirm-dialog.service';
 import { PermissionsService } from '../../core/services/permissions.service';
 import { ToastService } from '../../core/services/toast.service';
@@ -44,6 +45,7 @@ describe('DocumentsComponent', () => {
   };
   let processesServiceMock: { getLegalProcesses: jest.Mock };
   let clientsServiceMock: { getClients: jest.Mock };
+  let catalogsServiceMock: { getActiveCatalog: jest.Mock };
   let confirmDialogMock: { confirm: jest.Mock };
   let toastMock: { error: jest.Mock; success: jest.Mock };
   let consoleErrorSpy: jest.SpyInstance;
@@ -68,6 +70,11 @@ describe('DocumentsComponent', () => {
         of({ message: '', clients: [{ id: 'c1', fullName: 'Cliente 1' }], total: 1, page: 1, limit: 100 }),
       ),
     };
+    catalogsServiceMock = {
+      getActiveCatalog: jest.fn().mockReturnValue(
+        of([{ id: 'dt1', label: 'Contrato' }]),
+      ),
+    };
     confirmDialogMock = { confirm: jest.fn().mockResolvedValue(true) };
     toastMock = { error: jest.fn(), success: jest.fn() };
 
@@ -77,6 +84,7 @@ describe('DocumentsComponent', () => {
         { provide: FilesService, useValue: filesServiceMock },
         { provide: LegalProcessesService, useValue: processesServiceMock },
         { provide: ClientsService, useValue: clientsServiceMock },
+        { provide: CatalogsService, useValue: catalogsServiceMock },
         { provide: ConfirmDialogService, useValue: confirmDialogMock },
         { provide: ToastService, useValue: toastMock },
         {
@@ -209,6 +217,7 @@ describe('DocumentsComponent', () => {
     };
     processesServiceMock = { getLegalProcesses: jest.fn().mockReturnValue(of({ message: '', legalProcesses: [], total: 0, page: 1, limit: 100 })) };
     clientsServiceMock = { getClients: jest.fn().mockReturnValue(of({ message: '', clients: [], total: 0, page: 1, limit: 100 })) };
+    catalogsServiceMock = { getActiveCatalog: jest.fn().mockReturnValue(of([])) };
     confirmDialogMock = { confirm: jest.fn() };
 
     TestBed.configureTestingModule({
@@ -217,6 +226,7 @@ describe('DocumentsComponent', () => {
         { provide: FilesService, useValue: filesServiceMock },
         { provide: LegalProcessesService, useValue: processesServiceMock },
         { provide: ClientsService, useValue: clientsServiceMock },
+        { provide: CatalogsService, useValue: catalogsServiceMock },
         { provide: ConfirmDialogService, useValue: confirmDialogMock },
         {
           provide: PermissionsService,
@@ -270,6 +280,26 @@ describe('DocumentsComponent', () => {
     expect(component.uploadError()).toBeNull();
   });
 
+  it('carga los tipos de documento activos (case_document_type) al iniciar', () => {
+    configure();
+    const { component } = createComponent();
+
+    expect(catalogsServiceMock.getActiveCatalog).toHaveBeenCalledWith('case_document_type');
+    expect(component.documentTypeOptions()).toEqual([{ id: 'dt1', label: 'Contrato' }]);
+  });
+
+  it('handleUpload no sube el archivo si falta documentTypeId (F37 §DOC-02)', () => {
+    configure();
+    const { component } = createComponent();
+
+    component.uploadForm.patchValue({ entityId: 'p1' });
+    component.onFileSelected(new File(['x'], 'a.pdf'));
+
+    component.handleUpload();
+
+    expect(filesServiceMock.uploadFile).not.toHaveBeenCalled();
+  });
+
   it('handleUpload no hace nada si ya está subiendo, o si el form/archivo son inválidos', () => {
     configure();
     const { component } = createComponent();
@@ -289,13 +319,20 @@ describe('DocumentsComponent', () => {
     filesServiceMock.uploadFile.mockReturnValue(of(buildFile()));
     const { component } = createComponent();
 
-    component.uploadForm.patchValue({ entityId: 'p1' });
+    component.uploadForm.patchValue({ entityId: 'p1', documentTypeId: 'dt1' });
     const file = new File(['x'], 'a.pdf');
     component.onFileSelected(file);
 
     component.handleUpload();
 
-    expect(filesServiceMock.uploadFile).toHaveBeenCalledWith(file, 'legal_process', 'p1');
+    expect(filesServiceMock.uploadFile).toHaveBeenCalledWith(
+      file,
+      'legal_process',
+      'p1',
+      undefined,
+      undefined,
+      'dt1',
+    );
     expect(component.isUploading()).toBe(false);
     expect(component.selectedFile()).toBeNull();
     expect(component.uploadPanelOpen()).toBe(false);
@@ -310,7 +347,7 @@ describe('DocumentsComponent', () => {
     filesServiceMock.uploadFile.mockReturnValue(throwError(() => ({ message: 'Archivo inválido' })));
     const { component } = createComponent();
 
-    component.uploadForm.patchValue({ entityId: 'p1' });
+    component.uploadForm.patchValue({ entityId: 'p1', documentTypeId: 'dt1' });
     component.onFileSelected(new File(['x'], 'a.pdf'));
 
     component.handleUpload();
