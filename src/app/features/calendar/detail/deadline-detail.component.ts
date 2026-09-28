@@ -364,7 +364,9 @@ export class DeadlineDetailComponent implements OnInit {
         if (deadline.processId) {
           this.legalProcessesService.getLegalProcess(deadline.processId).subscribe({
             next: (process) =>
-              this.relatedAdvisorUserIds.set((process.advisors ?? []).map((advisor) => advisor.userId)),
+              this.relatedAdvisorUserIds.set(
+                (process.advisors ?? []).filter((advisor) => !!advisor.user).map((advisor) => advisor.user!.id),
+              ),
             error: (error) => console.error('Error loading process advisors:', error),
           });
         }

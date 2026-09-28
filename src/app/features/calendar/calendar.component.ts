@@ -373,7 +373,7 @@ export class CalendarComponent implements AfterViewInit {
       return [];
     }
     const process = this.processes().find((p) => p.id === processId);
-    return (process?.advisors ?? []).map((advisor) => advisor.userId);
+    return (process?.advisors ?? []).filter((advisor) => !!advisor.user).map((advisor) => advisor.user!.id);
   }
 
   readonly deadlineTypes = signal<CatalogItem[]>([]);

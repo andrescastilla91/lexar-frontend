@@ -62,7 +62,10 @@ describe('DeadlineDetailComponent', () => {
     };
     legalProcessesServiceMock = {
       getLegalProcess: jest.fn().mockReturnValue(
-        of({ id: 'p1', advisors: [{ id: 'adv-1', userId: 'user-1' }] } as unknown as LegalProcessResponse),
+        // BUG-29: el mock debe reflejar la forma REAL de legal-process.mapper.ts
+        // (sin `userId` de nivel superior, solo `user.id`) — con `userId` suelto,
+        // este mock encubría el bug en vez de detectarlo.
+        of({ id: 'p1', advisors: [{ id: 'adv-1', user: { id: 'user-1', firstName: 'Ana', lastName: 'García' } }] } as unknown as LegalProcessResponse),
       ),
     };
     toastServiceMock = { success: jest.fn(), error: jest.fn() };
@@ -258,6 +261,17 @@ describe('DeadlineDetailComponent', () => {
     await component.deleteDeadline();
 
     expect(deadlinesServiceMock.delete).not.toHaveBeenCalled();
+  });
+
+  it('onAssigneesChange(): NO avisa si se agrega al asesor que sí está relacionado con el proceso (BUG-29)', async () => {
+    const { component } = configureAndCreate({
+      deadline: buildDeadline({ processId: 'p1', process: { id: 'p1', title: 'Proceso demo' } }),
+    });
+
+    await component.onAssigneesChange(['user-1']);
+
+    expect(confirmDialogServiceMock.confirm).not.toHaveBeenCalled();
+    expect(component.form.get('assigneeUserIds')?.value).toEqual(['user-1']);
   });
 
   it('onAssigneesChange(): avisa si se agrega a alguien no relacionado con el proceso del plazo', async () => {
