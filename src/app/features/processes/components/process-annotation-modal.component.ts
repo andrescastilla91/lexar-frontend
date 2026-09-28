@@ -1,38 +1,45 @@
-import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, input, output } from '@angular/core';
 import { FormGroup, ReactiveFormsModule } from '@angular/forms';
+import { Editor, NgxEditorModule, Toolbar } from 'ngx-editor';
 import { formatBytes } from '../utils/process-format.utils';
 import { PortalEventVisibilityMode } from '../../../core/models/portal-visibility-policy.model';
 
 @Component({
   selector: 'app-process-annotation-modal',
   standalone: true,
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, NgxEditorModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    @if (isOpen()) {
-      <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+    @if (embedded() || isOpen()) {
+      <div [class]="embedded() ? '' : 'fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4'">
         <form
-          class="w-full max-w-sm md:max-w-2xl lg:max-w-4xl grid gap-4 rounded-lg border border-default bg-surface p-4 md:p-6 shadow-2xl max-h-[90vh] overflow-y-auto"
+          [class]="embedded()
+            ? 'grid gap-4 rounded-lg border border-default bg-surface p-4 md:p-6 shadow-card'
+            : 'w-full max-w-sm md:max-w-2xl lg:max-w-4xl grid gap-4 rounded-lg border border-default bg-surface p-4 md:p-6 shadow-2xl max-h-[90vh] overflow-y-auto'"
           [formGroup]="form()"
           (ngSubmit)="submit.emit()"
         >
-          <h3 class="text-lg font-semibold text-text">Agregar anotación</h3>
-          <strong>Proceso: </strong>
-          <h4 class="text-lg text-subtle"> {{ processTitle() }}</h4>
+          @if (!embedded()) {
+            <h3 class="text-lg font-semibold text-text">Agregar anotación</h3>
+            <strong>Proceso: </strong>
+            <h4 class="text-lg text-subtle"> {{ processTitle() }}</h4>
+          }
 
           <div class="grid gap-4">
             <label class="text-sm text-muted">
-              Descripción *
-              <textarea
-                formControlName="description"
-                placeholder="Describe el evento, acción o nota importante..."
-                rows="4"
-                maxlength="2000"
-                class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
-              ></textarea>
-              <p class="mt-1 text-xs text-subtle">
-                {{ form().get('description')?.value?.length || 0 }} / 2000 caracteres
-              </p>
+              Anotación *
+              <!-- F40 §PRO-08 (ola 4b): mismo editor WYSIWYG (ngx-editor) que
+                   la descripción del proceso — el HTML se sanitiza siempre
+                   en el backend antes de persistir. -->
+              <div class="NgxEditor__Wrapper mt-2 rounded-md border border-default shadow-card">
+                <ngx-editor-menu [editor]="editor" [toolbar]="editorToolbar" />
+                <ngx-editor
+                  [editor]="editor"
+                  formControlName="description"
+                  placeholder="Describe el evento, acción o nota importante..."
+                  class="min-h-[6rem] text-sm text-text"
+                />
+              </div>
             </label>
 
             <!-- F27: aviso + opción "marcar interna" cuando la política de
@@ -139,13 +146,16 @@ import { PortalEventVisibilityMode } from '../../../core/models/portal-visibilit
     }
   `,
 })
-export class ProcessAnnotationModalComponent {
+export class ProcessAnnotationModalComponent implements OnInit, OnDestroy {
   form = input.required<FormGroup>();
   isOpen = input(false);
   isSubmitting = input(false);
   errorMessage = input<string | null>(null);
   processTitle = input<string | null>(null);
   files = input<File[]>([]);
+  /** F40 Ola 4a: true cuando se renderiza como panel de la pestaña
+   * "Anotaciones" en ProcessDetailComponent, en vez de overlay modal. */
+  embedded = input(false);
   // F27: modo de visibilidad vigente para ANNOTATION — controla si se
   // muestra el aviso + checkbox "marcar interna".
   visibilityMode = input<PortalEventVisibilityMode | null>(null);
@@ -156,6 +166,25 @@ export class ProcessAnnotationModalComponent {
   removeFile = output<number>();
 
   protected readonly formatBytes = formatBytes;
+
+  // F40 §PRO-08 (ola 4b): mismo toolbar reducido que la descripción del
+  // proceso — la anotación es una nota corta, no un documento.
+  editor!: Editor;
+  readonly editorToolbar: Toolbar = [
+    ['bold', 'italic', 'underline', 'strike'],
+    ['ordered_list', 'bullet_list'],
+    [{ heading: ['h1', 'h2', 'h3'] }],
+    ['blockquote'],
+    ['link'],
+  ];
+
+  ngOnInit(): void {
+    this.editor = new Editor();
+  }
+
+  ngOnDestroy(): void {
+    this.editor?.destroy();
+  }
 
   isVisibleByDefault(): boolean {
     return this.visibilityMode() === PortalEventVisibilityMode.DEFAULT_ON;

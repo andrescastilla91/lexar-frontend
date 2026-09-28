@@ -88,3 +88,18 @@ export interface CreateUserResponse {
   message: string;
   user: UserBackend;
 }
+
+/** F41 (ola 4, correcciones #2): forma mínima que devuelve GET
+ * /users/assignable — para el selector de "asignar a" de un evento
+ * general, sin nada de lo sensible que trae UserBackend. */
+export interface AssignableUser {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+}
+
+export interface AssignableUsersResponse {
+  message: string;
+  users: AssignableUser[];
+}

@@ -60,6 +60,28 @@ async function makeAdminAnAdvisor(page: Page): Promise<string> {
  */
 test.describe('CRUD de proceso con documentos', () => {
   test('crea, edita, sube y descarga un documento adjunto a un proceso', async ({ page, tenant }) => {
+    // BUG QA 2026-09-23 (fallo real de e2e, no del código de producto): este
+    // es el único spec de la suite que encadena crear cliente + crear
+    // proceso + editar + activar + subir/descargar/previsualizar un archivo
+    // en UN SOLO test (a diferencia de, p. ej., f34-matters.spec.ts, que
+    // reparte un flujo de complejidad comparable en 4 tests separados) — y
+    // playwright.config.ts no fija un `timeout` de test propio, así que
+    // corre con el default de Playwright (30_000ms). Bajo el backend real
+    // de Docker ese presupuesto no alcanza para tantos round-trips reales
+    // (login, 2 llamadas de `makeAdminAnAdvisor`, crear cliente, crear
+    // proceso con 4 catálogos cargados async, editar, cambiar estado,
+    // subir archivo, descargar, previsualizar) — de ahí que
+    // `use.navigationTimeout` ya esté en 35_000ms, MÁS que el timeout total
+    // del test. El síntoma reportado (timeout de `selectOption` en
+    // documentTypeId/processTypeId) es solo dónde cae el reloj al agotarse
+    // el presupuesto, no una carrera de datos: los catálogos sí llegan
+    // (ver `catalog-defaults.ts`, sembrados y esperados antes de responder
+    // el registro), simplemente no en los 30s por defecto sumados a todo lo
+    // anterior. Se extiende el timeout de este test puntual en vez de subir
+    // el default global (que sí alcanza para el resto de la suite, con
+    // tests más cortos).
+    test.setTimeout(90_000);
+
     // BUG-13 (hallazgo post-cierre, 2026-08-26): el <iframe> de previsualización
     // (file-preview-modal.component.ts) quedó bloqueado por CSP (frame-src
     // ausente cae a default-src 'self') — la descarga en pestaña nueva no lo
@@ -103,17 +125,24 @@ test.describe('CRUD de proceso con documentos', () => {
     await processesPage.createProcess({
       title: processTitle,
       clientFullName,
+      processTypeLabel: 'Judicial',
       stageLabel: 'Investigación',
       riskLevelLabel: 'Bajo',
       advisorFullName,
     });
+    // F40 Ola 4a: guardar navega directo a la ficha de detalle.
     await expect(processesPage.processTitleHeading(processTitle)).toBeVisible();
 
     // Editar: un proceso recién creado queda en DRAFT, que es editable (ver
-    // isProcessEditable en process-format.utils.ts).
+    // isProcessEditable en process-format.utils.ts). Ya no hay un botón
+    // "Editar proceso" — el radicado se edita inline en la pestaña "Datos"
+    // (activa por defecto) y se guarda con "Guardar cambios". Se recarga la
+    // página para confirmar que el cambio de verdad se persistió en el
+    // backend y no solo quedó en el input local.
     const updatedCaseNumber = `EXP-E2E-${suffix}`;
     await processesPage.editCaseNumber(updatedCaseNumber);
-    await expect(processesPage.processCard(processTitle).getByText(updatedCaseNumber)).toBeVisible();
+    await page.reload();
+    await expect(processesPage.caseNumberInput).toHaveValue(updatedCaseNumber);
 
     // Subir documentos solo está disponible para procesos ACTIVE (el botón
     // "Agregar anotación" ni se renderiza en otro estado, ver

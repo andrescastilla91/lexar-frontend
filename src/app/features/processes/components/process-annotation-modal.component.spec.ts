@@ -36,15 +36,6 @@ describe('ProcessAnnotationModalComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Proceso Alfa');
   });
 
-  it('muestra el contador de caracteres de la descripción', () => {
-    const fixture = createComponent();
-    fixture.componentRef.setInput('form', buildForm('hola'));
-    fixture.componentRef.setInput('isOpen', true);
-    fixture.detectChanges();
-
-    expect(fixture.nativeElement.textContent).toContain('4 / 2000 caracteres');
-  });
-
   it('lista los archivos seleccionados con su tamaño formateado', () => {
     const fixture = createComponent();
     fixture.componentRef.setInput('form', buildForm());

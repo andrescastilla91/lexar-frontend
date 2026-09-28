@@ -2,7 +2,8 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { LegalProcessesService } from './legal-processes.service';
-import { LegalProcessResponse, ProcessStatus } from '../models/legal-process.model';
+import { LegalProcessResponse, ProcessStatus, ProcessCounterpartyResponse } from '../models/legal-process.model';
+import { ClientPersonType } from '../models/client-backend.model';
 import { environment } from '../../../environments/environment';
 
 describe('LegalProcessesService', () => {
@@ -17,8 +18,13 @@ describe('LegalProcessesService', () => {
     status: ProcessStatus.DRAFT,
     stage: null,
     riskLevel: null,
+    processType: null,
+    contingency: null, // F40 §PRO-08 (ola 4b)
+    amount: null,
+    currency: null,
     court: null,
     caseNumber: null,
+    internalCode: 'RGJ-000001',
     nextHearingDate: null,
     startDate: null,
     endDate: null,
@@ -26,6 +32,9 @@ describe('LegalProcessesService', () => {
     clientId: 'cl1',
     client: { id: 'cl1', fullName: 'Cliente Uno', email: 'cliente@lexar.com' },
     advisors: [],
+    // F34 §3: campos obligatorios (nullable) del modelo.
+    matterId: null,
+    matter: null,
     createdAt: new Date('2026-01-01'),
     updatedAt: new Date('2026-01-01'),
   };
@@ -76,6 +85,16 @@ describe('LegalProcessesService', () => {
           r.params.get('search') === 'demanda',
       );
       req.flush({ message: 'ok', legalProcesses: [], total: 0, page: 2, limit: 20 });
+    });
+
+    // F40 §PRO-04: filtro por tipo de proceso.
+    it('envía processTypeId como query param cuando se pasa', () => {
+      service.getLegalProcesses(1, 10, { processTypeId: 'type-1' }).subscribe();
+
+      const req = httpMock.expectOne(
+        (r) => r.url === apiUrl && r.params.get('processTypeId') === 'type-1',
+      );
+      req.flush({ message: 'ok', legalProcesses: [], total: 0, page: 1, limit: 10 });
     });
 
     it('en error expone el mensaje del backend', () => {
@@ -213,6 +232,101 @@ describe('LegalProcessesService', () => {
       httpMock.expectOne(`${apiUrl}/p1`).flush('error', { status: 500, statusText: 'Server Error' });
 
       expect(error?.message).toBe('Error al eliminar proceso legal');
+    });
+  });
+
+  // F40 §PRO-07/§CLI-12: contrapartes del proceso.
+  describe('contrapartes (F40 §PRO-07)', () => {
+    const counterpartiesApiUrl = `${environment.apiUrl}/process-counterparties`;
+    const counterparty: ProcessCounterpartyResponse = {
+      id: 'cp1',
+      legalProcessId: 'p1',
+      fullName: 'Banco XYZ',
+      personType: ClientPersonType.JURIDICA,
+      documentType: null,
+      identificationNumber: '900123',
+      attorneyName: null,
+      contactEmail: null,
+      contactPhone: null,
+      notes: null,
+      createdAt: '2026-09-21T00:00:00.000Z',
+      updatedAt: '2026-09-21T00:00:00.000Z',
+    };
+
+    it('getCounterparties envía legalProcessId como query param', () => {
+      let result: ProcessCounterpartyResponse[] | undefined;
+      service.getCounterparties('p1').subscribe((r) => (result = r));
+
+      const req = httpMock.expectOne(
+        (r) => r.url === counterpartiesApiUrl && r.params.get('legalProcessId') === 'p1',
+      );
+      expect(req.request.method).toBe('GET');
+      req.flush({ message: 'ok', counterparties: [counterparty] });
+
+      expect(result).toEqual([counterparty]);
+    });
+
+    it('createCounterparty hace POST y devuelve la contraparte creada', () => {
+      let result: ProcessCounterpartyResponse | undefined;
+      service
+        .createCounterparty({
+          legalProcessId: 'p1',
+          fullName: 'Banco XYZ',
+          identificationNumber: '900123',
+        })
+        .subscribe((r) => (result = r));
+
+      const req = httpMock.expectOne(counterpartiesApiUrl);
+      expect(req.request.method).toBe('POST');
+      req.flush({ message: 'ok', counterparty });
+
+      expect(result).toEqual(counterparty);
+    });
+
+    it('createCounterparty propaga documentConflict cuando el backend lo devuelve (CLI-12)', () => {
+      let result: ProcessCounterpartyResponse | undefined;
+      service
+        .createCounterparty({
+          legalProcessId: 'p1',
+          fullName: 'Banco XYZ',
+          identificationNumber: '900123',
+        })
+        .subscribe((r) => (result = r));
+
+      const withConflict: ProcessCounterpartyResponse = {
+        ...counterparty,
+        documentConflict: {
+          legalProcessId: 'p1',
+          legalProcessTitle: 'Proceso 1',
+          matchedName: 'Cliente existente',
+        },
+      };
+      httpMock.expectOne(counterpartiesApiUrl).flush({ message: 'ok', counterparty: withConflict });
+
+      expect(result?.documentConflict?.matchedName).toBe('Cliente existente');
+    });
+
+    it('updateCounterparty hace PATCH a la contraparte', () => {
+      let result: ProcessCounterpartyResponse | undefined;
+      service.updateCounterparty('cp1', { fullName: 'Nuevo nombre' }).subscribe((r) => (result = r));
+
+      const req = httpMock.expectOne(`${counterpartiesApiUrl}/cp1`);
+      expect(req.request.method).toBe('PATCH');
+      expect(req.request.body).toEqual({ fullName: 'Nuevo nombre' });
+      req.flush({ message: 'ok', counterparty: { ...counterparty, fullName: 'Nuevo nombre' } });
+
+      expect(result?.fullName).toBe('Nuevo nombre');
+    });
+
+    it('removeCounterparty hace DELETE a la contraparte', () => {
+      let completed = false;
+      service.removeCounterparty('cp1').subscribe(() => (completed = true));
+
+      const req = httpMock.expectOne(`${counterpartiesApiUrl}/cp1`);
+      expect(req.request.method).toBe('DELETE');
+      req.flush(null);
+
+      expect(completed).toBe(true);
     });
   });
 });

@@ -140,6 +140,12 @@ export const routes: Routes = [
 					import('./features/admin/permissions/admin-permissions.component').then((m) => m.AdminPermissionsComponent),
 			},
 			{
+				path: 'holidays',
+				title: 'Festivos',
+				loadComponent: () =>
+					import('./features/admin/holidays/admin-holidays.component').then((m) => m.AdminHolidaysComponent),
+			},
+			{
 				path: '',
 				pathMatch: 'full',
 				redirectTo: 'tenants',
@@ -214,9 +220,21 @@ export const routes: Routes = [
 				loadComponent: () => import('./features/processes/processes.component').then((m) => m.ProcessesComponent),
 			},
 			{
+				path: 'procesos/:id',
+				title: 'Ficha de proceso',
+				loadComponent: () =>
+					import('./features/processes/detail/process-detail.component').then((m) => m.ProcessDetailComponent),
+			},
+			{
 				path: 'calendario',
 				title: 'Calendario',
 				loadComponent: () => import('./features/calendar/calendar.component').then((m) => m.CalendarComponent),
+			},
+			{
+				path: 'calendario/plazos/:id',
+				title: 'Ficha de plazo',
+				loadComponent: () =>
+					import('./features/calendar/detail/deadline-detail.component').then((m) => m.DeadlineDetailComponent),
 			},
 			{
 				path: 'tareas',

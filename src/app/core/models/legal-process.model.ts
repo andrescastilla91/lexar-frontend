@@ -4,6 +4,7 @@
 
 import { AdvisorResponse } from './advisor-backend.model';
 import { CatalogRef } from './catalog-backend.model';
+import { ClientMatterStatus, ClientPersonType } from './client-backend.model';
 
 export enum ProcessStatus {
   DRAFT = 'DRAFT', // Borrador
@@ -22,8 +23,20 @@ export interface LegalProcessResponse {
   status: ProcessStatus;
   stage: CatalogRef | null;
   riskLevel: CatalogRef | null;
+  /** F40 §PRO-04: nulo en procesos preexistentes o creados sin tipo — misma
+   * "Decisión de transición" que `matterId` (F34 §3), nunca retroactivo. */
+  processType: CatalogRef | null;
+  /** F40 §PRO-08 (ola 4b): nulo en procesos preexistentes o creados sin
+   * contingencia clasificada — misma "Decisión de transición" que processType. */
+  contingency: CatalogRef | null;
+  /** F40 §PRO-08 (ola 4b): cuantía del proceso — numeric serializado como string por TypeORM/el backend. */
+  amount: string | null;
+  /** F40 §PRO-08 (ola 4b): ISO-4217 de 3 letras, sin catálogo (mismo patrón que billing). */
+  currency: string | null;
   court: string | null;
   caseNumber: string | null;
+  /** F40 §PRO-06: código interno del despacho — lo genera el sistema, inmutable, único por tenant. Nunca se envía al crear/editar. */
+  internalCode: string;
   nextHearingDate: Date | null;
   startDate: Date | null;
   endDate: Date | null;
@@ -35,6 +48,20 @@ export interface LegalProcessResponse {
     email: string;
   };
   advisors?: AdvisorResponse[];
+  /** F34 §3: nulo en procesos preexistentes o creados sin asunto — "Decisión
+   * de transición" explícita, nunca retroactivamente obligatorio. */
+  matterId: string | null;
+  /** `isDeleted` (bug QA 2026-09-17): el asunto fue eliminado (soft delete)
+   * pero el proceso conserva la referencia — el backend lo hidrata aparte
+   * (`withDeleted: true`) para que esta relación nunca "desaparezca". */
+  matter: {
+    id: string;
+    name: string;
+    contractType: CatalogRef | null;
+    /** F34-b: para pintar el mismo badge "Vencido" que ya usa la pestaña Asuntos del cliente. */
+    status: ClientMatterStatus;
+    isDeleted: boolean;
+  } | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -45,12 +72,17 @@ export interface CreateLegalProcessRequest {
   status?: ProcessStatus;
   stageId?: string;
   riskLevelId?: string;
+  processTypeId?: string;
+  contingencyId?: string;
+  amount?: number;
+  currency?: string;
   court?: string;
   caseNumber?: string;
   startDate?: string;
   endDate?: string;
   clientId: string;
   advisorIds?: string[];
+  matterId?: string;
 }
 
 export interface UpdateLegalProcessRequest {
@@ -59,12 +91,17 @@ export interface UpdateLegalProcessRequest {
   status?: ProcessStatus;
   stageId?: string;
   riskLevelId?: string;
+  processTypeId?: string;
+  contingencyId?: string;
+  amount?: number;
+  currency?: string;
   court?: string;
   caseNumber?: string;
   startDate?: string;
   endDate?: string;
   clientId?: string;
   advisorIds?: string[];
+  matterId?: string;
 }
 
 export interface UpdateProcessStatusRequest {
@@ -86,4 +123,64 @@ export interface LegalProcess {
   riskLevel: 'Alto' | 'Medio' | 'Bajo';
   nextHearingDate: string;
   updatedAt: string;
+}
+
+
+/**
+ * F40 §CLI-12: resultado (no bloqueante) de cruzar un número de
+ * identificación contra las contrapartes registradas en los procesos del
+ * tenant (al crear un cliente) o contra los clientes del tenant (al
+ * registrar una contraparte, el caso inverso). `null`/`undefined` = sin
+ * coincidencia.
+ */
+export interface DocumentConflict {
+  legalProcessId: string;
+  legalProcessTitle: string;
+  /** Nombre del lado opuesto del cruce: la contraparte si se advirtió al crear un cliente, el cliente si se advirtió al crear una contraparte. */
+  matchedName: string;
+}
+
+/**
+ * F40 §PRO-07: la contraparte de un proceso — entidad propia (un proceso
+ * puede tener varias). Reutiliza `ClientPersonType`/el catálogo
+ * `document_type` de F33, mismo criterio que `Client`.
+ */
+export interface ProcessCounterpartyResponse {
+  id: string;
+  legalProcessId: string;
+  fullName: string;
+  personType: ClientPersonType;
+  documentType: CatalogRef | null;
+  identificationNumber: string;
+  attorneyName: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  /** F40 §CLI-12: solo viene poblado en la respuesta de create() — el cruce se hace una vez, al registrar la contraparte. */
+  documentConflict?: DocumentConflict | null;
+}
+
+export interface CreateProcessCounterpartyRequest {
+  legalProcessId: string;
+  fullName: string;
+  personType?: ClientPersonType;
+  documentTypeId?: string;
+  identificationNumber: string;
+  attorneyName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  notes?: string;
+}
+
+export interface UpdateProcessCounterpartyRequest {
+  fullName?: string;
+  personType?: ClientPersonType;
+  documentTypeId?: string;
+  identificationNumber?: string;
+  attorneyName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  notes?: string;
 }

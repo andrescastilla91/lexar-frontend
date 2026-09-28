@@ -26,6 +26,7 @@ import { getCatalogBadgeClasses } from '../../../core/utils/catalog-badge.util';
             <tr>
               <th class="px-6 py-4">Cliente</th>
               <th class="px-6 py-4">Tipo</th>
+              <th class="px-6 py-4">Vinculación</th>
               <th class="px-6 py-4">Asesores</th>
               <th class="px-6 py-4">Criticidad</th>
               <th class="px-6 py-4">Estado</th>
@@ -45,6 +46,14 @@ import { getCatalogBadgeClasses } from '../../../core/utils/catalog-badge.util';
                 </td>
                 <td class="px-6 py-4 text-sm text-muted">
                   {{ client.personType === 'JURIDICA' ? 'Jurídica' : 'Natural' }}
+                </td>
+                <td class="px-6 py-4">
+                  <span
+                    class="inline-flex rounded-full px-2 py-1 text-xs font-semibold"
+                    [class]="contractTypeBadgeClasses(client)"
+                  >
+                    {{ contractTypeLabel(client) }}
+                  </span>
                 </td>
                 <td class="px-6 py-4 text-sm text-muted">
                   @if (client.advisors && client.advisors.length > 0) {
@@ -133,6 +142,15 @@ import { getCatalogBadgeClasses } from '../../../core/utils/catalog-badge.util';
                 <span class="ml-2 text-xs text-muted">{{ client.personType === 'JURIDICA' ? 'Jurídica' : 'Natural' }}</span>
               </div>
               <div>
+                <span class="text-xs font-medium text-subtle">Vinculación:</span>
+                <span
+                  class="ml-2 inline-flex rounded-full px-2 py-1 text-xs font-semibold"
+                  [class]="contractTypeBadgeClasses(client)"
+                >
+                  {{ contractTypeLabel(client) }}
+                </span>
+              </div>
+              <div>
                 <span class="text-xs font-medium text-subtle">Asesores:</span>
                 <span class="ml-2 text-xs text-muted">
                   @if (client.advisors && client.advisors.length > 0) {
@@ -191,5 +209,25 @@ export class ClientsTableComponent {
     return (client.advisors ?? [])
       .map((advisor) => `${advisor.firstName} ${advisor.lastName}`)
       .join(', ');
+  }
+
+  /** F34 §4: columna "tipo de vinculación" — `contractTypeSummary` es un
+   * `CatalogRef` cuando todos los asuntos no cerrados del cliente comparten
+   * un tipo, el string `'VARIOS'` cuando hay más de uno, o `null`/`undefined`
+   * cuando el cliente no tiene ningún asunto con tipo asignado. */
+  protected contractTypeLabel(client: ClientResponse): string {
+    const summary = client.contractTypeSummary;
+    if (summary === 'VARIOS') {
+      return 'Varios';
+    }
+    return summary?.label || 'Sin asunto';
+  }
+
+  protected contractTypeBadgeClasses(client: ClientResponse): string {
+    const summary = client.contractTypeSummary;
+    if (summary === 'VARIOS') {
+      return 'bg-surface-muted text-text';
+    }
+    return getCatalogBadgeClasses(summary?.color ?? null);
   }
 }

@@ -149,4 +149,37 @@ describe('ClientsTableComponent', () => {
 
     expect(fixture.nativeElement.textContent).toContain('N/A');
   });
+
+  // F34 §4: columna "Vinculación" — tipo de vinculación del asunto principal.
+  it('muestra "Sin asunto" cuando contractTypeSummary es null/undefined', () => {
+    configure([]);
+    const { fixture } = createComponent([buildClient({ contractTypeSummary: null })]);
+
+    expect(fixture.nativeElement.textContent).toContain('Sin asunto');
+  });
+
+  it('muestra el label del tipo cuando contractTypeSummary es un CatalogRef único', () => {
+    configure([]);
+    const { fixture } = createComponent([
+      buildClient({ contractTypeSummary: { id: 'ct1', code: 'CONSULTORIA', label: 'Consultoría', color: '#0ea5e9' } }),
+    ]);
+
+    expect(fixture.nativeElement.textContent).toContain('Consultoría');
+  });
+
+  it('muestra "Varios" cuando contractTypeSummary es el string VARIOS', () => {
+    configure([]);
+    const { fixture } = createComponent([buildClient({ contractTypeSummary: 'VARIOS' })]);
+
+    expect(fixture.nativeElement.textContent).toContain('Varios');
+  });
+
+  it('contractTypeBadgeClasses usa clases neutras para VARIOS', () => {
+    configure([]);
+    const { component } = createComponent([]);
+
+    expect(component['contractTypeBadgeClasses'](buildClient({ contractTypeSummary: 'VARIOS' }))).toBe(
+      'bg-surface-muted text-text',
+    );
+  });
 });

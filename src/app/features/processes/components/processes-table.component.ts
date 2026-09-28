@@ -1,18 +1,29 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
-import { LegalProcessResponse, ProcessStatus } from '../../../core/models/legal-process.model';
-import {
-  formatDate,
-  getStatusClasses,
-  getStatusDot,
-  getStatusLabel,
-  getValidNextStatuses,
-  isProcessEditable,
-} from '../utils/process-format.utils';
+import { RouterLink } from '@angular/router';
+import { LegalProcessResponse } from '../../../core/models/legal-process.model';
+import { ClientMatterStatus } from '../../../core/models/client-backend.model';
+import { formatDate, getStatusClasses, getStatusDot, getStatusLabel } from '../utils/process-format.utils';
 import { getCatalogBadgeClasses } from '../../../core/utils/catalog-badge.util';
+// F34-b: mismo badge de vigencia que ya usa la pestaña Asuntos del cliente.
+import { matterStatusClasses, matterStatusLabel } from '../../../core/utils/matter-format.util';
 
+/**
+ * F40 Ola 4a: la tabla deja de orquestar 7 modales — el título navega a la
+ * ficha de detalle (`/procesos/:id`, mismo patrón que `clients.component.ts`
+ * → `ClientDetailComponent`) donde viven Datos/Contrapartes/Plazos/Tareas/
+ * Anotaciones/Historial y el botón de cambio de estado. Solo "Eliminar" se
+ * queda como acción rápida en la fila (destructiva, no amerita abrir el
+ * detalle — ver "Ola 4 (revisada)" en F40-ajustes-procesos-piloto.md).
+ *
+ * BUG-24 (fix): el bloque de escritorio no tenía ninguna clase de
+ * visibilidad responsive, así que en viewport mobile se renderizaba junto
+ * al bloque `md:hidden` de abajo, duplicando las acciones. Ahora lleva
+ * `hidden md:block`, simétrico al `md:hidden` del bloque mobile.
+ */
 @Component({
   selector: 'app-processes-table',
   standalone: true,
+  imports: [RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (!hasFullAccess()) {
@@ -30,94 +41,39 @@ import { getCatalogBadgeClasses } from '../../../core/utils/catalog-badge.util';
         <p class="text-subtle">No hay procesos registrados</p>
       </div>
     } @else {
-      <!-- Vista de Lista (Cards) -->
-      <div class="space-y-4">
+      <!-- Vista de Lista (Cards) — BUG-24: hidden md:block agregado, antes
+           coexistía sin filtro con el bloque mobile de abajo. -->
+      <div class="hidden md:block space-y-4">
         @for (process of processes(); track process.id) {
           <div class="rounded-lg border border-default bg-surface p-6 shadow-card hover:shadow-card transition-shadow">
             <div class="space-y-4">
-              <!-- Header: Título y Botones de Acción -->
+              <!-- Header: Título y Acción -->
               <div class="flex items-start justify-between gap-4">
                 <!-- Título y Número de Caso -->
                 <div class="flex-1 min-w-0">
-                  <h3 class="text-lg font-semibold text-text">{{ process.title }}</h3>
+                  <a
+                    [routerLink]="['/procesos', process.id]"
+                    class="text-lg font-semibold text-text hover:text-navy-900"
+                  >
+                    {{ process.title }}
+                  </a>
                   <p class="mt-1 font-mono text-sm text-subtle">
                     {{ process.caseNumber || 'Sin número de caso asignado' }}
                   </p>
                 </div>
 
-                <!-- Botones de Acción (solo iconos) -->
+                <!-- Acciones -->
                 <div class="flex items-center gap-2">
-                  @if (isProcessEditable(process.status)) {
-                    <button
-                      type="button"
-                      (click)="edit.emit(process)"
-                      class="rounded-lg p-2 text-subtle transition hover:bg-surface-muted hover:text-text"
-                      title="Editar proceso"
-                    >
-                      <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 3.487 3.65 3.65a1 1 0 0 1 0 1.415L8.96 20.104a1 1 0 0 1-.708.292H4.5a.75.75 0 0 1-.75-.75v-3.752a1 1 0 0 1 .293-.707L15.447 3.487a1 1 0 0 1 1.415 0Z" />
-                      </svg>
-                    </button>
-                  }
-
-                  @if (getValidNextStatuses(process.status).length > 0) {
-                    <button
-                      type="button"
-                      (click)="changeStatus.emit(process)"
-                      class="rounded-lg p-2 text-primary transition hover:bg-primary-tint"
-                      title="Cambiar estado"
-                    >
-                      <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
-                      </svg>
-                    </button>
-                  }
-
-                  <button
-                    type="button"
-                    (click)="viewHistory.emit(process)"
-                    class="rounded-lg p-2 text-accent transition hover:bg-accent-tint"
-                    title="Ver historial"
+                  <a
+                    [routerLink]="['/procesos', process.id]"
+                    class="rounded-lg p-2 text-subtle transition hover:bg-surface-muted hover:text-text"
+                    title="Ver detalle"
                   >
                     <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
                     </svg>
-                  </button>
-
-                  <button
-                    type="button"
-                    (click)="viewDeadlines.emit(process)"
-                    class="rounded-lg p-2 text-warning transition hover:bg-warning-tint"
-                    title="Ver plazos y audiencias"
-                  >
-                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5m-9-6h.008v.008H12v-.008Z" />
-                    </svg>
-                  </button>
-
-                  <button
-                    type="button"
-                    (click)="viewTasks.emit(process)"
-                    class="rounded-lg p-2 text-info transition hover:bg-info-tint"
-                    title="Ver tareas"
-                  >
-                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                    </svg>
-                  </button>
-
-                  @if (process.status === ProcessStatus.ACTIVE) {
-                    <button
-                      type="button"
-                      (click)="annotate.emit(process)"
-                      class="rounded-lg p-2 text-success transition hover:bg-success-tint"
-                      title="Agregar anotación"
-                    >
-                      <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m3.75 9v6m3-3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-                      </svg>
-                    </button>
-                  }
+                  </a>
 
                   <button
                     type="button"
@@ -138,6 +94,26 @@ import { getCatalogBadgeClasses } from '../../../core/utils/catalog-badge.util';
                 <div>
                   <p class="text-xs font-medium text-subtle uppercase tracking-wide">Cliente</p>
                   <p class="mt-1 text-sm font-medium text-text">{{ process.client.fullName || 'Sin cliente' }}</p>
+                  <!-- F34-b: asunto vinculado, visible sin abrir el proceso -->
+                  @if (process.matter) {
+                    <p class="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-subtle">
+                      <span>{{ process.matter.name }}</span>
+                      @if (process.matter.isDeleted) {
+                        <span class="rounded-full bg-surface-muted px-1.5 py-0.5 text-[10px] font-semibold text-subtle">
+                          Eliminado
+                        </span>
+                      } @else if (process.matter.status === ClientMatterStatus.VENCIDO) {
+                        <span
+                          class="rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
+                          [class]="matterStatusClasses(process.matter.status)"
+                        >
+                          {{ matterStatusLabel(process.matter.status) }}
+                        </span>
+                      }
+                    </p>
+                  } @else {
+                    <p class="mt-0.5 text-xs text-subtle">Sin asunto</p>
+                  }
                 </div>
 
                 <!-- Estado -->
@@ -156,6 +132,12 @@ import { getCatalogBadgeClasses } from '../../../core/utils/catalog-badge.util';
                   <p class="mt-1 text-sm text-text">{{ process.stage?.label || 'N/A' }}</p>
                 </div>
 
+                <!-- Tipo de proceso (F40 §PRO-04) -->
+                <div>
+                  <p class="text-xs font-medium text-subtle uppercase tracking-wide">Tipo de proceso</p>
+                  <p class="mt-1 text-sm text-text">{{ process.processType?.label || 'Sin clasificar' }}</p>
+                </div>
+
                 <!-- Riesgo -->
                 <div>
                   <p class="text-xs font-medium text-subtle uppercase tracking-wide">Riesgo</p>
@@ -172,7 +154,7 @@ import { getCatalogBadgeClasses } from '../../../core/utils/catalog-badge.util';
                 @if (process.advisors && process.advisors.length > 0) {
                   <div class="flex items-center gap-2">
                     <svg class="h-4 w-4 text-subtle" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Zm-13.5 0a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
                     </svg>
                     <div class="flex flex-wrap gap-1">
                       @for (advisor of process.advisors; track advisor.id) {
@@ -211,7 +193,12 @@ import { getCatalogBadgeClasses } from '../../../core/utils/catalog-badge.util';
             <div class="space-y-3">
               <!-- Título y número de caso -->
               <div>
-                <p class="font-semibold text-text">{{ process.title }}</p>
+                <a
+                  [routerLink]="['/procesos', process.id]"
+                  class="font-semibold text-text hover:text-navy-900"
+                >
+                  {{ process.title }}
+                </a>
                 @if (process.caseNumber) {
                   <p class="mt-1 font-mono text-xs text-subtle">{{ process.caseNumber }}</p>
                 }
@@ -236,6 +223,11 @@ import { getCatalogBadgeClasses } from '../../../core/utils/catalog-badge.util';
                 <div class="flex items-start justify-between gap-2">
                   <span class="text-xs font-medium text-subtle">Etapa:</span>
                   <span class="text-xs text-text">{{ process.stage?.label || 'N/A' }}</span>
+                </div>
+
+                <div class="flex items-start justify-between gap-2">
+                  <span class="text-xs font-medium text-subtle">Tipo de proceso:</span>
+                  <span class="text-xs text-text">{{ process.processType?.label || 'Sin clasificar' }}</span>
                 </div>
 
                 <div class="flex items-start justify-between gap-2">
@@ -267,72 +259,16 @@ import { getCatalogBadgeClasses } from '../../../core/utils/catalog-badge.util';
 
               <!-- Acciones mobile -->
               <div class="grid grid-cols-2 gap-2 border-t border-default pt-3">
-                @if (isProcessEditable(process.status)) {
-                  <button
-                    type="button"
-                    (click)="edit.emit(process)"
-                    class="flex items-center justify-center gap-2 rounded-md bg-surface-muted px-3 py-2 text-xs font-semibold text-text transition hover:bg-surface-sunken"
-                  >
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 3.487 3.65 3.65a1 1 0 0 1 0 1.415L8.96 20.104a1 1 0 0 1-.708.292H4.5a.75.75 0 0 1-.75-.75v-3.752a1 1 0 0 1 .293-.707L15.447 3.487a1 1 0 0 1 1.415 0Z" />
-                    </svg>
-                    Editar
-                  </button>
-                }
-                @if (getValidNextStatuses(process.status).length > 0) {
-                  <button
-                    type="button"
-                    (click)="changeStatus.emit(process)"
-                    class="flex items-center justify-center gap-2 rounded-md bg-info-tint px-3 py-2 text-xs font-semibold text-info transition hover:opacity-80"
-                  >
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
-                    </svg>
-                    Estado
-                  </button>
-                }
-                <button
-                  type="button"
-                  (click)="viewHistory.emit(process)"
-                  class="flex items-center justify-center gap-2 rounded-md bg-accent-tint px-3 py-2 text-xs font-semibold text-accent transition hover:opacity-80"
+                <a
+                  [routerLink]="['/procesos', process.id]"
+                  class="flex items-center justify-center gap-2 rounded-md bg-surface-muted px-3 py-2 text-xs font-semibold text-text transition hover:bg-surface-sunken"
                 >
                   <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
                   </svg>
-                  Historial
-                </button>
-                <button
-                  type="button"
-                  (click)="viewDeadlines.emit(process)"
-                  class="flex items-center justify-center gap-2 rounded-md bg-warning-tint px-3 py-2 text-xs font-semibold text-warning transition hover:opacity-80"
-                >
-                  <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5m-9-6h.008v.008H12v-.008Z" />
-                  </svg>
-                  Plazos
-                </button>
-                <button
-                  type="button"
-                  (click)="viewTasks.emit(process)"
-                  class="flex items-center justify-center gap-2 rounded-md bg-info-tint px-3 py-2 text-xs font-semibold text-info transition hover:opacity-80"
-                >
-                  <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                  </svg>
-                  Tareas
-                </button>
-                @if (process.status === ProcessStatus.ACTIVE) {
-                  <button
-                    type="button"
-                    (click)="annotate.emit(process)"
-                    class="flex items-center justify-center gap-2 rounded-md bg-success-tint px-3 py-2 text-xs font-semibold text-success transition hover:opacity-80"
-                  >
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m3.75 9v6m3-3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-                    </svg>
-                    Anotar
-                  </button>
-                }
+                  Ver detalle
+                </a>
                 <button
                   type="button"
                   (click)="delete.emit(process)"
@@ -359,20 +295,14 @@ export class ProcessesTableComponent {
    * DocumentsListComponent (F30). */
   hasFullAccess = input(false);
 
-  edit = output<LegalProcessResponse>();
-  changeStatus = output<LegalProcessResponse>();
-  viewHistory = output<LegalProcessResponse>();
-  viewDeadlines = output<LegalProcessResponse>();
-  viewTasks = output<LegalProcessResponse>();
-  annotate = output<LegalProcessResponse>();
   delete = output<LegalProcessResponse>();
 
-  protected readonly ProcessStatus = ProcessStatus;
   protected readonly formatDate = formatDate;
   protected readonly getStatusLabel = getStatusLabel;
   protected readonly getStatusClasses = getStatusClasses;
   protected readonly getStatusDot = getStatusDot;
   protected readonly getCatalogBadgeClasses = getCatalogBadgeClasses;
-  protected readonly isProcessEditable = isProcessEditable;
-  protected readonly getValidNextStatuses = getValidNextStatuses;
+  protected readonly ClientMatterStatus = ClientMatterStatus;
+  protected readonly matterStatusLabel = matterStatusLabel;
+  protected readonly matterStatusClasses = matterStatusClasses;
 }
