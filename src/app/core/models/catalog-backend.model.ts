@@ -8,7 +8,10 @@ export type CatalogType =
   | 'process_stage'
   | 'advisor_specialty'
   | 'deadline_type'
-  | 'laft_risk';
+  | 'laft_risk'
+  | 'contract_type'
+  | 'process_type'
+  | 'contingency';
 
 /** F33 §1: solo relevante para `document_type`. `null` = aplica a ambos. */
 export type CatalogPersonTypeScope = 'NATURAL' | 'JURIDICA';
@@ -23,6 +26,14 @@ export interface CatalogItem {
   isActive: boolean;
   isSystem: boolean;
   personTypeScope: CatalogPersonTypeScope | null;
+  /**
+   * F40 §PRO-03: solo relevante para `process_stage` — a qué `process_type`
+   * aplica esta etapa. `null` = aplica a cualquier tipo (o el catálogo no
+   * usa segmentación). A diferencia de `personTypeScope` (enum fijo de 2
+   * valores), es el id de otro CatalogItem (`process_type`), porque los
+   * tipos de proceso son dinámicos por tenant.
+   */
+  processTypeScope: string | null;
   usageCount?: number;
 }
 
@@ -42,6 +53,8 @@ export interface CreateCatalogItemRequest {
   label: string;
   color?: string;
   sortOrder?: number;
+  /** F40 §PRO-03: solo aplica al crear ítems de `process_stage`. */
+  processTypeScope?: string | null;
 }
 
 export interface UpdateCatalogItemRequest {
@@ -49,6 +62,8 @@ export interface UpdateCatalogItemRequest {
   color?: string;
   sortOrder?: number;
   isActive?: boolean;
+  /** F40 §PRO-03: `null` explícito limpia el scope. */
+  processTypeScope?: string | null;
 }
 
 export interface CatalogItemsResponse {

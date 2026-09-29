@@ -226,4 +226,64 @@ describe('PlatformAdminService', () => {
 
     expect(metrics).toEqual({ tenantsTotal: 5 });
   });
+
+  it('listHolidays hace GET a /admin/holidays y extrae el arreglo', () => {
+    let holidays: unknown;
+    service.listHolidays().subscribe((h) => (holidays = h));
+
+    httpMock
+      .expectOne(`${apiUrl}/holidays`)
+      .flush({ holidays: [{ id: 'h1', date: '2026-01-01', name: 'Año Nuevo' }] });
+
+    expect(holidays).toEqual([{ id: 'h1', date: '2026-01-01', name: 'Año Nuevo' }]);
+  });
+
+  it('listHolidays en error propaga un mensaje legible', () => {
+    let error: Error | undefined;
+    service.listHolidays().subscribe({ error: (e) => (error = e) });
+
+    // 400 (no 500): error.interceptor.ts SIEMPRE devuelve el genérico
+    // "Error interno del servidor" para 500 a propósito (BUG-19 — un 500 es
+    // siempre el "Internal server error" default de Nest, nunca un mensaje
+    // pensado para el usuario), así que un 500 aquí nunca podría propagar
+    // 'boom'. 400 sí prioriza el mensaje real del backend.
+    httpMock.expectOne(`${apiUrl}/holidays`).flush({ message: 'boom' }, { status: 400, statusText: 'Bad Request' });
+
+    expect(error?.message).toBe('boom');
+  });
+
+  it('createHoliday hace POST a /admin/holidays con el dto y extrae el festivo creado', () => {
+    let holiday: unknown;
+    service.createHoliday({ date: '2026-12-25', name: 'Navidad' }).subscribe((h) => (holiday = h));
+
+    const req = httpMock.expectOne(`${apiUrl}/holidays`);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ date: '2026-12-25', name: 'Navidad' });
+    req.flush({ holiday: { id: 'h2', date: '2026-12-25', name: 'Navidad' } });
+
+    expect(holiday).toEqual({ id: 'h2', date: '2026-12-25', name: 'Navidad' });
+  });
+
+  it('updateHoliday hace PATCH a /admin/holidays/:id con el dto', () => {
+    let holiday: unknown;
+    service.updateHoliday('h2', { name: 'Navidad (corregido)' }).subscribe((h) => (holiday = h));
+
+    const req = httpMock.expectOne(`${apiUrl}/holidays/h2`);
+    expect(req.request.method).toBe('PATCH');
+    expect(req.request.body).toEqual({ name: 'Navidad (corregido)' });
+    req.flush({ holiday: { id: 'h2', date: '2026-12-25', name: 'Navidad (corregido)' } });
+
+    expect(holiday).toEqual({ id: 'h2', date: '2026-12-25', name: 'Navidad (corregido)' });
+  });
+
+  it('deleteHoliday hace DELETE a /admin/holidays/:id', () => {
+    let completed = false;
+    service.deleteHoliday('h2').subscribe(() => (completed = true));
+
+    const req = httpMock.expectOne(`${apiUrl}/holidays/h2`);
+    expect(req.request.method).toBe('DELETE');
+    req.flush(null);
+
+    expect(completed).toBe(true);
+  });
 });

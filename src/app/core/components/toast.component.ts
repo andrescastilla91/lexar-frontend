@@ -13,10 +13,16 @@ import { ToastService } from '../services/toast.service';
           class="flex items-start gap-3 rounded-lg border-l-4 bg-surface px-4 py-3 shadow-raised transition-colors"
           [class.border-success]="toast.type === 'success'"
           [class.border-danger]="toast.type === 'error'"
+          [class.border-warning]="toast.type === 'warning'"
         >
           @if (toast.type === 'success') {
             <svg class="mt-0.5 h-5 w-5 flex-shrink-0 text-success" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+            </svg>
+          } @else if (toast.type === 'warning') {
+            <!-- F40 §CLI-12: mismo ícono de alerta que error(), en ámbar en vez de rojo — la acción sí se completó, solo hay algo que revisar. -->
+            <svg class="mt-0.5 h-5 w-5 flex-shrink-0 text-warning" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
             </svg>
           } @else {
             <svg class="mt-0.5 h-5 w-5 flex-shrink-0 text-danger" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">

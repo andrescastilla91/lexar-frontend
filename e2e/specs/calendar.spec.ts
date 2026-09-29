@@ -3,6 +3,7 @@ import { expect, test, TestTenant } from '../shared/tenant-fixture';
 import { E2E_API_ORIGIN } from '../shared/environment';
 import { LoginPage } from '../pages/login.page';
 import { CalendarPage } from '../pages/calendar.page';
+import { DeadlineDetailPage } from '../pages/deadline-detail.page';
 
 /**
  * E2E del flujo 5 (HU-FE-E2E-2): Calendario/plazos con recordatorio visible (F13).
@@ -14,6 +15,14 @@ import { CalendarPage } from '../pages/calendar.page';
  * el plazo aparece como evento en el calendario apenas se crea, y su estado
  * (Pendiente / Completado) se refleja como badge visible en el panel de
  * detalle y como estilo del evento (tachado al completarse).
+ *
+ * F41 (ola 4, rediseño 2026-09-23): el modal de creación ya no incluye
+ * Notas (se movió a la ficha /calendario/plazos/:id) y, al crear, la app
+ * navega directo a esa ficha en vez de quedarse en /calendario — estos
+ * tres tests vuelven al calendario explícitamente (por la ficha o por el
+ * panel de detalle) antes de verificar el estado del evento en
+ * FullCalendar. La cobertura propia del rediseño (ficha de edición, Notas,
+ * retorno desde Procesos) vive en f41-deadline-redesign.spec.ts.
  */
 
 async function loginAsAdmin(page: Page, tenant: TestTenant): Promise<void> {
@@ -87,7 +96,7 @@ function futureDateTimeLocal(daysAhead: number): string {
 }
 
 test.describe('Calendario / plazos con recordatorio visible (F13)', () => {
-  test('crear un plazo lo muestra de inmediato en el calendario con estado "Pendiente" visible', async ({
+  test('crear un plazo navega a su ficha con estado "Pendiente" visible, y aparece en el calendario al volver', async ({
     page,
     tenant,
   }) => {
@@ -95,6 +104,7 @@ test.describe('Calendario / plazos con recordatorio visible (F13)', () => {
     await loginAsAdmin(page, tenant);
 
     const calendarPage = new CalendarPage(page);
+    const deadlineDetailPage = new DeadlineDetailPage(page);
     await calendarPage.goto();
 
     const deadlineTitle = `Audiencia E2E ${Date.now()}`;
@@ -104,16 +114,19 @@ test.describe('Calendario / plazos con recordatorio visible (F13)', () => {
       title: deadlineTitle,
       typeLabel: 'Audiencia',
       dueAt: futureDateTimeLocal(1),
-      notes: 'Creado por Playwright (flujo 5, HU-FE-E2E-2)',
     });
     await calendarPage.submitCreate();
 
     await expect(page.getByText('Plazo creado correctamente.')).toBeVisible();
-    await expect(calendarPage.eventByTitle(deadlineTitle)).toBeVisible();
-
-    await calendarPage.openEventDetail(deadlineTitle);
-    await expect(calendarPage.detailHeading(deadlineTitle)).toBeVisible();
+    // F41 (ola 4): al crear, la app navega a la ficha dedicada del plazo,
+    // no se queda en /calendario.
+    await expect(page).toHaveURL(/\/calendario\/plazos\/[^/]+$/);
+    await expect(deadlineDetailPage.heading).toHaveText(deadlineTitle);
     await expect(page.getByText('Pendiente', { exact: true })).toBeVisible();
+
+    await deadlineDetailPage.goBack();
+    await expect(page).toHaveURL(/\/calendario$/);
+    await expect(calendarPage.eventByTitle(deadlineTitle)).toBeVisible();
   });
 
   test('marcar un plazo como completado actualiza su estado visible y lo tacha en el calendario', async ({
@@ -124,6 +137,7 @@ test.describe('Calendario / plazos con recordatorio visible (F13)', () => {
     await loginAsAdmin(page, tenant);
 
     const calendarPage = new CalendarPage(page);
+    const deadlineDetailPage = new DeadlineDetailPage(page);
     await calendarPage.goto();
 
     const deadlineTitle = `Vencimiento E2E ${Date.now()}`;
@@ -136,6 +150,12 @@ test.describe('Calendario / plazos con recordatorio visible (F13)', () => {
     });
     await calendarPage.submitCreate();
     await expect(page.getByText('Plazo creado correctamente.')).toBeVisible();
+    // F41 (ola 4): vuelve al calendario para ejercitar el panel de detalle
+    // de FullCalendar (openEventDetail/markSelectedDone), no el botón
+    // "Marcar como completado" de la ficha — ese camino nuevo tiene su
+    // propia cobertura en f41-deadline-redesign.spec.ts.
+    await deadlineDetailPage.goBack();
+    await expect(page).toHaveURL(/\/calendario$/);
 
     await calendarPage.openEventDetail(deadlineTitle);
     await calendarPage.markSelectedDone();
@@ -155,6 +175,7 @@ test.describe('Calendario / plazos con recordatorio visible (F13)', () => {
     await loginAsAdmin(page, tenant);
 
     const calendarPage = new CalendarPage(page);
+    const deadlineDetailPage = new DeadlineDetailPage(page);
     await calendarPage.goto();
 
     const deadlineTitle = `Plazo a eliminar E2E ${Date.now()}`;
@@ -167,6 +188,8 @@ test.describe('Calendario / plazos con recordatorio visible (F13)', () => {
     });
     await calendarPage.submitCreate();
     await expect(page.getByText('Plazo creado correctamente.')).toBeVisible();
+    await deadlineDetailPage.goBack();
+    await expect(page).toHaveURL(/\/calendario$/);
     await expect(calendarPage.eventByTitle(deadlineTitle)).toBeVisible();
 
     await calendarPage.openEventDetail(deadlineTitle);

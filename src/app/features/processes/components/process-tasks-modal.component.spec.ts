@@ -309,4 +309,101 @@ describe('ProcessTasksModalComponent', () => {
 
     expect(spy).toHaveBeenCalled();
   });
+
+  // F40 Ola 4a — ajuste 2026-09-21 (feedback punto 3): en modo embedded el
+  // tab-strip interno se reemplaza por un header título+acciones; el
+  // listado queda siempre visible y "Nueva tarea"/"Desde plantilla" abren
+  // cada uno su propio diálogo flotante.
+  describe('modo embedded (F40 Ola 4a, feedback punto 3)', () => {
+    it('muestra el header con el conteo y "+ Nueva tarea", sin "Desde plantilla" si no hay plantillas', async () => {
+      await configure();
+      const fixture = createComponent();
+      fixture.componentRef.setInput('form', buildForm());
+      fixture.componentRef.setInput('embedded', true);
+      fixture.componentRef.setInput('tasks', [buildTask()]);
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).toContain('Tareas (1)');
+      expect(fixture.nativeElement.textContent).toContain('Preparar poder especial');
+      const buttons: HTMLButtonElement[] = Array.from(fixture.nativeElement.querySelectorAll('button'));
+      expect(buttons.some((b) => b.textContent?.trim() === '+ Nueva tarea')).toBe(true);
+      expect(buttons.some((b) => b.textContent?.trim() === 'Desde plantilla')).toBe(false);
+    });
+
+    it('muestra "Desde plantilla" en el header cuando hay plantillas disponibles', async () => {
+      await configure();
+      const fixture = createComponent();
+      fixture.componentRef.setInput('form', buildForm());
+      fixture.componentRef.setInput('embedded', true);
+      fixture.componentRef.setInput('templates', [template]);
+      fixture.detectChanges();
+
+      const buttons: HTMLButtonElement[] = Array.from(fixture.nativeElement.querySelectorAll('button'));
+      expect(buttons.some((b) => b.textContent?.trim() === 'Desde plantilla')).toBe(true);
+    });
+
+    it('abre el diálogo flotante de "Nueva tarea" al hacer clic en el header', async () => {
+      await configure();
+      const fixture = createComponent();
+      fixture.componentRef.setInput('form', buildForm());
+      fixture.componentRef.setInput('embedded', true);
+      fixture.detectChanges();
+
+      const buttons: HTMLButtonElement[] = Array.from(fixture.nativeElement.querySelectorAll('button'));
+      buttons.find((b) => b.textContent?.trim() === '+ Nueva tarea')!.click();
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.newTaskFormOpen()).toBe(true);
+      expect(fixture.nativeElement.querySelector('form')).not.toBeNull();
+    });
+
+    it('abre el diálogo flotante de "Desde plantilla" al hacer clic en el header', async () => {
+      await configure();
+      const fixture = createComponent();
+      fixture.componentRef.setInput('form', buildForm());
+      fixture.componentRef.setInput('embedded', true);
+      fixture.componentRef.setInput('templates', [template]);
+      fixture.detectChanges();
+
+      const buttons: HTMLButtonElement[] = Array.from(fixture.nativeElement.querySelectorAll('button'));
+      buttons.find((b) => b.textContent?.trim() === 'Desde plantilla')!.click();
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.templateFormOpen()).toBe(true);
+      expect(fixture.nativeElement.textContent).toContain('Crear tareas desde plantilla');
+    });
+
+    it('cierra el diálogo de "Nueva tarea" automáticamente cuando el envío termina sin error', async () => {
+      await configure();
+      const fixture = createComponent();
+      fixture.componentRef.setInput('form', buildForm());
+      fixture.componentRef.setInput('embedded', true);
+      fixture.detectChanges();
+      fixture.componentInstance.newTaskFormOpen.set(true);
+
+      fixture.componentRef.setInput('isSubmitting', true);
+      fixture.detectChanges();
+      fixture.componentRef.setInput('isSubmitting', false);
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.newTaskFormOpen()).toBe(false);
+    });
+
+    it('no cierra "Desde plantilla" automáticamente tras instanciar (se cierra solo manualmente)', async () => {
+      await configure();
+      const fixture = createComponent();
+      fixture.componentRef.setInput('form', buildForm());
+      fixture.componentRef.setInput('embedded', true);
+      fixture.componentRef.setInput('templates', [template]);
+      fixture.detectChanges();
+      fixture.componentInstance.templateFormOpen.set(true);
+
+      fixture.componentRef.setInput('isInstantiating', true);
+      fixture.detectChanges();
+      fixture.componentRef.setInput('isInstantiating', false);
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.templateFormOpen()).toBe(true);
+    });
+  });
 });

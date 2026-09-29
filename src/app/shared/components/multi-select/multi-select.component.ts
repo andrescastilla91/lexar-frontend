@@ -130,6 +130,13 @@ function normalize(value: string): string {
       </div>
     </div>
   `,
+  // BUG QA 2026-09-17: sin este :host, el elemento custom <app-multi-select>
+  // rendería con el display:inline por defecto del navegador — un box en
+  // línea ignora el margin-top que Tailwind's space-y-4 aplica entre
+  // hermanos, así que el botón "Guardar cambios" quedaba pegado al selector
+  // en todos los formularios que usan este componente (client-detail,
+  // process-form, user-detail, settings-task-statuses).
+  styles: [':host { display: block; }'],
 })
 export class MultiSelectComponent {
   private static nextInstanceId = 0;

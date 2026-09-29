@@ -38,6 +38,8 @@ describe('OnboardingComponent', () => {
     require2fa: false,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
+    processCodePrefix: null,
+    processCodeCounter: 0,
   };
 
   function configure(): void {

@@ -8,6 +8,9 @@ import {
   UpdateLegalProcessRequest,
   UpdateProcessStatusRequest,
   ProcessStatus,
+  ProcessCounterpartyResponse,
+  CreateProcessCounterpartyRequest,
+  UpdateProcessCounterpartyRequest,
 } from '../models/legal-process.model';
 
 interface LegalProcessesListResponse {
@@ -23,10 +26,21 @@ interface LegalProcessItemResponse {
   legalProcess: LegalProcessResponse;
 }
 
+interface ProcessCounterpartiesListResponse {
+  message: string;
+  counterparties: ProcessCounterpartyResponse[];
+}
+
+interface ProcessCounterpartyItemResponse {
+  message: string;
+  counterparty: ProcessCounterpartyResponse;
+}
+
 @Injectable({ providedIn: 'root' })
 export class LegalProcessesService {
   private readonly http = inject(HttpClient);
   private readonly apiUrl = `${environment.apiUrl}/legal-processes`;
+  private readonly counterpartiesApiUrl = `${environment.apiUrl}/process-counterparties`;
 
   /**
    * Obtener todos los procesos legales de la empresa
@@ -37,6 +51,12 @@ export class LegalProcessesService {
     filters?: {
       status?: ProcessStatus;
       clientId?: string;
+      /** F34-b (rediseño): reemplaza el filtro por asunto concreto — el
+       * catálogo "Tipo de vinculación" (F25) es transversal, a diferencia
+       * del asunto, que está atado a un cliente. */
+      contractTypeId?: string;
+      /** F40 §PRO-04: filtro por tipo de proceso (catálogo `process_type`). */
+      processTypeId?: string;
       advisorId?: string;
       search?: string;
     }
@@ -46,6 +66,8 @@ export class LegalProcessesService {
     if (filters) {
       if (filters.status) params.status = filters.status;
       if (filters.clientId) params.clientId = filters.clientId;
+      if (filters.contractTypeId) params.contractTypeId = filters.contractTypeId;
+      if (filters.processTypeId) params.processTypeId = filters.processTypeId;
       if (filters.advisorId) params.advisorId = filters.advisorId;
       if (filters.search) params.search = filters.search;
     }
@@ -118,6 +140,51 @@ export class LegalProcessesService {
       catchError((error) => {
         console.error('Error al eliminar proceso legal:', error);
         return throwError(() => new Error(error.error?.message || 'Error al eliminar proceso legal'));
+      })
+    );
+  }
+
+  // ── F40 §PRO-07: contrapartes del proceso ──────────────────────────
+
+  getCounterparties(legalProcessId: string): Observable<ProcessCounterpartyResponse[]> {
+    return this.http
+      .get<ProcessCounterpartiesListResponse>(this.counterpartiesApiUrl, {
+        params: { legalProcessId },
+      })
+      .pipe(
+        map((response) => response.counterparties),
+        catchError((error) => {
+          console.error('Error al obtener contrapartes:', error);
+          return throwError(() => new Error(error.error?.message || 'Error al cargar contrapartes'));
+        })
+      );
+  }
+
+  createCounterparty(data: CreateProcessCounterpartyRequest): Observable<ProcessCounterpartyResponse> {
+    return this.http.post<ProcessCounterpartyItemResponse>(this.counterpartiesApiUrl, data).pipe(
+      map((response) => response.counterparty),
+      catchError((error) => {
+        console.error('Error al crear contraparte:', error);
+        return throwError(() => new Error(error.error?.message || 'Error al crear contraparte'));
+      })
+    );
+  }
+
+  updateCounterparty(id: string, data: UpdateProcessCounterpartyRequest): Observable<ProcessCounterpartyResponse> {
+    return this.http.patch<ProcessCounterpartyItemResponse>(`${this.counterpartiesApiUrl}/${id}`, data).pipe(
+      map((response) => response.counterparty),
+      catchError((error) => {
+        console.error('Error al actualizar contraparte:', error);
+        return throwError(() => new Error(error.error?.message || 'Error al actualizar contraparte'));
+      })
+    );
+  }
+
+  removeCounterparty(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.counterpartiesApiUrl}/${id}`).pipe(
+      catchError((error) => {
+        console.error('Error al eliminar contraparte:', error);
+        return throwError(() => new Error(error.error?.message || 'Error al eliminar contraparte'));
       })
     );
   }

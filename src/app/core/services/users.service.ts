@@ -11,6 +11,7 @@ import {
   UsersListResponse,
   UserResponse,
   CreateUserResponse,
+  AssignableUsersResponse,
 } from '../models/user-backend.model';
 
 @Injectable({
@@ -27,6 +28,13 @@ export class UsersService {
 
   getUserById(id: string): Observable<UserResponse> {
     return this.http.get<UserResponse>(`${this.apiUrl}/${id}`);
+  }
+
+  /** F41 (ola 4, correcciones #2): lista liviana para el selector de
+   * "asignar a" de un evento general — sin el permiso `users.list` que
+   * exige `getUsers()` (ver users.controller.ts, findAssignable). */
+  getAssignableUsers(): Observable<AssignableUsersResponse> {
+    return this.http.get<AssignableUsersResponse>(`${this.apiUrl}/assignable`);
   }
 
   createUser(user: CreateUserRequest): Observable<CreateUserResponse> {

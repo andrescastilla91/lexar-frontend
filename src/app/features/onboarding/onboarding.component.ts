@@ -166,6 +166,14 @@ export class OnboardingComponent {
     email: [''],
     registrationNumber: [''],
     taxRegime: [''],
+    // F40 §PRO-06: `<app-settings-legal-form>` (compartido con Configuración)
+    // siempre incluye este control en su template — sin él,
+    // `formControlName="processCodePrefix"` revienta con "Cannot find
+    // control" apenas se renderiza el paso 1 del onboarding. Una empresa
+    // recién registrada siempre tiene processCodeCounter=0, así que el
+    // campo llega habilitado (no hace falta la lógica de disable de
+    // Configuración aquí).
+    processCodePrefix: [''],
   });
 
   readonly inviteForm = this.fb.nonNullable.group({
@@ -195,6 +203,7 @@ export class OnboardingComponent {
           email: company.email ?? '',
           registrationNumber: company.registrationNumber ?? '',
           taxRegime: company.taxRegime ?? '',
+          processCodePrefix: company.processCodePrefix ?? '',
         });
       },
       error: () => {},

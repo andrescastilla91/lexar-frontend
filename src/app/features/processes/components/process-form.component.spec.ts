@@ -1,26 +1,25 @@
 import { TestBed } from '@angular/core/testing';
 import { FormBuilder, Validators } from '@angular/forms';
 import { ProcessFormComponent } from './process-form.component';
-import { ProcessStatus } from '../../../core/models/legal-process.model';
 import { AdvisorResponse } from '../../../core/models/advisor-backend.model';
 import { ClientResponse } from '../../../core/models/client-backend.model';
 
 describe('ProcessFormComponent', () => {
   const fb = new FormBuilder();
 
+  // F40 Ola 4a: el formulario se recortó a los campos esenciales para abrir
+  // el expediente (ver "Ola 4 (revisada)" en F40-ajustes-procesos-piloto.md)
+  // — ya no incluye description/matterId/court/caseNumber/startDate/endDate
+  // (se completan después en la pestaña "Datos" de ProcessDetailComponent).
   function buildForm(advisorIds: string[] = []) {
     return fb.nonNullable.group({
       title: ['', [Validators.required]],
-      description: [''],
       clientId: ['', [Validators.required]],
       advisorIds: [advisorIds],
-      status: [ProcessStatus.DRAFT],
-      stageId: [''],
-      riskLevelId: [''],
-      court: [''],
-      caseNumber: [''],
-      startDate: [''],
-      endDate: [''],
+      status: ['DRAFT'],
+      stageId: ['', [Validators.required]],
+      riskLevelId: ['', [Validators.required]],
+      processTypeId: [''],
     });
   }
 
@@ -101,11 +100,6 @@ describe('ProcessFormComponent', () => {
     const spy = jest.fn();
     fixture.componentInstance.advisorIdsChange.subscribe(spy);
 
-    // MultiSelectComponent (ajuste 2026-09-03) solo renderiza el listbox
-    // cuando el input de búsqueda tiene foco — igual que un <select>. Se
-    // escopa a "app-multi-select" porque el formulario tiene varios
-    // input[type="text"] (Título, Corte/Jurisdicción, etc.) — sin el scope,
-    // querySelector encuentra el de "Título del proceso" en su lugar.
     const searchInput: HTMLInputElement = fixture.nativeElement.querySelector(
       'app-multi-select input[type="text"]',
     );
@@ -116,20 +110,6 @@ describe('ProcessFormComponent', () => {
     checkbox.dispatchEvent(new Event('change'));
 
     expect(spy).toHaveBeenCalledWith(['adv1']);
-  });
-
-  it('emite generateCaseNumber al hacer clic en el botón de generar', () => {
-    const fixture = createComponent();
-    fixture.componentRef.setInput('form', buildForm());
-    fixture.componentRef.setInput('isOpen', true);
-    fixture.detectChanges();
-
-    const spy = jest.fn();
-    fixture.componentInstance.generateCaseNumber.subscribe(spy);
-
-    fixture.nativeElement.querySelector('button[title="Generar número automático"]').click();
-
-    expect(spy).toHaveBeenCalled();
   });
 
   it('emite close al hacer clic en cancelar', () => {
@@ -173,17 +153,6 @@ describe('ProcessFormComponent', () => {
     expect(submitBtn.disabled).toBe(true);
   });
 
-  it('deshabilita el botón de guardar cuando canEdit es false', () => {
-    const fixture = createComponent();
-    fixture.componentRef.setInput('form', buildForm());
-    fixture.componentRef.setInput('isOpen', true);
-    fixture.componentRef.setInput('canEdit', false);
-    fixture.detectChanges();
-
-    const submitBtn: HTMLButtonElement = fixture.nativeElement.querySelector('button[type="submit"]');
-    expect(submitBtn.disabled).toBe(true);
-  });
-
   it('muestra el mensaje de error cuando errorMessage está presente', () => {
     const fixture = createComponent();
     fixture.componentRef.setInput('form', buildForm());
@@ -194,14 +163,130 @@ describe('ProcessFormComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Completa los campos obligatorios.');
   });
 
-  it('muestra el título de edición cuando isEditing es true', () => {
+  it('muestra el título "Registrar nuevo proceso" (formulario ahora es solo de creación)', () => {
     const fixture = createComponent();
     fixture.componentRef.setInput('form', buildForm());
     fixture.componentRef.setInput('isOpen', true);
-    fixture.componentRef.setInput('isEditing', true);
     fixture.componentRef.setInput('clients', [client]);
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.textContent).toContain('Editar proceso');
+    expect(fixture.nativeElement.textContent).toContain('Registrar nuevo proceso');
+  });
+
+  // F40 Ola 4a: asunto, descripción, juzgado, radicado y fechas se difieren
+  // a la pestaña "Datos" del detalle — ya no viven en este formulario.
+  it('ya no incluye los campos diferidos a la pestaña "Datos" del detalle', () => {
+    const fixture = createComponent();
+    fixture.componentRef.setInput('form', buildForm());
+    fixture.componentRef.setInput('isOpen', true);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('select[formcontrolname="matterId"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('input[formcontrolname="court"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('input[formcontrolname="caseNumber"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('input[formcontrolname="startDate"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('input[formcontrolname="endDate"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('textarea[formcontrolname="description"]')).toBeNull();
+  });
+
+  // F40 §PRO-03: las etapas visibles se filtran por el tipo de proceso
+  // elegido en el mismo formulario — null en processTypeScope = aplica a
+  // cualquier tipo.
+  describe('filteredStages (F40 §PRO-03)', () => {
+    const stageJudicial = {
+      id: 'stage-jud',
+      catalogType: 'process_stage' as const,
+      code: 'AUDIENCIA',
+      label: 'Audiencia',
+      color: null,
+      sortOrder: 1,
+      isActive: true,
+      isSystem: false,
+      personTypeScope: null,
+      processTypeScope: 'type-judicial',
+    };
+    const stageCualquiera = {
+      ...stageJudicial,
+      id: 'stage-any',
+      code: 'INVESTIGACION',
+      label: 'Investigación',
+      processTypeScope: null,
+    };
+
+    it('incluye las etapas sin scope y las que coinciden con el tipo seleccionado', () => {
+      const fixture = createComponent();
+      const form = buildForm();
+      form.patchValue({ processTypeId: 'type-judicial' });
+      fixture.componentRef.setInput('form', form);
+      fixture.componentRef.setInput('isOpen', true);
+      fixture.componentRef.setInput('stages', [stageJudicial, stageCualquiera]);
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.filteredStages().map((s) => s.id)).toEqual([
+        'stage-jud',
+        'stage-any',
+      ]);
+    });
+
+    it('excluye una etapa de otro tipo cuando no está seleccionada', () => {
+      const fixture = createComponent();
+      const form = buildForm();
+      form.patchValue({ processTypeId: 'type-administrativo' });
+      fixture.componentRef.setInput('form', form);
+      fixture.componentRef.setInput('isOpen', true);
+      fixture.componentRef.setInput('stages', [stageJudicial, stageCualquiera]);
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.filteredStages().map((s) => s.id)).toEqual([
+        'stage-any',
+      ]);
+    });
+
+    it('nunca retira la etapa ya seleccionada aunque quede fuera de alcance, y avisa sin bloquear', () => {
+      const fixture = createComponent();
+      const form = buildForm();
+      form.patchValue({ processTypeId: 'type-administrativo', stageId: 'stage-jud' });
+      fixture.componentRef.setInput('form', form);
+      fixture.componentRef.setInput('isOpen', true);
+      fixture.componentRef.setInput('stages', [stageJudicial, stageCualquiera]);
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.filteredStages().map((s) => s.id)).toEqual([
+        'stage-any',
+        'stage-jud',
+      ]);
+      expect(fixture.componentInstance.isSelectedStageOutOfScope()).toBe(true);
+      expect(fixture.nativeElement.textContent).toContain(
+        'Esta etapa no está configurada para el tipo de proceso seleccionado.',
+      );
+      const submitBtn: HTMLButtonElement = fixture.nativeElement.querySelector('button[type="submit"]');
+      expect(submitBtn.disabled).toBe(false);
+    });
+  });
+
+  // F40 §PRO-04: selector de tipo de proceso — ahora esencial en creación
+  // (ver "Campos esenciales para la creación" en F40-ajustes-procesos-piloto.md).
+  it('renderiza las opciones de processTypes() en el selector de tipo de proceso', () => {
+    const fixture = createComponent();
+    fixture.componentRef.setInput('form', buildForm());
+    fixture.componentRef.setInput('isOpen', true);
+    fixture.componentRef.setInput('processTypes', [
+      {
+        id: 'type-judicial',
+        catalogType: 'process_type' as const,
+        code: 'JUDICIAL',
+        label: 'Judicial',
+        color: null,
+        sortOrder: 1,
+        isActive: true,
+        isSystem: true,
+        personTypeScope: null,
+        processTypeScope: null,
+      },
+    ]);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Judicial');
+    expect(fixture.nativeElement.textContent).toContain('Seleccionar tipo');
   });
 });

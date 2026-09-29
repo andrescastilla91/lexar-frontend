@@ -160,3 +160,24 @@ export interface UpdatePermissionGroupRequest {
   label?: string;
   description?: string;
 }
+
+// F41 §CAL-04 (ola 3): festivos globales de plataforma (sin companyId),
+// administrados desde el panel de plataforma — mismo patrón que AdminPlan.
+// Coincide con HolidayResponseDto / CreateHolidayDto / UpdateHolidayDto del
+// backend (admin-holidays.controller.ts).
+export interface Holiday {
+  id: string;
+  date: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateHolidayRequest {
+  date: string;
+  name: string;
+}
+
+export interface UpdateHolidayRequest {
+  name?: string;
+}

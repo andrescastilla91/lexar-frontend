@@ -66,6 +66,18 @@ describe('UsersService', () => {
     expect(result).toEqual({ message: 'ok', user });
   });
 
+  it('getAssignableUsers hace GET a /users/assignable', () => {
+    let result: unknown;
+    service.getAssignableUsers().subscribe((r) => (result = r));
+
+    const req = httpMock.expectOne(`${apiUrl}/assignable`);
+    expect(req.request.method).toBe('GET');
+    const body = { message: 'ok', users: [{ id: 'u1', firstName: 'Ana', lastName: 'Ríos', email: 'ana@x.com' }] };
+    req.flush(body);
+
+    expect(result).toEqual(body);
+  });
+
   it('createUser hace POST con el payload', () => {
     let result: unknown;
     service.createUser({ firstName: 'Nuevo', lastName: 'Usuario', email: 'nuevo@lexar.com' }).subscribe((r) => (result = r));

@@ -11,6 +11,7 @@ import { TasksService } from '../../../core/services/tasks.service';
 import {
   ClientResponse,
   ClientPersonType,
+  ClientMatterStatus,
   UpdateClientRequest,
   UpdateClientComplianceRequest,
 } from '../../../core/models/client-backend.model';
@@ -26,7 +27,10 @@ import { ToastService } from '../../../core/services/toast.service';
 import { MultiSelectComponent, MultiSelectItem } from '../../../shared/components/multi-select/multi-select.component';
 import { identificationNumberValidator } from '../utils/identification-number.validator';
 import { ClientContactsPanelComponent } from './components/client-contacts-panel.component';
+import { ClientMattersPanelComponent } from './components/client-matters-panel.component';
 import { getStatusClasses, getStatusLabel } from '../../processes/utils/process-format.utils';
+// F34-b: mismo badge de vigencia que ya usa la pestaña Asuntos.
+import { matterStatusClasses, matterStatusLabel } from '../../../core/utils/matter-format.util';
 
 type ClientDetailTab =
   | 'datos'
@@ -39,10 +43,9 @@ type ClientDetailTab =
   | 'cumplimiento';
 
 /**
- * F33 §6: ficha del cliente con pestañas. Datos/Cumplimiento comparten un
- * único formulario (misma entidad `Client`); Contactos, Procesos, Tareas y
- * Documentos cargan su propia fuente de datos. Asuntos queda como
- * placeholder hasta F34.
+ * F33 §6/F34 §4: ficha del cliente con pestañas. Datos/Cumplimiento
+ * comparten un único formulario (misma entidad `Client`); Contactos,
+ * Asuntos, Procesos, Tareas y Documentos cargan su propia fuente de datos.
  */
 @Component({
   selector: 'app-client-detail',
@@ -55,6 +58,7 @@ type ClientDetailTab =
     EntityFilesComponent,
     ClientPortalInvitationsComponent,
     ClientContactsPanelComponent,
+    ClientMattersPanelComponent,
   ],
   template: `
     @if (isLoading()) {
@@ -253,9 +257,7 @@ type ClientDetailTab =
             <app-client-contacts-panel [clientId]="client()!.id" />
           }
           @case ('asuntos') {
-            <div class="rounded-lg border border-default bg-surface p-12 text-center">
-              <p class="text-subtle">Los asuntos y el tipo de vinculación llegan con F34.</p>
-            </div>
+            <app-client-matters-panel [clientId]="client()!.id" />
           }
           @case ('procesos') {
             <div class="rounded-lg border border-default bg-surface shadow-card">
@@ -270,10 +272,30 @@ type ClientDetailTab =
                   @for (process of processes(); track process.id) {
                     <li class="flex items-center justify-between gap-4 p-4">
                       <div>
-                        <a [routerLink]="['/procesos']" [queryParams]="{ openId: process.id }" class="font-medium text-text hover:text-navy-900">
+                        <a [routerLink]="['/procesos', process.id]" class="font-medium text-text hover:text-navy-900">
                           {{ process.title }}
                         </a>
                         <p class="text-xs text-subtle">{{ process.caseNumber || 'Sin radicado' }}</p>
+                        <!-- F34-b: asunto vinculado, visible sin abrir el proceso -->
+                        @if (process.matter) {
+                          <p class="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-subtle">
+                            <span>{{ process.matter.name }}</span>
+                            @if (process.matter.isDeleted) {
+                              <span class="rounded-full bg-surface-muted px-1.5 py-0.5 text-[10px] font-semibold text-subtle">
+                                Eliminado
+                              </span>
+                            } @else if (process.matter.status === ClientMatterStatus.VENCIDO) {
+                              <span
+                                class="rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
+                                [class]="matterStatusClasses(process.matter.status)"
+                              >
+                                {{ matterStatusLabel(process.matter.status) }}
+                              </span>
+                            }
+                          </p>
+                        } @else {
+                          <p class="mt-0.5 text-xs text-subtle">Sin asunto</p>
+                        }
                       </div>
                       <span
                         class="inline-flex shrink-0 rounded-full px-2 py-1 text-xs font-semibold"
@@ -366,6 +388,9 @@ export class ClientDetailComponent implements OnInit {
 
   protected readonly getStatusLabel = getStatusLabel;
   protected readonly getStatusClasses = getStatusClasses;
+  protected readonly matterStatusLabel = matterStatusLabel;
+  protected readonly matterStatusClasses = matterStatusClasses;
+  protected readonly ClientMatterStatus = ClientMatterStatus;
 
   readonly editForm = this.fb.nonNullable.group(
     {

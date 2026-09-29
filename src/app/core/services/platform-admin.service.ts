@@ -7,8 +7,10 @@ import {
   AdminPermission,
   AdminPermissionGroup,
   AdminPlan,
+  CreateHolidayRequest,
   CreatePlanRequest,
   CreatePlatformAdminRequest,
+  Holiday,
   PlatformAdminSummary,
   PlatformAdminUser,
   PlatformLoginOutcome,
@@ -18,6 +20,7 @@ import {
   PlatformTwoFactorVerifySetupResponse,
   TenantDetail,
   TenantSummary,
+  UpdateHolidayRequest,
   UpdatePermissionGroupRequest,
   UpdatePermissionLabelRequest,
   UpdatePlanRequest,
@@ -275,6 +278,35 @@ export class PlatformAdminService {
     return this.http.patch<{ group: AdminPermissionGroup }>(`${this.apiUrl}/permission-groups/${code}`, dto).pipe(
       map((response) => response.group),
       catchError((error) => throwError(() => new Error(error.message || 'No se pudo actualizar el grupo')))
+    );
+  }
+
+  // F41 §CAL-04 (ola 3): festivos globales de plataforma, mismo patrón que
+  // el bloque de planes de arriba.
+  listHolidays(): Observable<Holiday[]> {
+    return this.http.get<{ holidays: Holiday[] }>(`${this.apiUrl}/holidays`).pipe(
+      map((response) => response.holidays),
+      catchError((error) => throwError(() => new Error(error.message || 'Error al cargar los festivos')))
+    );
+  }
+
+  createHoliday(dto: CreateHolidayRequest): Observable<Holiday> {
+    return this.http.post<{ holiday: Holiday }>(`${this.apiUrl}/holidays`, dto).pipe(
+      map((response) => response.holiday),
+      catchError((error) => throwError(() => new Error(error.message || 'No se pudo crear el festivo')))
+    );
+  }
+
+  updateHoliday(id: string, dto: UpdateHolidayRequest): Observable<Holiday> {
+    return this.http.patch<{ holiday: Holiday }>(`${this.apiUrl}/holidays/${id}`, dto).pipe(
+      map((response) => response.holiday),
+      catchError((error) => throwError(() => new Error(error.message || 'No se pudo actualizar el festivo')))
+    );
+  }
+
+  deleteHoliday(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.apiUrl}/holidays/${id}`).pipe(
+      catchError((error) => throwError(() => new Error(error.message || 'No se pudo eliminar el festivo')))
     );
   }
 }

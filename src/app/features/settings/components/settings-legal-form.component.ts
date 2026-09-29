@@ -106,6 +106,25 @@ import { FormGroup, ReactiveFormsModule } from '@angular/forms';
           />
         </label>
 
+        <label class="block text-sm text-muted sm:w-48">
+          Prefijo de código de proceso
+          <input
+            formControlName="processCodePrefix"
+            type="text"
+            maxlength="3"
+            placeholder="Ej. RGJ"
+            class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm uppercase text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30 disabled:cursor-not-allowed disabled:bg-surface-muted disabled:text-subtle"
+          />
+          <p class="mt-1 text-xs text-subtle">
+            3 caracteres alfanuméricos usados en el código interno de cada proceso (p. ej. "RGJ-000001").
+            @if (processCodeCounter() > 0) {
+              No editable: esta empresa ya tiene procesos con código asignado — cambiarlo no afecta los ya emitidos.
+            } @else {
+              Si no lo defines, se deriva automáticamente de la razón social.
+            }
+          </p>
+        </label>
+
         @if (errorMessage()) {
           <div class="rounded-md border border-danger bg-danger-tint px-4 py-3 text-sm text-danger">
             {{ errorMessage() }}
@@ -126,6 +145,8 @@ import { FormGroup, ReactiveFormsModule } from '@angular/forms';
 export class SettingsLegalFormComponent {
   form = input.required<FormGroup>();
   taxId = input('');
+  /** F40 §PRO-06: >0 deshabilita el prefijo (el control real ya viene deshabilitado desde el formulario del contenedor, ver BUG-14; esto solo controla el texto de ayuda). */
+  processCodeCounter = input(0);
   isSubmitting = input(false);
   errorMessage = input<string | null>(null);
 
