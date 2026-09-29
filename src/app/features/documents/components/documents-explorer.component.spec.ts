@@ -60,6 +60,7 @@ describe('DocumentsExplorerComponent (F37 §DOC-01, ola 2)', () => {
     getDocumentTreeDocuments: jest.Mock;
     getDocumentTreeUnclassified: jest.Mock;
     classifyDocumentType: jest.Mock;
+    getAuditHistory: jest.Mock;
     previewFile: jest.Mock;
     downloadFile: jest.Mock;
     deleteFile: jest.Mock;
@@ -81,6 +82,9 @@ describe('DocumentsExplorerComponent (F37 §DOC-01, ola 2)', () => {
         .fn()
         .mockReturnValue(of({ data: [], total: 0, page: 1, limit: 20 })),
       classifyDocumentType: jest.fn(),
+      getAuditHistory: jest
+        .fn()
+        .mockReturnValue(of({ data: [], total: 0, page: 1, limit: 20 })),
       previewFile: jest.fn(),
       downloadFile: jest.fn().mockReturnValue(of(undefined)),
       deleteFile: jest.fn(),
@@ -382,6 +386,60 @@ describe('DocumentsExplorerComponent (F37 §DOC-01, ola 2)', () => {
       component.saveClassification(buildFile());
 
       expect(toastMock.error).toHaveBeenCalledWith('Tipo de documento inválido');
+    });
+  });
+
+  describe('F37 §DOC-06 (ola 4) — historial de auditoría de un documento', () => {
+    it('openAuditHistory pide el historial y lo deja disponible en los signals', () => {
+      configure();
+      const entries = [
+        {
+          id: 'log-1',
+          action: 'download',
+          userEmail: 'a@b.com',
+          source: 'internal' as const,
+          createdAt: new Date('2026-09-29'),
+        },
+      ];
+      filesServiceMock.getAuditHistory.mockReturnValue(
+        of({ data: entries, total: 1, page: 1, limit: 20 }),
+      );
+      const { component } = createComponent();
+      const file = buildFile();
+
+      component.openAuditHistory(file);
+
+      expect(filesServiceMock.getAuditHistory).toHaveBeenCalledWith(file.id);
+      expect(component.auditHistoryFile()).toEqual(file);
+      expect(component.auditHistoryEntries()).toEqual(entries);
+      expect(component.auditHistoryLoading()).toBe(false);
+    });
+
+    it('openAuditHistory en error limpia el loading y notifica vía ToastService', () => {
+      configure();
+      filesServiceMock.getAuditHistory.mockReturnValue(
+        throwError(() => ({ message: 'No se pudo obtener el historial' })),
+      );
+      const { component } = createComponent();
+
+      component.openAuditHistory(buildFile());
+
+      expect(component.auditHistoryLoading()).toBe(false);
+      expect(toastMock.error).toHaveBeenCalledWith('No se pudo obtener el historial');
+    });
+
+    it('closeAuditHistory limpia el archivo y las entradas', () => {
+      configure();
+      filesServiceMock.getAuditHistory.mockReturnValue(
+        of({ data: [], total: 0, page: 1, limit: 20 }),
+      );
+      const { component } = createComponent();
+      component.openAuditHistory(buildFile());
+
+      component.closeAuditHistory();
+
+      expect(component.auditHistoryFile()).toBeNull();
+      expect(component.auditHistoryEntries()).toEqual([]);
     });
   });
 });

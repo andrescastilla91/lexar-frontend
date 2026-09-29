@@ -15,6 +15,7 @@ import {
   DocumentTreeClientNode,
   DocumentTreeGroupNode,
   DocumentTreeTypeNode,
+  FileAuditLogEntry,
 } from '../models/file.model';
 
 @Injectable({
@@ -162,6 +163,31 @@ export class FilesService {
   }
 
   /**
+   * F37 §DOC-06 (ola 4) — historial de auditoría de un documento (quién lo
+   * consultó/descargó/eliminó y cuándo), para su ficha.
+   */
+  getAuditHistory(
+    id: string,
+    page = 1,
+    limit = 20,
+  ): Observable<{
+    data: FileAuditLogEntry[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    const params = new HttpParams()
+      .set('page', page.toString())
+      .set('limit', limit.toString());
+    return this.http.get<{
+      data: FileAuditLogEntry[];
+      total: number;
+      page: number;
+      limit: number;
+    }>(`${this.apiUrl}/${id}/audit-log`, { params });
+  }
+
+  /**
    * Obtiene un archivo por ID
    */
   getFile(id: string): Observable<FileModel> {
@@ -169,10 +195,19 @@ export class FilesService {
   }
 
   /**
-   * Genera URL firmada para descargar un archivo
+   * Genera URL firmada para descargar un archivo. `forceDownload` pide al
+   * backend que la URL fuerce la descarga real (Content-Disposition:
+   * attachment del lado de S3) en vez de mostrar el archivo inline — ver
+   * `downloadFile()`/`previewFile()` abajo, que son los dos únicos
+   * llamadores y difieren solo en este flag.
    */
-  getDownloadUrl(id: string): Observable<DownloadUrlResponse> {
-    return this.http.get<DownloadUrlResponse>(`${this.apiUrl}/${id}/download`);
+  getDownloadUrl(id: string, forceDownload = false): Observable<DownloadUrlResponse> {
+    const params = forceDownload
+      ? new HttpParams().set('disposition', 'attachment')
+      : undefined;
+    return this.http.get<DownloadUrlResponse>(`${this.apiUrl}/${id}/download`, {
+      ...(params ? { params } : {}),
+    });
   }
 
   /**
@@ -288,23 +323,29 @@ export class FilesService {
   }
 
   /**
-   * Descarga un archivo abriendo la URL firmada
+   * Descarga un archivo. Fix de UX (2026-09-29): antes abría el archivo en
+   * otra pestaña en vez de descargarlo — el atributo `download` del `<a>`
+   * se ignora en navegadores modernos para URLs cross-origin (S3/R2), así
+   * que el objeto se mostraba inline por su Content-Type real, y con
+   * `target="_blank"` eso significaba una pestaña nueva (mala experiencia,
+   * sobre todo en móvil). Ahora pide la URL con `forceDownload: true`
+   * (`disposition=attachment` — ver FilesController/S3Service): la
+   * respuesta de S3 ya trae `Content-Disposition: attachment`, así que el
+   * navegador descarga directo, sin navegar fuera de la app ni abrir
+   * pestaña — sin `target`, ni truco de fetch+blob (que habría exigido CORS
+   * en el bucket, no garantizado en MinIO/Railway storage/R2).
    */
   downloadFile(id: string): Observable<void> {
-    return this.getDownloadUrl(id).pipe(
+    return this.getDownloadUrl(id, true).pipe(
       map((response) => {
-        // Crear un enlace temporal y hacer click
         const link = document.createElement('a');
         link.href = response.url;
         link.download = response.filename;
-        link.target = '_blank';
         link.style.display = 'none';
-        
-        // Agregar al DOM, hacer click y remover
+
         document.body.appendChild(link);
         link.click();
-        
-        // Remover después de un pequeño delay
+
         setTimeout(() => {
           link.remove();
         }, 100);

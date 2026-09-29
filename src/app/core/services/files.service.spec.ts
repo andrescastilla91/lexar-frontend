@@ -121,10 +121,23 @@ describe('FilesService', () => {
     expect(result).toEqual(file);
   });
 
-  it('getDownloadUrl hace GET a /files/:id/download', () => {
+  it('getDownloadUrl hace GET a /files/:id/download sin query params por defecto', () => {
     service.getDownloadUrl('file-1').subscribe();
 
     const req = httpMock.expectOne(`${apiUrl}/file-1/download`);
+    expect(req.request.method).toBe('GET');
+    expect(req.request.params.keys().length).toBe(0);
+    req.flush({ url: 'https://s3/download', filename: 'a.pdf', contentType: 'application/pdf', expiresIn: 300 });
+  });
+
+  it('getDownloadUrl(id, true) agrega el query param disposition=attachment (fix UX descarga, 2026-09-29)', () => {
+    service.getDownloadUrl('file-1', true).subscribe();
+
+    const req = httpMock.expectOne(
+      (request) =>
+        request.url === `${apiUrl}/file-1/download` &&
+        request.params.get('disposition') === 'attachment',
+    );
     expect(req.request.method).toBe('GET');
     req.flush({ url: 'https://s3/download', filename: 'a.pdf', contentType: 'application/pdf', expiresIn: 300 });
   });
@@ -154,16 +167,18 @@ describe('FilesService', () => {
     expect(result).toEqual({ id: 'file-1', visibleToClient: true });
   });
 
-  it('previewFile resuelve la url firmada de descarga', () => {
+  it('previewFile resuelve la url firmada de descarga sin forzar disposition=attachment', () => {
     let result: string | undefined;
     service.previewFile('file-1').subscribe((r) => (result = r));
 
-    httpMock.expectOne(`${apiUrl}/file-1/download`).flush({ url: 'https://s3/preview', filename: 'a.pdf', contentType: 'application/pdf', expiresIn: 300 });
+    const req = httpMock.expectOne(`${apiUrl}/file-1/download`);
+    expect(req.request.params.has('disposition')).toBe(false);
+    req.flush({ url: 'https://s3/preview', filename: 'a.pdf', contentType: 'application/pdf', expiresIn: 300 });
 
     expect(result).toBe('https://s3/preview');
   });
 
-  it('downloadFile crea un link temporal, simula el click y lo agrega/remueve del DOM', () => {
+  it('downloadFile pide disposition=attachment, crea un link temporal sin target, simula el click y lo agrega/remueve del DOM (fix UX descarga, 2026-09-29)', () => {
     jest.useFakeTimers();
     const clickSpy = jest.fn();
     jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(clickSpy);
@@ -172,13 +187,24 @@ describe('FilesService', () => {
     let completed = false;
     service.downloadFile('file-1').subscribe(() => (completed = true));
 
-    httpMock
-      .expectOne(`${apiUrl}/file-1/download`)
-      .flush({ url: 'https://s3/download', filename: 'a.pdf', contentType: 'application/pdf', expiresIn: 300 });
+    const req = httpMock.expectOne(
+      (request) =>
+        request.url === `${apiUrl}/file-1/download` &&
+        request.params.get('disposition') === 'attachment',
+    );
+    req.flush({ url: 'https://s3/download', filename: 'a.pdf', contentType: 'application/pdf', expiresIn: 300 });
 
     expect(completed).toBe(true);
     expect(appendSpy).toHaveBeenCalled();
     expect(clickSpy).toHaveBeenCalled();
+
+    const createdLink = appendSpy.mock.calls[0][0] as HTMLAnchorElement;
+    expect(createdLink.href).toBe('https://s3/download');
+    expect(createdLink.download).toBe('a.pdf');
+    // antes del fix, `target="_blank"` combinado con el atributo `download`
+    // ignorado en URLs cross-origin era la causa de que se abriera una
+    // pestaña nueva en vez de descargar — nunca debe volver a fijarse.
+    expect(createdLink.target).toBe('');
 
     jest.advanceTimersByTime(100);
     jest.useRealTimers();
@@ -389,6 +415,48 @@ describe('FilesService', () => {
       req.flush(file);
 
       expect(result).toEqual(file);
+    });
+  });
+
+  describe('F37 §DOC-06 (ola 4) — historial de auditoría de un documento', () => {
+    it('getAuditHistory hace GET a /files/:id/audit-log con página/límite', () => {
+      let result: unknown;
+      service.getAuditHistory('f1', 2, 10).subscribe((r) => (result = r));
+
+      const req = httpMock.expectOne(
+        (r) => r.url === `${apiUrl}/f1/audit-log`,
+      );
+      expect(req.request.method).toBe('GET');
+      expect(req.request.params.get('page')).toBe('2');
+      expect(req.request.params.get('limit')).toBe('10');
+      const response = {
+        data: [
+          {
+            id: 'log-1',
+            action: 'download',
+            userEmail: 'a@b.com',
+            source: 'internal',
+            createdAt: new Date('2026-09-29'),
+          },
+        ],
+        total: 1,
+        page: 2,
+        limit: 10,
+      };
+      req.flush(response);
+
+      expect(result).toEqual(response);
+    });
+
+    it('getAuditHistory usa page=1/limit=20 por default', () => {
+      service.getAuditHistory('f1').subscribe();
+
+      const req = httpMock.expectOne(
+        (r) => r.url === `${apiUrl}/f1/audit-log`,
+      );
+      expect(req.request.params.get('page')).toBe('1');
+      expect(req.request.params.get('limit')).toBe('20');
+      req.flush({ data: [], total: 0, page: 1, limit: 20 });
     });
   });
 });

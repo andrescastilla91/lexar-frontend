@@ -52,6 +52,8 @@ describe('DocumentsComponent', () => {
     // F37 §DOC-02 (ola 3): la bandeja "Sin clasificar" del explorador.
     getDocumentTreeUnclassified: jest.Mock;
     classifyDocumentType: jest.Mock;
+    // F37 §DOC-06 (ola 4): historial de auditoría por documento.
+    getAuditHistory: jest.Mock;
   };
   let processesServiceMock: { getLegalProcesses: jest.Mock };
   let clientsServiceMock: { getClients: jest.Mock };
@@ -79,6 +81,9 @@ describe('DocumentsComponent', () => {
         .fn()
         .mockReturnValue(of({ data: [], total: 0, page: 1, limit: 20 })),
       classifyDocumentType: jest.fn(),
+      getAuditHistory: jest
+        .fn()
+        .mockReturnValue(of({ data: [], total: 0, page: 1, limit: 20 })),
     };
     processesServiceMock = {
       getLegalProcesses: jest.fn().mockReturnValue(
@@ -244,6 +249,9 @@ describe('DocumentsComponent', () => {
         .fn()
         .mockReturnValue(of({ data: [], total: 0, page: 1, limit: 20 })),
       classifyDocumentType: jest.fn(),
+      getAuditHistory: jest
+        .fn()
+        .mockReturnValue(of({ data: [], total: 0, page: 1, limit: 20 })),
     };
     processesServiceMock = { getLegalProcesses: jest.fn().mockReturnValue(of({ message: '', legalProcesses: [], total: 0, page: 1, limit: 100 })) };
     clientsServiceMock = { getClients: jest.fn().mockReturnValue(of({ message: '', clients: [], total: 0, page: 1, limit: 100 })) };

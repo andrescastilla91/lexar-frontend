@@ -5,11 +5,13 @@ import { CatalogsService } from '../../../core/services/catalogs.service';
 import { ConfirmDialogService } from '../../../core/services/confirm-dialog.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { FilePreviewModalComponent } from '../../../core/components/file-preview-modal.component';
+import { FileAuditHistoryModalComponent } from '../../../core/components/file-audit-history-modal.component';
 import {
   DocumentTreeClientNode,
   DocumentTreeGroupNode,
   DocumentTreeTypeNode,
   FileModel,
+  FileAuditLogEntry,
 } from '../../../core/models/file.model';
 
 type ExplorerLevel = 0 | 1 | 2 | 3 | 4;
@@ -53,7 +55,7 @@ const FOLDER_ICON_PATH =
 @Component({
   selector: 'app-documents-explorer',
   standalone: true,
-  imports: [FilePreviewModalComponent],
+  imports: [FilePreviewModalComponent, FileAuditHistoryModalComponent],
   template: `
     <div class="space-y-4">
       <!-- Migas de pan -->
@@ -205,6 +207,11 @@ const FOLDER_ICON_PATH =
                       </svg>
                     </button>
                   }
+                  <button type="button" (click)="openAuditHistory(file)" class="rounded-lg p-1.5 text-subtle transition hover:bg-surface-muted hover:text-text" title="Historial de auditoría">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                    </svg>
+                  </button>
                   <button type="button" (click)="downloadFile(file)" class="rounded-lg p-1.5 text-success transition hover:bg-success-tint" title="Descargar">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
@@ -240,6 +247,11 @@ const FOLDER_ICON_PATH =
                   </div>
                 </div>
                 <div class="flex shrink-0 items-center gap-2">
+                  <button type="button" (click)="openAuditHistory(file)" class="rounded-lg p-1.5 text-subtle transition hover:bg-surface-muted hover:text-text" title="Historial de auditoría">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                    </svg>
+                  </button>
                   <select
                     class="rounded-md border border-default bg-surface px-2 py-1.5 text-sm text-text"
                     [value]="pendingDocumentTypeId()[file.id] ?? ''"
@@ -271,6 +283,13 @@ const FOLDER_ICON_PATH =
       [url]="previewUrl()"
       (close)="closePreview()"
       (download)="downloadFile(previewingFile()!)"
+    />
+
+    <app-file-audit-history-modal
+      [file]="auditHistoryFile()"
+      [entries]="auditHistoryEntries()"
+      [loading]="auditHistoryLoading()"
+      (close)="closeAuditHistory()"
     />
   `,
 })
@@ -304,6 +323,11 @@ export class DocumentsExplorerComponent implements OnInit {
 
   readonly previewUrl = signal<SafeResourceUrl | null>(null);
   readonly previewingFile = signal<FileModel | null>(null);
+
+  // F37 §DOC-06 (ola 4) — historial de auditoría de un documento (ficha).
+  readonly auditHistoryFile = signal<FileModel | null>(null);
+  readonly auditHistoryEntries = signal<FileAuditLogEntry[]>([]);
+  readonly auditHistoryLoading = signal(false);
 
   readonly breadcrumbs = computed<Breadcrumb[]>(() => {
     const crumbs: Breadcrumb[] = [{ label: 'Clientes', level: 0 }];
@@ -531,6 +555,27 @@ export class DocumentsExplorerComponent implements OnInit {
   closePreview(): void {
     this.previewUrl.set(null);
     this.previewingFile.set(null);
+  }
+
+  openAuditHistory(file: FileModel): void {
+    this.auditHistoryFile.set(file);
+    this.auditHistoryLoading.set(true);
+    this.auditHistoryEntries.set([]);
+    this.filesService.getAuditHistory(file.id).subscribe({
+      next: (res) => {
+        this.auditHistoryEntries.set(res.data);
+        this.auditHistoryLoading.set(false);
+      },
+      error: (err) => {
+        this.auditHistoryLoading.set(false);
+        this.toast.error(err.message || 'Error al obtener el historial del documento');
+      },
+    });
+  }
+
+  closeAuditHistory(): void {
+    this.auditHistoryFile.set(null);
+    this.auditHistoryEntries.set([]);
   }
 
   downloadFile(file: FileModel): void {

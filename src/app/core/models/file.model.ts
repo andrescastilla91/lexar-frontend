@@ -159,3 +159,16 @@ export interface DocumentTreeTypeNode {
   color: string | null;
   documentCount: number;
 }
+
+/**
+ * F37 §DOC-06 (ola 4) — una entrada del historial de auditoría de un
+ * documento, tal como la ve la ficha del documento. 'source' distingue si
+ * la acción la hizo un usuario interno o un cliente vía portal.
+ */
+export interface FileAuditLogEntry {
+  id: string;
+  action: string;
+  userEmail: string | null;
+  source: 'internal' | 'portal';
+  createdAt: Date;
+}
