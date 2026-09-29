@@ -49,6 +49,9 @@ describe('DocumentsComponent', () => {
     getDocumentTreeClientNodes: jest.Mock;
     getDocumentTreeTypes: jest.Mock;
     getDocumentTreeDocuments: jest.Mock;
+    // F37 §DOC-02 (ola 3): la bandeja "Sin clasificar" del explorador.
+    getDocumentTreeUnclassified: jest.Mock;
+    classifyDocumentType: jest.Mock;
   };
   let processesServiceMock: { getLegalProcesses: jest.Mock };
   let clientsServiceMock: { getClients: jest.Mock };
@@ -72,6 +75,10 @@ describe('DocumentsComponent', () => {
       getDocumentTreeDocuments: jest
         .fn()
         .mockReturnValue(of({ data: [], total: 0, page: 1, limit: 50 })),
+      getDocumentTreeUnclassified: jest
+        .fn()
+        .mockReturnValue(of({ data: [], total: 0, page: 1, limit: 20 })),
+      classifyDocumentType: jest.fn(),
     };
     processesServiceMock = {
       getLegalProcesses: jest.fn().mockReturnValue(
@@ -233,6 +240,10 @@ describe('DocumentsComponent', () => {
       getDocumentTreeDocuments: jest
         .fn()
         .mockReturnValue(of({ data: [], total: 0, page: 1, limit: 50 })),
+      getDocumentTreeUnclassified: jest
+        .fn()
+        .mockReturnValue(of({ data: [], total: 0, page: 1, limit: 20 })),
+      classifyDocumentType: jest.fn(),
     };
     processesServiceMock = { getLegalProcesses: jest.fn().mockReturnValue(of({ message: '', legalProcesses: [], total: 0, page: 1, limit: 100 })) };
     clientsServiceMock = { getClients: jest.fn().mockReturnValue(of({ message: '', clients: [], total: 0, page: 1, limit: 100 })) };

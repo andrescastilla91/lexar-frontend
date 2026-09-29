@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { DocumentsExplorerComponent } from './documents-explorer.component';
 import { FilesService } from '../../../core/services/files.service';
+import { CatalogsService } from '../../../core/services/catalogs.service';
 import { ConfirmDialogService } from '../../../core/services/confirm-dialog.service';
 import { ToastService } from '../../../core/services/toast.service';
 import {
@@ -57,13 +58,16 @@ describe('DocumentsExplorerComponent (F37 §DOC-01, ola 2)', () => {
     getDocumentTreeClientNodes: jest.Mock;
     getDocumentTreeTypes: jest.Mock;
     getDocumentTreeDocuments: jest.Mock;
+    getDocumentTreeUnclassified: jest.Mock;
+    classifyDocumentType: jest.Mock;
     previewFile: jest.Mock;
     downloadFile: jest.Mock;
     deleteFile: jest.Mock;
     getFileIcon: jest.Mock;
   };
+  let catalogsServiceMock: { getActiveCatalog: jest.Mock };
   let confirmDialogMock: { confirm: jest.Mock };
-  let toastMock: { error: jest.Mock };
+  let toastMock: { error: jest.Mock; success: jest.Mock };
 
   function configure(): void {
     filesServiceMock = {
@@ -73,18 +77,26 @@ describe('DocumentsExplorerComponent (F37 §DOC-01, ola 2)', () => {
       getDocumentTreeDocuments: jest
         .fn()
         .mockReturnValue(of({ data: [buildFile()], total: 1, page: 1, limit: 50 })),
+      getDocumentTreeUnclassified: jest
+        .fn()
+        .mockReturnValue(of({ data: [], total: 0, page: 1, limit: 20 })),
+      classifyDocumentType: jest.fn(),
       previewFile: jest.fn(),
       downloadFile: jest.fn().mockReturnValue(of(undefined)),
       deleteFile: jest.fn(),
       getFileIcon: jest.fn().mockReturnValue('M0 0'),
     };
+    catalogsServiceMock = {
+      getActiveCatalog: jest.fn().mockReturnValue(of([{ id: 'doctype-1', label: 'Contrato' }])),
+    };
     confirmDialogMock = { confirm: jest.fn().mockResolvedValue(true) };
-    toastMock = { error: jest.fn() };
+    toastMock = { error: jest.fn(), success: jest.fn() };
 
     TestBed.configureTestingModule({
       imports: [DocumentsExplorerComponent],
       providers: [
         { provide: FilesService, useValue: filesServiceMock },
+        { provide: CatalogsService, useValue: catalogsServiceMock },
         { provide: ConfirmDialogService, useValue: confirmDialogMock },
         { provide: ToastService, useValue: toastMock },
       ],
@@ -294,5 +306,82 @@ describe('DocumentsExplorerComponent (F37 §DOC-01, ola 2)', () => {
     expect(component.nodeKindLabel({ kind: 'general', id: null, label: 'x', documentCount: 1 })).toBe(
       'General',
     );
+  });
+
+  describe('F37 §DOC-02 (ola 3) — bandeja "Sin clasificar"', () => {
+    it('al iniciar, pide el total de la bandeja y el catálogo de tipos documentales', () => {
+      configure();
+      filesServiceMock.getDocumentTreeUnclassified = jest
+        .fn()
+        .mockReturnValue(of({ data: [], total: 2, page: 1, limit: 1 }));
+      const { component } = createComponent();
+
+      expect(filesServiceMock.getDocumentTreeUnclassified).toHaveBeenCalledWith(1, 1);
+      expect(catalogsServiceMock.getActiveCatalog).toHaveBeenCalledWith('case_document_type');
+      expect(component.unclassifiedTotal()).toBe(2);
+      expect(component.documentTypeOptions()).toEqual([{ id: 'doctype-1', label: 'Contrato' }]);
+    });
+
+    it('openUnclassifiedTray navega al nivel 4 con la lista completa', () => {
+      configure();
+      const unclassifiedFile = buildFile({ id: 'file-unclassified' });
+      filesServiceMock.getDocumentTreeUnclassified.mockReturnValue(
+        of({ data: [unclassifiedFile], total: 1, page: 1, limit: 100 }),
+      );
+      const { component } = createComponent();
+
+      component.openUnclassifiedTray();
+
+      expect(component.level()).toBe(4);
+      expect(component.unclassifiedDocuments()).toEqual([unclassifiedFile]);
+      expect(component.breadcrumbs()).toEqual([
+        { label: 'Clientes', level: 0 },
+        { label: 'Sin clasificar', level: 4 },
+      ]);
+    });
+
+    it('saveClassification no llama al servicio si no hay tipo documental seleccionado', () => {
+      configure();
+      const { component } = createComponent();
+
+      component.saveClassification(buildFile());
+
+      expect(filesServiceMock.classifyDocumentType).not.toHaveBeenCalled();
+    });
+
+    it('saveClassification clasifica, quita el archivo de la bandeja y decrementa el total', () => {
+      configure();
+      filesServiceMock.classifyDocumentType.mockReturnValue(of(buildFile({ documentTypeId: 'doctype-1' })));
+      const unclassifiedFile = buildFile({ id: 'file-unclassified' });
+      filesServiceMock.getDocumentTreeUnclassified.mockReturnValue(
+        of({ data: [unclassifiedFile], total: 1, page: 1, limit: 100 }),
+      );
+      const { component } = createComponent();
+      component.openUnclassifiedTray();
+      component.onDocumentTypeSelected('file-unclassified', 'doctype-1');
+
+      component.saveClassification(unclassifiedFile);
+
+      expect(filesServiceMock.classifyDocumentType).toHaveBeenCalledWith(
+        'file-unclassified',
+        'doctype-1',
+      );
+      expect(component.unclassifiedDocuments()).toEqual([]);
+      expect(component.unclassifiedTotal()).toBe(0);
+      expect(toastMock.success).toHaveBeenCalled();
+    });
+
+    it('saveClassification en error muestra el mensaje real vía ToastService', () => {
+      configure();
+      filesServiceMock.classifyDocumentType.mockReturnValue(
+        throwError(() => ({ message: 'Tipo de documento inválido' })),
+      );
+      const { component } = createComponent();
+      component.onDocumentTypeSelected('file-1', 'doctype-1');
+
+      component.saveClassification(buildFile());
+
+      expect(toastMock.error).toHaveBeenCalledWith('Tipo de documento inválido');
+    });
   });
 });

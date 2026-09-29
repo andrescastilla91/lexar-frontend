@@ -141,6 +141,27 @@ export class FilesService {
   }
 
   /**
+   * F37 §DOC-02 (ola 3) — bandeja "Sin clasificar": archivos que son
+   * documentos del expediente pero les falta tipo documental.
+   */
+  getDocumentTreeUnclassified(page = 1, limit = 20): Observable<ListFilesResponse> {
+    const params = new HttpParams()
+      .set('page', page.toString())
+      .set('limit', limit.toString());
+    return this.http.get<ListFilesResponse>(`${this.apiUrl}/tree/unclassified`, { params });
+  }
+
+  /**
+   * F37 §DOC-02 (ola 3) — completa el tipo documental de un archivo "sin
+   * clasificar".
+   */
+  classifyDocumentType(id: string, documentTypeId: string): Observable<FileModel> {
+    return this.http.patch<FileModel>(`${this.apiUrl}/${id}/document-type`, {
+      documentTypeId,
+    });
+  }
+
+  /**
    * Obtiene un archivo por ID
    */
   getFile(id: string): Observable<FileModel> {

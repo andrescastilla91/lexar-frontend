@@ -1,6 +1,7 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { FilesService } from '../../../core/services/files.service';
+import { CatalogsService } from '../../../core/services/catalogs.service';
 import { ConfirmDialogService } from '../../../core/services/confirm-dialog.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { FilePreviewModalComponent } from '../../../core/components/file-preview-modal.component';
@@ -11,9 +12,11 @@ import {
   FileModel,
 } from '../../../core/models/file.model';
 
+type ExplorerLevel = 0 | 1 | 2 | 3 | 4;
+
 interface Breadcrumb {
   label: string;
-  level: 0 | 1 | 2 | 3;
+  level: ExplorerLevel;
 }
 
 const NODE_KIND_LABEL: Record<DocumentTreeGroupNode['kind'], string> = {
@@ -22,12 +25,25 @@ const NODE_KIND_LABEL: Record<DocumentTreeGroupNode['kind'], string> = {
   general: 'General',
 };
 
+// Heroicons v2 outline "folder" — usado para los 3 niveles de navegación
+// (cliente, asunto/proceso, tipo documental); el nivel de documentos usa el
+// ícono por tipo de archivo (ver FilesService.getFileIcon), no este.
+const FOLDER_ICON_PATH =
+  'M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-19.5 0v6a2.25 2.25 0 0 0 2.25 2.25h15a2.25 2.25 0 0 0 2.25-2.25v-6m-19.5 0V6.75A2.25 2.25 0 0 1 4.5 4.5h4.879a1.5 1.5 0 0 1 1.06.44l1.122 1.12a1.5 1.5 0 0 0 1.06.44H19.5a2.25 2.25 0 0 1 2.25 2.25v3.75';
+
 /**
  * F37 §DOC-01 (ola 2) — explorador de documentos: navegación por niveles
  * Cliente → Asunto/Proceso → tipo documental → documentos, con migas de
  * pan. Es una jerarquía DE NAVEGACIÓN (F37.md §2): cada nivel es una
  * consulta al árbol (`DocumentsTreeService` en el backend), no hay
- * carpetas reales.
+ * carpetas reales. Los 3 primeros niveles se muestran como cards con
+ * ícono de carpeta; el nivel de documentos sigue siendo una lista de
+ * archivos (no son "carpetas").
+ *
+ * F37 §DOC-02 (ola 3) — agrega la bandeja "Sin clasificar": un card
+ * especial en el nivel 0 (solo visible si hay archivos pendientes) que
+ * navega a una lista plana con acción inline para completar el tipo
+ * documental de cada archivo (`FilesService.classifyDocumentType`).
  *
  * Componente autocontenido (mismo patrón que `EntityFilesComponent`): trae
  * sus propios datos, maneja su propio modal de vista previa y sus propias
@@ -71,20 +87,40 @@ const NODE_KIND_LABEL: Record<DocumentTreeGroupNode['kind'], string> = {
           </svg>
         </div>
       } @else if (level() === 0) {
-        @if (clients().length === 0) {
+        @if (clients().length === 0 && unclassifiedTotal() === 0) {
           <p class="rounded-md border-2 border-dashed border-default bg-surface-muted py-8 text-center text-sm text-subtle">
             Sin documentos clasificados todavía. Los archivos cargados sin cliente, asunto o tipo asignado no aparecen aquí.
           </p>
         } @else {
-          <div class="space-y-2">
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            @if (unclassifiedTotal() > 0) {
+              <button
+                type="button"
+                (click)="openUnclassifiedTray()"
+                class="flex items-center gap-3 rounded-lg border border-warning bg-warning-tint px-4 py-3.5 text-left transition hover:shadow-card"
+              >
+                <svg class="h-9 w-9 flex-shrink-0 text-warning" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                </svg>
+                <span class="min-w-0">
+                  <span class="block truncate text-sm font-semibold text-text">Sin clasificar</span>
+                  <span class="block text-xs text-subtle">{{ unclassifiedTotal() }} documento{{ unclassifiedTotal() === 1 ? '' : 's' }} por completar</span>
+                </span>
+              </button>
+            }
             @for (client of clients(); track client.id) {
               <button
                 type="button"
                 (click)="selectClient(client)"
-                class="flex w-full items-center justify-between gap-3 rounded-md border border-default bg-surface px-4 py-3 text-left transition hover:border-strong hover:shadow-card"
+                class="flex items-center gap-3 rounded-lg border border-default bg-surface px-4 py-3.5 text-left transition hover:border-strong hover:shadow-card"
               >
-                <span class="truncate text-sm font-medium text-text">{{ client.label }}</span>
-                <span class="flex-shrink-0 rounded-full bg-surface-muted px-2.5 py-0.5 text-xs font-semibold text-subtle">{{ client.documentCount }}</span>
+                <svg class="h-9 w-9 flex-shrink-0 text-primary" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" [attr.d]="folderIconPath" />
+                </svg>
+                <span class="min-w-0">
+                  <span class="block truncate text-sm font-medium text-text">{{ client.label }}</span>
+                  <span class="block text-xs text-subtle">{{ client.documentCount }} documento{{ client.documentCount === 1 ? '' : 's' }}</span>
+                </span>
               </button>
             }
           </div>
@@ -95,20 +131,25 @@ const NODE_KIND_LABEL: Record<DocumentTreeGroupNode['kind'], string> = {
             Este cliente no tiene asuntos ni procesos con documentos clasificados.
           </p>
         } @else {
-          <div class="space-y-2">
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             @for (node of nodes(); track (node.id ?? 'general')) {
               <button
                 type="button"
                 (click)="selectNode(node)"
-                class="flex w-full items-center justify-between gap-3 rounded-md border border-default bg-surface px-4 py-3 text-left transition hover:border-strong hover:shadow-card"
+                class="flex items-center gap-3 rounded-lg border border-default bg-surface px-4 py-3.5 text-left transition hover:border-strong hover:shadow-card"
               >
-                <span class="flex min-w-0 items-center gap-2">
-                  <span class="rounded-full bg-primary-tint px-2 py-0.5 text-xs font-medium text-info">
-                    {{ nodeKindLabel(node) }}
+                <svg class="h-9 w-9 flex-shrink-0 text-primary" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" [attr.d]="folderIconPath" />
+                </svg>
+                <span class="min-w-0">
+                  <span class="flex min-w-0 items-center gap-2">
+                    <span class="rounded-full bg-primary-tint px-2 py-0.5 text-xs font-medium text-info">
+                      {{ nodeKindLabel(node) }}
+                    </span>
+                    <span class="truncate text-sm font-medium text-text">{{ node.label }}</span>
                   </span>
-                  <span class="truncate text-sm font-medium text-text">{{ node.label }}</span>
+                  <span class="block text-xs text-subtle">{{ node.documentCount }} documento{{ node.documentCount === 1 ? '' : 's' }}</span>
                 </span>
-                <span class="flex-shrink-0 rounded-full bg-surface-muted px-2.5 py-0.5 text-xs font-semibold text-subtle">{{ node.documentCount }}</span>
               </button>
             }
           </div>
@@ -119,20 +160,25 @@ const NODE_KIND_LABEL: Record<DocumentTreeGroupNode['kind'], string> = {
             Sin documentos en este nodo.
           </p>
         } @else {
-          <div class="space-y-2">
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             @for (type of types(); track type.documentTypeId) {
               <button
                 type="button"
                 (click)="selectType(type)"
-                class="flex w-full items-center justify-between gap-3 rounded-md border border-default bg-surface px-4 py-3 text-left transition hover:border-strong hover:shadow-card"
+                class="flex items-center gap-3 rounded-lg border border-default bg-surface px-4 py-3.5 text-left transition hover:border-strong hover:shadow-card"
               >
-                <span class="truncate text-sm font-medium text-text">{{ type.label }}</span>
-                <span class="flex-shrink-0 rounded-full bg-surface-muted px-2.5 py-0.5 text-xs font-semibold text-subtle">{{ type.documentCount }}</span>
+                <svg class="h-9 w-9 flex-shrink-0 text-primary" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" [attr.d]="folderIconPath" />
+                </svg>
+                <span class="min-w-0">
+                  <span class="block truncate text-sm font-medium text-text">{{ type.label }}</span>
+                  <span class="block text-xs text-subtle">{{ type.documentCount }} documento{{ type.documentCount === 1 ? '' : 's' }}</span>
+                </span>
               </button>
             }
           </div>
         }
-      } @else {
+      } @else if (level() === 3) {
         @if (documents().length === 0) {
           <p class="rounded-md border-2 border-dashed border-default bg-surface-muted py-8 text-center text-sm text-subtle">
             Sin documentos.
@@ -174,6 +220,49 @@ const NODE_KIND_LABEL: Record<DocumentTreeGroupNode['kind'], string> = {
             }
           </div>
         }
+      } @else {
+        <!-- Nivel 4: bandeja "Sin clasificar" (F37 §DOC-02, ola 3) -->
+        @if (unclassifiedDocuments().length === 0) {
+          <p class="rounded-md border-2 border-dashed border-default bg-surface-muted py-8 text-center text-sm text-subtle">
+            No hay documentos pendientes de clasificar.
+          </p>
+        } @else {
+          <div class="space-y-2">
+            @for (file of unclassifiedDocuments(); track file.id) {
+              <div class="flex flex-col gap-3 rounded-md border border-default bg-surface px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div class="flex min-w-0 items-center gap-3">
+                  <svg class="h-5 w-5 flex-shrink-0 text-subtle" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                    <path [attr.d]="filesService.getFileIcon(file.contentType)" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                  <div class="min-w-0">
+                    <p class="truncate text-sm font-medium text-text">{{ file.originalFilename }}</p>
+                    <p class="text-xs text-subtle">{{ file.formattedSize }} • {{ formatDate(file.createdAt) }}</p>
+                  </div>
+                </div>
+                <div class="flex shrink-0 items-center gap-2">
+                  <select
+                    class="rounded-md border border-default bg-surface px-2 py-1.5 text-sm text-text"
+                    [value]="pendingDocumentTypeId()[file.id] ?? ''"
+                    (change)="onDocumentTypeSelected(file.id, $any($event.target).value)"
+                  >
+                    <option value="" disabled>Tipo de documento…</option>
+                    @for (docType of documentTypeOptions(); track docType.id) {
+                      <option [value]="docType.id">{{ docType.label }}</option>
+                    }
+                  </select>
+                  <button
+                    type="button"
+                    (click)="saveClassification(file)"
+                    [disabled]="!pendingDocumentTypeId()[file.id] || savingFileId() === file.id"
+                    class="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-strong"
+                  >
+                    Guardar
+                  </button>
+                </div>
+              </div>
+            }
+          </div>
+        }
       }
     </div>
 
@@ -187,17 +276,27 @@ const NODE_KIND_LABEL: Record<DocumentTreeGroupNode['kind'], string> = {
 })
 export class DocumentsExplorerComponent implements OnInit {
   readonly filesService = inject(FilesService);
+  private readonly catalogsService = inject(CatalogsService);
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly sanitizer = inject(DomSanitizer);
   private readonly toast = inject(ToastService);
 
-  readonly level = signal<0 | 1 | 2 | 3>(0);
+  readonly folderIconPath = FOLDER_ICON_PATH;
+
+  readonly level = signal<ExplorerLevel>(0);
   readonly loading = signal(false);
 
   readonly clients = signal<DocumentTreeClientNode[]>([]);
   readonly nodes = signal<DocumentTreeGroupNode[]>([]);
   readonly types = signal<DocumentTreeTypeNode[]>([]);
   readonly documents = signal<FileModel[]>([]);
+
+  // F37 §DOC-02 (ola 3) — bandeja "Sin clasificar".
+  readonly unclassifiedTotal = signal(0);
+  readonly unclassifiedDocuments = signal<FileModel[]>([]);
+  readonly documentTypeOptions = signal<{ id: string; label: string }[]>([]);
+  readonly pendingDocumentTypeId = signal<Record<string, string>>({});
+  readonly savingFileId = signal<string | null>(null);
 
   readonly selectedClient = signal<DocumentTreeClientNode | null>(null);
   readonly selectedNode = signal<DocumentTreeGroupNode | null>(null);
@@ -208,6 +307,10 @@ export class DocumentsExplorerComponent implements OnInit {
 
   readonly breadcrumbs = computed<Breadcrumb[]>(() => {
     const crumbs: Breadcrumb[] = [{ label: 'Clientes', level: 0 }];
+    if (this.level() === 4) {
+      crumbs.push({ label: 'Sin clasificar', level: 4 });
+      return crumbs;
+    }
     const client = this.selectedClient();
     if (client) {
       crumbs.push({ label: client.label, level: 1 });
@@ -225,6 +328,12 @@ export class DocumentsExplorerComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadClients();
+    this.loadUnclassifiedTotal();
+    this.catalogsService.getActiveCatalog('case_document_type').subscribe({
+      next: (items) =>
+        this.documentTypeOptions.set(items.map((item) => ({ id: item.id, label: item.label }))),
+      error: (err) => console.error('Error loading document types:', err),
+    });
   }
 
   nodeKindLabel(node: DocumentTreeGroupNode): string {
@@ -242,6 +351,64 @@ export class DocumentsExplorerComponent implements OnInit {
       error: (err) => {
         console.error('Error loading document tree clients:', err);
         this.loading.set(false);
+      },
+    });
+  }
+
+  private loadUnclassifiedTotal(): void {
+    this.filesService.getDocumentTreeUnclassified(1, 1).subscribe({
+      next: (response) => this.unclassifiedTotal.set(response.total),
+      error: (err) => console.error('Error loading unclassified total:', err),
+    });
+  }
+
+  openUnclassifiedTray(): void {
+    this.selectedClient.set(null);
+    this.selectedNode.set(null);
+    this.selectedType.set(null);
+    this.loadUnclassified();
+  }
+
+  private loadUnclassified(): void {
+    this.loading.set(true);
+    this.filesService.getDocumentTreeUnclassified(1, 100).subscribe({
+      next: (response) => {
+        this.unclassifiedDocuments.set(response.data);
+        this.unclassifiedTotal.set(response.total);
+        this.level.set(4);
+        this.loading.set(false);
+      },
+      error: (err) => {
+        console.error('Error loading unclassified documents:', err);
+        this.loading.set(false);
+      },
+    });
+  }
+
+  onDocumentTypeSelected(fileId: string, documentTypeId: string): void {
+    this.pendingDocumentTypeId.update((current) => ({ ...current, [fileId]: documentTypeId }));
+  }
+
+  saveClassification(file: FileModel): void {
+    const documentTypeId = this.pendingDocumentTypeId()[file.id];
+    if (!documentTypeId) {
+      return;
+    }
+    this.savingFileId.set(file.id);
+    this.filesService.classifyDocumentType(file.id, documentTypeId).subscribe({
+      next: () => {
+        this.unclassifiedDocuments.update((files) => files.filter((f) => f.id !== file.id));
+        this.unclassifiedTotal.update((total) => Math.max(0, total - 1));
+        this.pendingDocumentTypeId.update((current) => {
+          const { [file.id]: _removed, ...rest } = current;
+          return rest;
+        });
+        this.savingFileId.set(null);
+        this.toast.success('Documento clasificado');
+      },
+      error: (err) => {
+        this.savingFileId.set(null);
+        this.toast.error(err.message || 'Error al clasificar el documento');
       },
     });
   }
@@ -328,7 +495,7 @@ export class DocumentsExplorerComponent implements OnInit {
       });
   }
 
-  goToLevel(target: 0 | 1 | 2 | 3): void {
+  goToLevel(target: ExplorerLevel): void {
     if (target === this.level()) {
       return;
     }
@@ -337,6 +504,7 @@ export class DocumentsExplorerComponent implements OnInit {
       this.selectedNode.set(null);
       this.selectedType.set(null);
       this.loadClients();
+      this.loadUnclassifiedTotal();
     } else if (target === 1) {
       this.selectedNode.set(null);
       this.selectedType.set(null);

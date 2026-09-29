@@ -361,4 +361,34 @@ describe('FilesService', () => {
       expect(result).toEqual(response);
     });
   });
+
+  describe('F37 §DOC-02 (ola 3) — bandeja "Sin clasificar"', () => {
+    it('getDocumentTreeUnclassified hace GET a /files/tree/unclassified con página/límite', () => {
+      let result: unknown;
+      service.getDocumentTreeUnclassified(2, 10).subscribe((r) => (result = r));
+
+      const req = httpMock.expectOne(
+        (r) => r.url === `${apiUrl}/tree/unclassified`,
+      );
+      expect(req.request.method).toBe('GET');
+      expect(req.request.params.get('page')).toBe('2');
+      expect(req.request.params.get('limit')).toBe('10');
+      const response = { data: [file], total: 1, page: 2, limit: 10 };
+      req.flush(response);
+
+      expect(result).toEqual(response);
+    });
+
+    it('classifyDocumentType hace PATCH a /files/:id/document-type', () => {
+      let result: unknown;
+      service.classifyDocumentType('f1', 'dt1').subscribe((r) => (result = r));
+
+      const req = httpMock.expectOne(`${apiUrl}/f1/document-type`);
+      expect(req.request.method).toBe('PATCH');
+      expect(req.request.body).toEqual({ documentTypeId: 'dt1' });
+      req.flush(file);
+
+      expect(result).toEqual(file);
+    });
+  });
 });
