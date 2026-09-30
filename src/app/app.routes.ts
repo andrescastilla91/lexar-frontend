@@ -199,6 +199,11 @@ export const routes: Routes = [
 				loadComponent: () => import('./features/roles/roles.component').then((m) => m.RolesComponent),
 			},
 			{
+				path: 'auditoria',
+				title: 'Auditoría',
+				loadComponent: () => import('./features/audit/audit.component').then((m) => m.AuditComponent),
+			},
+			{
 				path: 'configuracion',
 				title: 'Configuración',
 				loadComponent: () => import('./features/settings/settings.component').then((m) => m.SettingsComponent),

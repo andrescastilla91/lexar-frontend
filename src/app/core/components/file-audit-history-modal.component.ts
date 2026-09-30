@@ -1,19 +1,6 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { FileAuditLogEntry } from '../models/file.model';
 
-// F37 §DOC-06 (ola 4): etiquetas en español de las acciones que puede
-// registrar audit_logs sobre un documento — ver AuditInterceptor
-// (mapMutationAction) y los @AuditRead('file'|'client_portal_document', ...)
-// que las producen. Una acción no listada cae al fallback (ver template).
-const ACTION_LABELS: Record<string, string> = {
-  download: 'Descarga',
-  delete: 'Eliminación',
-  create: 'Creación',
-  update: 'Actualización',
-  view: 'Consulta',
-  read: 'Consulta',
-};
-
 export interface FileAuditHistoryInfo {
   originalFilename: string;
 }
@@ -62,7 +49,7 @@ export interface FileAuditHistoryInfo {
                   <li class="flex items-center justify-between gap-3 rounded-md border border-default px-3 py-2 text-sm">
                     <div class="min-w-0">
                       <p class="font-medium text-text">
-                        {{ actionLabel(entry.action) }}
+                        {{ entry.actionLabel }}
                         @if (entry.source === 'portal') {
                           <span class="ml-1 rounded bg-primary-tint px-1.5 py-0.5 text-xs font-normal text-primary">Portal del cliente</span>
                         }
@@ -86,10 +73,6 @@ export class FileAuditHistoryModalComponent {
   loading = input(false);
 
   close = output<void>();
-
-  actionLabel(action: string): string {
-    return ACTION_LABELS[action] ?? action;
-  }
 
   formatDateTime(date: Date): string {
     return new Date(date).toLocaleString('es-ES', {

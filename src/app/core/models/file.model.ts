@@ -168,6 +168,10 @@ export interface DocumentTreeTypeNode {
 export interface FileAuditLogEntry {
   id: string;
   action: string;
+  // F43 §5: texto legible ya traducido por el backend (mismo catálogo que
+  // alimenta el módulo de auditoría general) — evita mantener una segunda
+  // copia de la traducción en el frontend.
+  actionLabel: string;
   userEmail: string | null;
   source: 'internal' | 'portal';
   createdAt: Date;
