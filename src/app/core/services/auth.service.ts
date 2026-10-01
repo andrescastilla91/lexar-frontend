@@ -221,6 +221,7 @@ export class AuthService {
           isOwner: profile.isOwner,
           twoFactorEnabled: profile.twoFactorEnabled,
           companyRequire2fa: profile.companyRequire2fa,
+          legalTermsPending: profile.legalTermsPending,
         };
         this.currentUserSignal.set(user);
         if (profile.themePreference) {
@@ -238,6 +239,7 @@ export class AuthService {
         isOwner: profile.isOwner,
         twoFactorEnabled: profile.twoFactorEnabled,
         companyRequire2fa: profile.companyRequire2fa,
+        legalTermsPending: profile.legalTermsPending,
       })),
       catchError((error) => {
         console.error('Error al obtener perfil:', error);

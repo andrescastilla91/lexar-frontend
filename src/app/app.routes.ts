@@ -5,6 +5,7 @@ import { chatbotFeatureGuard } from './core/guards/feature-flag.guard';
 import { emailVerifiedGuard } from './core/guards/email-verified.guard';
 import { ownerOnlyGuard } from './core/guards/owner-only.guard';
 import { twoFactorRequiredGuard } from './core/guards/two-factor-required.guard';
+import { legalTermsRequiredGuard } from './core/guards/legal-terms-required.guard';
 import { portalAuthGuard } from './core/guards/portal-auth.guard';
 import { MainLayoutComponent } from './layout/main-layout.component';
 import { AdminLayoutComponent } from './layout/admin-layout.component';
@@ -94,6 +95,15 @@ export const routes: Routes = [
 			),
 	},
 	{
+		path: 'aceptar-terminos',
+		title: 'Aceptar términos de uso',
+		canActivate: [authGuard],
+		loadComponent: () =>
+			import('./features/auth/legal-terms-required/legal-terms-required.component').then(
+				(m) => m.LegalTermsRequiredComponent,
+			),
+	},
+	{
 		path: 'admin/login',
 		title: 'Acceso administrador',
 		data: { titleSuffix: 'admin' },
@@ -155,7 +165,7 @@ export const routes: Routes = [
 	{
 		path: '',
 		component: MainLayoutComponent,
-		canActivate: [authGuard, emailVerifiedGuard, twoFactorRequiredGuard],
+		canActivate: [authGuard, emailVerifiedGuard, twoFactorRequiredGuard, legalTermsRequiredGuard],
 		children: [
 			{
 				path: 'dashboard',
