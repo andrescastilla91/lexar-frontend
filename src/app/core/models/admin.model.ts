@@ -181,3 +181,33 @@ export interface CreateHolidayRequest {
 export interface UpdateHolidayRequest {
   name?: string;
 }
+
+// F44 §LEG-05 (ola 6): documentos legales de plataforma (términos de uso,
+// política de tratamiento de datos), administrados desde el panel de
+// plataforma — mismo patrón que Holiday arriba. Coincide con
+// LegalDocumentResponseDto / GenerateLegalDocumentSignedUrlDto /
+// CreateLegalDocumentDto del backend (admin-legal-documents.controller.ts).
+export type LegalDocumentType = 'internal_terms' | 'data_processing_policy';
+
+export const LEGAL_DOCUMENT_TYPE_OPTIONS: { value: LegalDocumentType; label: string }[] = [
+  { value: 'internal_terms', label: 'Términos de uso interno' },
+  { value: 'data_processing_policy', label: 'Política de tratamiento de datos' },
+];
+
+export interface LegalDocumentAdmin {
+  id: string;
+  type: LegalDocumentType;
+  version: string;
+  originalFilename: string;
+  contentType: string;
+  isCurrent: boolean;
+  isSubstantialChange: boolean;
+  publishedAt: string;
+}
+
+export interface PublishLegalDocumentRequest {
+  type: LegalDocumentType;
+  version: string;
+  isSubstantialChange: boolean;
+  file: File;
+}

@@ -156,6 +156,14 @@ export const routes: Routes = [
 					import('./features/admin/holidays/admin-holidays.component').then((m) => m.AdminHolidaysComponent),
 			},
 			{
+				path: 'legal-documents',
+				title: 'Documentos legales',
+				loadComponent: () =>
+					import('./features/admin/legal-documents/admin-legal-documents.component').then(
+						(m) => m.AdminLegalDocumentsComponent,
+					),
+			},
+			{
 				path: '',
 				pathMatch: 'full',
 				redirectTo: 'tenants',
