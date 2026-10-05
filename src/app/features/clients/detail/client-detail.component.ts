@@ -28,6 +28,7 @@ import { MultiSelectComponent, MultiSelectItem } from '../../../shared/component
 import { identificationNumberValidator } from '../utils/identification-number.validator';
 import { ClientContactsPanelComponent } from './components/client-contacts-panel.component';
 import { ClientMattersPanelComponent } from './components/client-matters-panel.component';
+import { ClientDataProcessingAuthorizationPanelComponent } from './components/client-data-processing-authorization-panel.component';
 import { getStatusClasses, getStatusLabel } from '../../processes/utils/process-format.utils';
 // F34-b: mismo badge de vigencia que ya usa la pestaña Asuntos.
 import { matterStatusClasses, matterStatusLabel } from '../../../core/utils/matter-format.util';
@@ -59,6 +60,7 @@ type ClientDetailTab =
     ClientPortalInvitationsComponent,
     ClientContactsPanelComponent,
     ClientMattersPanelComponent,
+    ClientDataProcessingAuthorizationPanelComponent,
   ],
   template: `
     @if (isLoading()) {
@@ -81,12 +83,24 @@ type ClientDetailTab =
               {{ client()!.documentType?.label || 'N/A' }}: {{ client()!.identificationNumber }}
             </p>
           </div>
-          <span
-            class="inline-flex w-fit rounded-full px-3 py-1 text-xs font-semibold"
-            [class]="client()!.isActive ? 'bg-success-tint text-success' : 'bg-surface-muted text-muted'"
-          >
-            {{ client()!.isActive ? 'Activo' : 'Inactivo' }}
-          </span>
+          <div class="flex flex-wrap items-center gap-2">
+            <span
+              class="inline-flex w-fit rounded-full px-3 py-1 text-xs font-semibold"
+              [class]="client()!.isActive ? 'bg-success-tint text-success' : 'bg-surface-muted text-muted'"
+            >
+              {{ client()!.isActive ? 'Activo' : 'Inactivo' }}
+            </span>
+            @if (!client()!.dataProcessingAuthorized) {
+              <!-- F44 §LEG-02 (ola 3): TRA-03 — advertir sin bloquear, nunca
+                   impedir nada por falta de autorización registrada. -->
+              <span
+                class="inline-flex w-fit rounded-full bg-warning-tint px-3 py-1 text-xs font-semibold text-warning"
+                title="Pendiente registrar la autorización de tratamiento de datos en la pestaña Cumplimiento"
+              >
+                Sin autorización de datos
+              </span>
+            }
+          </div>
         </header>
 
         <nav class="flex flex-wrap gap-1 border-b border-default">
@@ -233,10 +247,6 @@ type ClientDetailTab =
                 </label>
               </div>
 
-              <div class="rounded-md border border-default bg-surface-muted p-3 text-xs text-subtle">
-                Autorización de tratamiento de datos personales — se habilita en F44 (LEG-02).
-              </div>
-
               @if (errorMessage()) {
                 <div class="rounded-md border border-danger bg-danger-tint px-4 py-3 text-sm text-danger">
                   {{ errorMessage() }}
@@ -252,6 +262,15 @@ type ClientDetailTab =
                 Guardar cambios
               </button>
             </form>
+
+            <!-- F44 §LEG-02 (ola 3): panel propio, no comparte editForm — ver
+                 ClientDataProcessingAuthorizationPanelComponent. -->
+            <app-client-data-processing-authorization-panel
+              [clientId]="client()!.id"
+              [client]="client()!"
+              [canEdit]="canEditCompliance()"
+              (updated)="client.set($event)"
+            />
           }
           @case ('contactos') {
             <app-client-contacts-panel [clientId]="client()!.id" />

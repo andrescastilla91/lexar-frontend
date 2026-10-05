@@ -209,6 +209,27 @@ describe('ClientsService', () => {
     expect(result).toEqual(client);
   });
 
+  // F44 §LEG-02 (ola 3): los 3 campos nuevos viajan igual que riskLevelId/
+  // laftRiskId — el método no cambió de forma, solo el DTO que el backend
+  // valida.
+  it('updateClientCompliance envía los campos de autorización de tratamiento de datos', () => {
+    service
+      .updateClientCompliance('client-1', {
+        dataProcessingAuthorized: true,
+        dataProcessingAuthorizedAt: '2026-10-01',
+        dataProcessingAuthorizationMethod: 'DIGITAL' as any,
+      })
+      .subscribe();
+
+    const req = httpMock.expectOne(`${apiUrl}/client-1/compliance`);
+    expect(req.request.body).toEqual({
+      dataProcessingAuthorized: true,
+      dataProcessingAuthorizedAt: '2026-10-01',
+      dataProcessingAuthorizationMethod: 'DIGITAL',
+    });
+    req.flush({ message: 'ok', client });
+  });
+
   it('updateClientCompliance en error propaga el mensaje del backend', () => {
     let error: Error | undefined;
     service.updateClientCompliance('client-1', {}).subscribe({ error: (e) => (error = e) });
