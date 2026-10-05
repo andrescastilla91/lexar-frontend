@@ -7,6 +7,7 @@ import { ownerOnlyGuard } from './core/guards/owner-only.guard';
 import { twoFactorRequiredGuard } from './core/guards/two-factor-required.guard';
 import { legalTermsRequiredGuard } from './core/guards/legal-terms-required.guard';
 import { portalAuthGuard } from './core/guards/portal-auth.guard';
+import { portalLegalTermsRequiredGuard } from './core/guards/portal-legal-terms-required.guard';
 import { MainLayoutComponent } from './layout/main-layout.component';
 import { AdminLayoutComponent } from './layout/admin-layout.component';
 import { PortalLayoutComponent } from './layout/portal-layout.component';
@@ -317,9 +318,19 @@ export const routes: Routes = [
 			),
 	},
 	{
+		path: 'portal/aceptar-terminos',
+		title: 'Términos del portal',
+		data: { titleSuffix: 'portal' },
+		canActivate: [portalAuthGuard],
+		loadComponent: () =>
+			import('./features/portal/legal-terms-required/portal-legal-terms-required.component').then(
+				(m) => m.PortalLegalTermsRequiredComponent,
+			),
+	},
+	{
 		path: 'portal',
 		component: PortalLayoutComponent,
-		canActivate: [portalAuthGuard],
+		canActivate: [portalAuthGuard, portalLegalTermsRequiredGuard],
 		data: { titleSuffix: 'portal' },
 		children: [
 			{

@@ -102,6 +102,7 @@ describe('AdminLegalDocumentsComponent', () => {
 
     expect(component.typeLabel('internal_terms')).toBe('Términos de uso interno');
     expect(component.typeLabel('data_processing_policy')).toBe('Política de tratamiento de datos');
+    expect(component.typeLabel('portal_terms')).toBe('Términos del portal del cliente');
   });
 
   it('togglePublishForm alterna la visibilidad del formulario', () => {

@@ -187,11 +187,12 @@ export interface UpdateHolidayRequest {
 // plataforma — mismo patrón que Holiday arriba. Coincide con
 // LegalDocumentResponseDto / GenerateLegalDocumentSignedUrlDto /
 // CreateLegalDocumentDto del backend (admin-legal-documents.controller.ts).
-export type LegalDocumentType = 'internal_terms' | 'data_processing_policy';
+export type LegalDocumentType = 'internal_terms' | 'data_processing_policy' | 'portal_terms';
 
 export const LEGAL_DOCUMENT_TYPE_OPTIONS: { value: LegalDocumentType; label: string }[] = [
   { value: 'internal_terms', label: 'Términos de uso interno' },
   { value: 'data_processing_policy', label: 'Política de tratamiento de datos' },
+  { value: 'portal_terms', label: 'Términos del portal del cliente' },
 ];
 
 export interface LegalDocumentAdmin {

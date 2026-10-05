@@ -35,6 +35,21 @@ describe('PortalAuthService', () => {
     httpMock.verify();
   });
 
+  it('patchCurrentPortalUser actualiza solo los campos indicados del usuario en sesión', () => {
+    service.login(user.email, 'Passw0rd!').subscribe();
+    httpMock.expectOne(`${apiUrl}/login`).flush({ message: 'ok', user: { ...user, legalTermsPending: true } });
+
+    service.patchCurrentPortalUser({ legalTermsPending: false });
+
+    expect(service.currentPortalUser()).toEqual({ ...user, legalTermsPending: false });
+  });
+
+  it('patchCurrentPortalUser no hace nada si no hay sesión de portal', () => {
+    service.patchCurrentPortalUser({ legalTermsPending: false });
+
+    expect(service.currentPortalUser()).toBeNull();
+  });
+
   it('empieza sin sesión (isAuthenticated en false, currentPortalUser en null)', () => {
     expect(service.isAuthenticated()).toBe(false);
     expect(service.currentPortalUser()).toBeNull();
