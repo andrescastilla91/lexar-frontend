@@ -7,6 +7,8 @@ import { ToastService } from '../../core/services/toast.service';
 import { PaginationComponent } from '../../core/components/pagination.component';
 import { AuditLogEntry, AuditLogFilters } from '../../core/models/audit-log.model';
 import { AssignableUser } from '../../core/models/user-backend.model';
+import { downloadBlob, todayStamp } from '../../core/utils/blob-download.util';
+import { AuditTabsComponent } from './audit-tabs.component';
 
 // F43 §1/§4: opciones curadas para los selectores de filtro — no los ~50
 // `action` posibles (inmanejable en un <select>), sino los más frecuentes
@@ -42,7 +44,7 @@ const ENTITY_TYPE_FILTER_OPTIONS: Array<{ value: string; label: string }> = [
 @Component({
   selector: 'app-audit',
   standalone: true,
-  imports: [FormsModule, HasPermissionDirective, PaginationComponent],
+  imports: [FormsModule, HasPermissionDirective, PaginationComponent, AuditTabsComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section *hasPermission="['audit.view']" class="space-y-6">
@@ -63,6 +65,8 @@ const ENTITY_TYPE_FILTER_OPTIONS: Array<{ value: string; label: string }> = [
           {{ exporting() ? 'Exportando…' : 'Exportar CSV' }}
         </button>
       </header>
+
+      <app-audit-tabs />
 
       <div class="grid grid-cols-1 gap-3 rounded-md border border-default bg-surface p-4 sm:grid-cols-2 lg:grid-cols-5">
         <div>
@@ -302,17 +306,7 @@ export class AuditComponent implements OnInit {
     this.auditService.exportCsv(this.buildFilters()).subscribe({
       next: (blob) => {
         this.exporting.set(false);
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `auditoria-${new Date().toISOString().slice(0, 10)}.csv`;
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        link.click();
-        setTimeout(() => {
-          link.remove();
-          URL.revokeObjectURL(url);
-        }, 100);
+        downloadBlob(blob, `auditoria-${todayStamp()}.csv`);
       },
       error: (err: Error) => {
         this.exporting.set(false);

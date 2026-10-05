@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
+import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { AuditComponent } from './audit.component';
 import { AuditService } from '../../core/services/audit.service';
@@ -49,6 +50,7 @@ describe('AuditComponent', () => {
     TestBed.configureTestingModule({
       imports: [AuditComponent],
       providers: [
+        provideRouter([]),
         { provide: AuditService, useValue: auditServiceMock },
         { provide: UsersService, useValue: usersServiceMock },
         { provide: ToastService, useValue: toastMock },
@@ -154,5 +156,40 @@ describe('AuditComponent', () => {
       'El filtro actual arroja 60000 registros.',
     );
     expect(component.exporting()).toBe(false);
+  });
+});
+
+describe('AuditComponent — pestañas de cumplimiento (F44 ola 5)', () => {
+  it('muestra las pestañas hacia aceptaciones y autorizaciones', () => {
+    TestBed.configureTestingModule({
+      imports: [AuditComponent],
+      providers: [
+        provideRouter([]),
+        {
+          provide: AuditService,
+          useValue: {
+            findAll: jest.fn().mockReturnValue(of({ logs: [], total: 0, page: 1, limit: 20 })),
+            exportCsv: jest.fn(),
+          },
+        },
+        { provide: UsersService, useValue: { getAssignableUsers: jest.fn().mockReturnValue(of({ message: 'ok', users: [] })) } },
+        { provide: ToastService, useValue: { error: jest.fn(), success: jest.fn() } },
+        {
+          provide: PermissionsService,
+          useValue: {
+            hasAnyPermission: jest.fn().mockReturnValue(true),
+            hasPermission: jest.fn().mockReturnValue(true),
+            userPermissions: signal(['audit.view']),
+          },
+        },
+      ],
+    });
+    const fixture = TestBed.createComponent(AuditComponent);
+    fixture.detectChanges();
+
+    const hrefs = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('app-audit-tabs a')).map((a) =>
+      a.getAttribute('href'),
+    );
+    expect(hrefs).toEqual(['/auditoria', '/auditoria/aceptaciones', '/auditoria/autorizaciones']);
   });
 });

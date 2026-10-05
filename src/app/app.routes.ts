@@ -223,6 +223,18 @@ export const routes: Routes = [
 				loadComponent: () => import('./features/audit/audit.component').then((m) => m.AuditComponent),
 			},
 			{
+				path: 'auditoria/aceptaciones',
+				title: 'Aceptaciones de términos',
+				loadComponent: () =>
+					import('./features/audit/legal-acceptances.component').then((m) => m.LegalAcceptancesComponent),
+			},
+			{
+				path: 'auditoria/autorizaciones',
+				title: 'Autorizaciones de clientes',
+				loadComponent: () =>
+					import('./features/audit/client-authorizations.component').then((m) => m.ClientAuthorizationsComponent),
+			},
+			{
 				path: 'configuracion',
 				title: 'Configuración',
 				loadComponent: () => import('./features/settings/settings.component').then((m) => m.SettingsComponent),
