@@ -273,6 +273,18 @@ describe('RolesComponent', () => {
     expect(rolesServiceMock.deleteRole).toHaveBeenCalledWith(role.id);
   });
 
+  it('deleteRole en error muestra por toast el mensaje real del backend (F39 ROL-06: lista los usuarios que lo tienen)', async () => {
+    configure();
+    const message =
+      'No se puede eliminar el rol "Asesor" porque lo tienen asignado 2 usuario(s): Ana Gómez, Luis Pérez. Asígnales otro rol antes de eliminarlo.';
+    rolesServiceMock.deleteRole.mockReturnValue(throwError(() => ({ message })));
+    const { component } = createComponent();
+
+    await component.deleteRole(buildRole());
+
+    expect(toastMock.error).toHaveBeenCalledWith(message);
+  });
+
   it('deleteRole no llama al servicio si se cancela la confirmación', async () => {
     configure();
     confirmDialogMock.confirm.mockResolvedValue(false);

@@ -175,4 +175,35 @@ describe('CatalogAssignModalComponent', () => {
 
     expect(cancelled).toBe(true);
   });
+  describe('acción "crear" opt-in (F39)', () => {
+    function findCreateButton(root: HTMLElement): HTMLButtonElement | undefined {
+      return Array.from(root.querySelectorAll('button')).find(
+        (b) => b.textContent?.trim() === 'Crear rol nuevo',
+      ) as HTMLButtonElement | undefined;
+    }
+
+    it('sin createActionLabel no se renderiza el botón', () => {
+      const { fixture } = createComponent();
+
+      expect(findCreateButton(fixture.nativeElement as HTMLElement)).toBeUndefined();
+    });
+
+    it('con createActionLabel muestra el botón y emite la selección actual sin guardar', () => {
+      const { fixture, component } = createComponent();
+      fixture.componentRef.setInput('createActionLabel', 'Crear rol nuevo');
+      fixture.detectChanges();
+      const requested: string[][] = [];
+      const saved: string[][] = [];
+      component.createRequested.subscribe((ids) => requested.push(ids));
+      component.save.subscribe((ids) => saved.push(ids));
+
+      component.toggle('p1');
+      const button = findCreateButton(fixture.nativeElement as HTMLElement);
+      expect(button).toBeDefined();
+      button?.click();
+
+      expect(requested).toEqual([['p1']]);
+      expect(saved).toEqual([]);
+    });
+  });
 });

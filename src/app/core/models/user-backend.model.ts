@@ -103,3 +103,31 @@ export interface AssignableUsersResponse {
   message: string;
   users: AssignableUser[];
 }
+
+/** F39 (ROL-07): permisos efectivos de un usuario — unión de los de todos sus
+ * roles, agrupada por dominio, con el rol de origen de cada permiso. */
+export interface EffectivePermissionSource {
+  roleId: string;
+  roleName: string;
+}
+
+export interface EffectivePermission {
+  code: string;
+  label: string;
+  description: string;
+  sources: EffectivePermissionSource[];
+}
+
+export interface EffectivePermissionGroup {
+  groupCode: string;
+  groupLabel: string;
+  permissions: EffectivePermission[];
+}
+
+export interface EffectivePermissionsResponse {
+  message: string;
+  user: { id: string; firstName: string; lastName: string };
+  roles: RoleBasic[];
+  groups: EffectivePermissionGroup[];
+  total: number;
+}
