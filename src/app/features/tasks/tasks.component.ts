@@ -5,6 +5,10 @@ import { TasksService } from '../../core/services/tasks.service';
 import { TaskStatusesService } from '../../core/services/task-statuses.service';
 import { AdvisorsService } from '../../core/services/advisors.service';
 import { LegalProcessesService } from '../../core/services/legal-processes.service';
+import { ClientsService } from '../../core/services/clients.service';
+import { ClientResponse } from '../../core/models/client-backend.model';
+import { TaskClientProcessFieldsComponent } from './components/task-client-process-fields.component';
+import { TaskProcessSummaryComponent } from './components/task-process-summary.component';
 import { ConfirmDialogService } from '../../core/services/confirm-dialog.service';
 import { ToastService } from '../../core/services/toast.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -46,6 +50,8 @@ interface TaskGroup {
     TaskStatusControlComponent,
     TaskApprovalsInboxComponent,
     TaskEditModalComponent,
+    TaskClientProcessFieldsComponent,
+    TaskProcessSummaryComponent,
     HasPermissionDirective,
   ],
   template: `
@@ -101,7 +107,7 @@ interface TaskGroup {
       <div
         class="flex flex-col gap-4 rounded-lg border border-default bg-surface p-6 shadow-card md:flex-row md:items-end md:justify-between"
       >
-        <form [formGroup]="filterForm" class="grid flex-1 gap-4 md:grid-cols-3">
+        <form [formGroup]="filterForm" class="grid flex-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           <label class="text-sm text-muted">
             Asignado a
             <select
@@ -127,6 +133,18 @@ interface TaskGroup {
               <option value="">Todos</option>
               @for (process of processes(); track process.id) {
                 <option [value]="process.id">{{ process.title }}</option>
+              }
+            </select>
+          </label>
+          <label class="text-sm text-muted">
+            Cliente
+            <select
+              formControlName="clientId"
+              class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
+            >
+              <option value="">Todos</option>
+              @for (client of clients(); track client.id) {
+                <option [value]="client.id">{{ client.fullName }}</option>
               }
             </select>
           </label>
@@ -215,6 +233,9 @@ interface TaskGroup {
                           {{ task.title }}
                         </p>
                         <p class="truncate text-xs text-subtle">
+                          @if (task.client) {
+                            {{ task.client.name }} ·
+                          }
                           @if (task.process) {
                             {{ task.process.title }}
                           } @else {
@@ -293,6 +314,9 @@ interface TaskGroup {
                       {{ task.title }}
                     </p>
                     <p class="truncate text-xs text-subtle">
+                      @if (task.client) {
+                        {{ task.client.name }} ·
+                      }
                       @if (task.process) {
                         {{ task.process.title }}
                       } @else {
@@ -347,6 +371,8 @@ interface TaskGroup {
               <h3 class="text-lg font-semibold text-text">{{ task.title }}</h3>
               @if (task.process) {
                 <p class="text-sm text-subtle">{{ task.process.title }}</p>
+              } @else if (task.client) {
+                <p class="text-sm text-subtle">{{ task.client.name }}</p>
               }
             </div>
             <button
@@ -371,6 +397,14 @@ interface TaskGroup {
           </div>
 
           <div class="space-y-3">
+            @if (task.process; as process) {
+              <app-task-process-summary
+                [clientName]="process.clientName"
+                [caseNumber]="process.caseNumber"
+                [stage]="process.stage"
+                [internalCode]="process.internalCode"
+              />
+            }
             <div class="flex flex-wrap items-center gap-2">
               <span
                 class="rounded-full px-2 py-0.5 text-xs font-semibold"
@@ -476,36 +510,28 @@ interface TaskGroup {
             ></textarea>
           </label>
 
-          <div class="grid gap-4 md:grid-cols-2">
-            <label class="text-sm text-muted">
-              Proceso
-              <select
-                formControlName="processId"
-                class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
-              >
-                <option value="">Ninguno (tarea general)</option>
-                @for (process of processes(); track process.id) {
-                  <option [value]="process.id">{{ process.title }}</option>
+          <app-task-client-process-fields
+            [form]="createForm"
+            [processes]="processes()"
+            [clients]="clients()"
+          />
+
+          <label class="text-sm text-muted">
+            Asignar a
+            <select
+              formControlName="assigneeUserId"
+              class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
+            >
+              <option value="">Sin asignar</option>
+              @for (advisor of advisors(); track advisor.id) {
+                @if (advisor.user) {
+                  <option [value]="advisor.user.id">
+                    {{ advisor.user.firstName }} {{ advisor.user.lastName }}
+                  </option>
                 }
-              </select>
-            </label>
-            <label class="text-sm text-muted">
-              Asignar a
-              <select
-                formControlName="assigneeUserId"
-                class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
-              >
-                <option value="">Sin asignar</option>
-                @for (advisor of advisors(); track advisor.id) {
-                  @if (advisor.user) {
-                    <option [value]="advisor.user.id">
-                      {{ advisor.user.firstName }} {{ advisor.user.lastName }}
-                    </option>
-                  }
-                }
-              </select>
-            </label>
-          </div>
+              }
+            </select>
+          </label>
 
           <div class="grid gap-4 md:grid-cols-2">
             <label class="text-sm text-muted">
@@ -564,6 +590,7 @@ export class TasksComponent {
   private readonly taskStatusesService = inject(TaskStatusesService);
   private readonly advisorsService = inject(AdvisorsService);
   private readonly legalProcessesService = inject(LegalProcessesService);
+  private readonly clientsService = inject(ClientsService);
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly toast = inject(ToastService);
   private readonly authService = inject(AuthService);
@@ -580,6 +607,7 @@ export class TasksComponent {
 
   readonly advisors = signal<AdvisorResponse[]>([]);
   readonly processes = signal<LegalProcessResponse[]>([]);
+  readonly clients = signal<ClientResponse[]>([]);
   readonly allTasks = signal<TaskResponse[]>([]);
   readonly statuses = signal<TaskStatusResponse[]>([]);
   readonly isLoading = signal(false);
@@ -607,12 +635,14 @@ export class TasksComponent {
   readonly filterForm = this.fb.nonNullable.group({
     assignee: [''],
     processId: [''],
+    clientId: [''],
   });
 
   readonly createForm = this.fb.nonNullable.group({
     title: ['', [Validators.required, Validators.maxLength(200)]],
     description: [''],
     processId: [''],
+    clientId: [''],
     assigneeUserId: [''],
     dueAt: [''],
     priority: [TaskPriority.NORMAL],
@@ -672,6 +702,10 @@ export class TasksComponent {
       next: (response) => this.processes.set(response.legalProcesses),
       error: (error) => console.error('Error loading processes:', error),
     });
+    this.clientsService.getClients(1, 100).subscribe({
+      next: (response) => this.clients.set(response.clients),
+      error: (error) => console.error('Error loading clients:', error),
+    });
     this.taskStatusesService.getAll().subscribe({
       next: (statuses) => this.statuses.set(statuses),
       error: (error) => console.error('Error loading task statuses:', error),
@@ -719,6 +753,7 @@ export class TasksComponent {
       .getAll({
         assignee: filters.assignee || undefined,
         processId: filters.processId || undefined,
+        clientId: filters.clientId || undefined,
       })
       .subscribe({
         next: (tasks) => {
@@ -902,6 +937,7 @@ export class TasksComponent {
       title: '',
       description: '',
       processId: '',
+      clientId: '',
       assigneeUserId: '',
       dueAt: '',
       priority: TaskPriority.NORMAL,
@@ -931,6 +967,7 @@ export class TasksComponent {
       title: formValue.title,
       description: formValue.description || undefined,
       processId: formValue.processId || undefined,
+      clientId: formValue.processId ? undefined : formValue.clientId || undefined,
       assigneeUserId: formValue.assigneeUserId || undefined,
       dueAt: formValue.dueAt
         ? new Date(formValue.dueAt).toISOString()

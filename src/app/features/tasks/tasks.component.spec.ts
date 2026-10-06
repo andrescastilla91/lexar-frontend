@@ -7,6 +7,7 @@ import { TasksService } from '../../core/services/tasks.service';
 import { TaskStatusesService } from '../../core/services/task-statuses.service';
 import { AdvisorsService } from '../../core/services/advisors.service';
 import { LegalProcessesService } from '../../core/services/legal-processes.service';
+import { ClientsService } from '../../core/services/clients.service';
 import { ConfirmDialogService } from '../../core/services/confirm-dialog.service';
 import { ToastService } from '../../core/services/toast.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -28,6 +29,7 @@ describe('TasksComponent', () => {
   let taskStatusesServiceMock: { getAll: jest.Mock };
   let advisorsServiceMock: { getAdvisors: jest.Mock };
   let legalProcessesServiceMock: { getLegalProcesses: jest.Mock };
+  let clientsServiceMock: { getClients: jest.Mock };
   let confirmDialogMock: { confirm: jest.Mock };
   let toastMock: { success: jest.Mock; error: jest.Mock };
   let authServiceMock: { currentUser: jest.Mock };
@@ -141,6 +143,11 @@ describe('TasksComponent', () => {
         of({ message: 'ok', legalProcesses: [], total: 0, page: 1, limit: 100 }),
       ),
     };
+    clientsServiceMock = {
+      getClients: jest.fn().mockReturnValue(
+        of({ message: 'ok', clients: [], total: 0, page: 1, limit: 100 }),
+      ),
+    };
     confirmDialogMock = { confirm: jest.fn().mockResolvedValue(true) };
     toastMock = { success: jest.fn(), error: jest.fn() };
     authServiceMock = {
@@ -174,6 +181,7 @@ describe('TasksComponent', () => {
         { provide: TaskStatusesService, useValue: taskStatusesServiceMock },
         { provide: AdvisorsService, useValue: advisorsServiceMock },
         { provide: LegalProcessesService, useValue: legalProcessesServiceMock },
+        { provide: ClientsService, useValue: clientsServiceMock },
         { provide: ConfirmDialogService, useValue: confirmDialogMock },
         { provide: ToastService, useValue: toastMock },
         { provide: AuthService, useValue: authServiceMock },
@@ -278,6 +286,72 @@ describe('TasksComponent', () => {
 
       expect(component.onlyMine()).toBe(true);
       expect(component.filterForm.getRawValue().assignee).toBe('user-1');
+    });
+  });
+
+  describe('cliente en la tarea (F42 TAR-01)', () => {
+    const client = { id: 'c1', fullName: 'Ana Ríos' };
+
+    it('carga los clientes para el filtro y el formulario', async () => {
+      await configure();
+      clientsServiceMock.getClients.mockReturnValue(
+        of({ message: 'ok', clients: [client], total: 1, page: 1, limit: 100 }),
+      );
+      const component = createComponent();
+
+      expect(clientsServiceMock.getClients).toHaveBeenCalledWith(1, 100);
+      expect(component.clients()).toEqual([client]);
+    });
+
+    it('filtrar por cliente recarga las tareas con clientId', async () => {
+      await configure();
+      const component = createComponent();
+
+      component.filterForm.patchValue({ clientId: 'c1' });
+
+      expect(tasksServiceMock.getAll).toHaveBeenLastCalledWith(
+        expect.objectContaining({ clientId: 'c1' }),
+      );
+    });
+
+    it('submitCreate sin proceso envía el cliente elegido', async () => {
+      await configure();
+      const component = createComponent();
+      component.createForm.setValue({
+        title: 'Gestión administrativa',
+        description: '',
+        processId: '',
+        clientId: 'c1',
+        assigneeUserId: '',
+        dueAt: '',
+        priority: TaskPriority.NORMAL,
+      });
+
+      component.submitCreate();
+
+      expect(tasksServiceMock.create).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'Gestión administrativa', clientId: 'c1' }),
+      );
+    });
+
+    it('submitCreate con proceso no envía clientId (lo deriva el backend del proceso)', async () => {
+      await configure();
+      const component = createComponent();
+      component.createForm.setValue({
+        title: 'Con proceso',
+        description: '',
+        processId: 'p1',
+        clientId: 'c1',
+        assigneeUserId: '',
+        dueAt: '',
+        priority: TaskPriority.NORMAL,
+      });
+
+      component.submitCreate();
+
+      const request = tasksServiceMock.create.mock.calls[0][0] as Record<string, unknown>;
+      expect(request['processId']).toBe('p1');
+      expect(request['clientId']).toBeUndefined();
     });
   });
 
@@ -618,6 +692,7 @@ describe('TasksComponent', () => {
         title: 'Nueva tarea',
         description: '',
         processId: '',
+        clientId: '',
         assigneeUserId: '',
         dueAt: '',
         priority: TaskPriority.NORMAL,
@@ -635,6 +710,7 @@ describe('TasksComponent', () => {
         title: '',
         description: '',
         processId: '',
+        clientId: '',
         assigneeUserId: '',
         dueAt: '',
         priority: TaskPriority.NORMAL,
@@ -653,6 +729,7 @@ describe('TasksComponent', () => {
         title: 'Nueva tarea',
         description: '',
         processId: '',
+        clientId: '',
         assigneeUserId: '',
         dueAt: '2026-09-01T10:00',
         priority: TaskPriority.HIGH,
@@ -681,6 +758,7 @@ describe('TasksComponent', () => {
         title: 'Nueva tarea',
         description: '',
         processId: '',
+        clientId: '',
         assigneeUserId: '',
         dueAt: '',
         priority: TaskPriority.NORMAL,
