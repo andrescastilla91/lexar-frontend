@@ -27,7 +27,11 @@ describe('MainLayoutComponent — banner de impersonación (F9)', () => {
   let toastServiceMock: { success: jest.Mock; error: jest.Mock; toasts: jest.Mock };
   let navigateSpy: jest.SpyInstance;
 
-  function configure(user: AuthUser | null): void {
+  function configure(
+    user: AuthUser | null,
+    hasAnyPermission: (permissions: string[]) => boolean = () => true,
+    chatbot = false,
+  ): void {
     authServiceMock = {
       currentUser: signal(user),
       logout: jest.fn().mockReturnValue(of(undefined)),
@@ -43,12 +47,12 @@ describe('MainLayoutComponent — banner de impersonación (F9)', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         { provide: AuthService, useValue: authServiceMock },
-        { provide: PermissionsService, useValue: { hasAnyPermission: jest.fn().mockReturnValue(true), hasPermission: jest.fn().mockReturnValue(false) } },
+        { provide: PermissionsService, useValue: { hasAnyPermission: jest.fn().mockImplementation(hasAnyPermission), hasPermission: jest.fn().mockReturnValue(false) } },
         { provide: ProfileService, useValue: { updateMe: jest.fn().mockReturnValue(of(undefined)) } },
         { provide: CompanyService, useValue: { getCompany: jest.fn().mockReturnValue(of(null)) } },
         {
           provide: SubscriptionService,
-          useValue: { getEntitlements: jest.fn().mockReturnValue(of({ features: { chatbot: false } } as Entitlements)) },
+          useValue: { getEntitlements: jest.fn().mockReturnValue(of({ features: { chatbot } } as Entitlements)) },
         },
         { provide: ThemeService, useValue: { theme: jest.fn().mockReturnValue('light'), toggle: jest.fn() } },
         { provide: ToastService, useValue: toastServiceMock },
@@ -166,6 +170,133 @@ describe('MainLayoutComponent — banner de impersonación (F9)', () => {
       for (const item of component.filteredMenuItems()) {
         expect(rendered).toContain(item.icon);
       }
+    });
+  });
+
+  describe('menú lateral (F48)', () => {
+    const admin: AuthUser = { email: 'admin@bufete.com', roles: ['ADMIN'], permissions: [] };
+    const headings = (root: HTMLElement) =>
+      Array.from(root.querySelectorAll('aside nav p')).map((p) => p.textContent?.trim());
+
+    it('agrupa el menú de un administrador por dominio, con Configuración en Administración', () => {
+      configure(admin);
+      const { fixture } = createComponent();
+      const root = fixture.nativeElement as HTMLElement;
+
+      expect(headings(root)).toEqual(['Trabajo', 'Administración']);
+      expect(root.querySelector('aside nav a[data-menu-route="/configuracion"]')).not.toBeNull();
+    });
+
+    it('el grupo Asistencia solo aparece cuando el plan incluye Lexi', () => {
+      configure(admin, () => true, true);
+      const { fixture } = createComponent();
+      const root = fixture.nativeElement as HTMLElement;
+
+      expect(headings(root)).toEqual(['Trabajo', 'Asistencia', 'Administración']);
+      expect(root.querySelector('aside nav a[data-menu-route="/chatbot"]')).not.toBeNull();
+    });
+
+    it('un rol sin permisos administrativos no ve el grupo Administración ni su encabezado', () => {
+      const workOnly = ['clients.list', 'legal_processes.list', 'deadlines.view', 'tasks.view', 'files.view'];
+      configure(admin, (permissions) => permissions.some((permission) => workOnly.includes(permission)));
+      const { fixture } = createComponent();
+      const root = fixture.nativeElement as HTMLElement;
+
+      expect(headings(root)).toEqual(['Trabajo']);
+      expect(root.querySelector('aside nav a[data-menu-route="/usuarios"]')).toBeNull();
+      expect(root.querySelector('aside nav a[data-menu-route="/configuracion"]')).toBeNull();
+    });
+
+    it('sin ningún permiso solo queda Dashboard, sin encabezados vacíos', () => {
+      configure(admin, () => false);
+      const { fixture } = createComponent();
+      const root = fixture.nativeElement as HTMLElement;
+
+      expect(headings(root)).toEqual([]);
+      expect(Array.from(root.querySelectorAll('aside nav a')).map((a) => a.getAttribute('data-menu-route'))).toEqual([
+        '/dashboard',
+      ]);
+    });
+
+    it('colapsar desde el menú persiste y el layout lo refleja', () => {
+      localStorage.clear();
+      configure({ ...admin, id: 'u-1' });
+      const { fixture } = createComponent();
+      const root = fixture.nativeElement as HTMLElement;
+
+      root.querySelector<HTMLButtonElement>('aside button[aria-label="Contraer menú"]')!.click();
+      fixture.detectChanges();
+
+      expect(root.querySelector('aside')?.className).toContain('lg:w-16');
+      expect(localStorage.getItem('lexar-sidebar-collapsed:admin@bufete.com')).toBe('true');
+    });
+
+    it('arranca colapsado si el usuario ya lo había dejado así', () => {
+      localStorage.setItem('lexar-sidebar-collapsed:admin@bufete.com', 'true');
+      configure({ ...admin, id: 'u-2' });
+      const { fixture } = createComponent();
+
+      expect(fixture.nativeElement.querySelector('aside')?.className).toContain('lg:w-16');
+      localStorage.clear();
+    });
+  });
+
+  describe('título del encabezado', () => {
+    const admin: AuthUser = { email: 'admin@bufete.com', roles: ['ADMIN'], permissions: [] };
+
+    async function openAt(url: string) {
+      configure(admin);
+      const router = TestBed.inject(Router);
+      router.resetConfig([{ path: '**', children: [] }]);
+      const { fixture, component } = createComponent();
+      await TestBed.inject(Router).navigateByUrl(url);
+      fixture.detectChanges();
+      const header = (fixture.nativeElement as HTMLElement).querySelector('header')!;
+      return { fixture, component, header };
+    }
+
+    it('ya no muestra la frase genérica «Panel central»', async () => {
+      const { header } = await openAt('/usuarios');
+
+      expect(header.textContent).not.toContain('Panel central');
+    });
+
+    it('muestra el grupo de la sección como texto secundario, solo desde sm', async () => {
+      const { header } = await openAt('/usuarios');
+
+      const group = Array.from(header.querySelectorAll('p')).find((p) => p.textContent?.trim() === 'Administración');
+      expect(group?.className).toContain('hidden');
+      expect(group?.className).toContain('sm:block');
+    });
+
+    it('el título va en una sola línea: truncado y sin romper el ancho de la fila', async () => {
+      const { component, header } = await openAt('/clientes');
+
+      const title = Array.from(header.querySelectorAll('p')).find((p) => p.textContent?.trim() === 'Clientes');
+      expect(component.activeRouteLabel()).toBe('Clientes');
+      expect(title?.className).toContain('truncate');
+      expect(title?.parentElement?.className).toContain('min-w-0');
+    });
+
+    it('el Dashboard no tiene grupo, así que no pinta texto secundario', async () => {
+      const { component, header } = await openAt('/dashboard');
+
+      expect(component.activeGroupLabel()).toBeNull();
+      expect(header.querySelectorAll('p.sm\\:block')).toHaveLength(0);
+    });
+
+    it('Configuración muestra el grupo Administración', async () => {
+      const { component } = await openAt('/configuracion');
+
+      expect(component.activeRouteLabel()).toBe('Configuración');
+      expect(component.activeGroupLabel()).toBe('Administración');
+    });
+
+    it('en una ruta que no está en el menú el título cae a «Panel central» y sin grupo', async () => {
+      const { component } = await openAt('/perfil');
+
+      expect(component.activeRouteLabel()).toBe('Panel central');
+      expect(component.activeGroupLabel()).toBeNull();
     });
   });
 });

@@ -2,8 +2,6 @@ import { Component, Signal, computed, signal, inject } from '@angular/core';
 import {
   NavigationEnd,
   Router,
-  RouterLink,
-  RouterLinkActive,
   RouterOutlet,
 } from '@angular/router';
 import { AuthService } from '../core/services/auth.service';
@@ -24,23 +22,15 @@ import { CompanyProfile } from '../core/models/company.model';
 import { SubscriptionService } from '../core/services/subscription.service';
 import { NotificationsService } from '../core/services/notifications.service';
 import { ChatWidgetComponent } from '../core/components/chat-widget.component';
-import { MENU_ICONS } from './menu-icons';
-
-interface MenuItem {
-  label: string;
-  description: string;
-  icon: string;
-  route: string;
-  permissions?: string[]; // Permisos requeridos para ver el menú (si no tiene, se muestra siempre)
-}
+import { MENU_GROUP_LABELS, MENU_ITEMS, groupMenuItems } from './menu-items';
+import { SidebarComponent } from './sidebar.component';
+import { SidebarPreferenceService } from './sidebar-preference.service';
 
 @Component({
   selector: 'app-main-layout',
   standalone: true,
   imports: [
     RouterOutlet,
-    RouterLink,
-    RouterLinkActive,
     ConfirmDialogComponent,
     ToastComponent,
     UserMenuComponent,
@@ -48,6 +38,7 @@ interface MenuItem {
     GlobalSearchTriggerComponent,
     GlobalSearchOverlayComponent,
     ChatWidgetComponent,
+    SidebarComponent,
   ],
   template: `
     <div class="min-h-screen bg-surface-muted text-text">
@@ -60,86 +51,25 @@ interface MenuItem {
         }
 
         <aside
-          class="fixed inset-y-0 left-0 z-40 w-72 shrink-0 transform bg-navy-900 text-white shadow-raised transition-transform duration-300 lg:translate-x-0 lg:static lg:flex lg:flex-col"
-          [class.-translate-x-full]="!sidebarOpen()"
-        >
-          <div class="flex h-16 items-center justify-between px-6">
-            <div>
-              <p class="text-sm uppercase tracking-widest text-white/60">
-                LexAr Suite
-              </p>
-              <p class="text-lg font-semibold">Gestión Legal</p>
-            </div>
-            <button
-              type="button"
-              class="rounded-md p-2 text-white/70 transition hover:bg-white/10 lg:hidden"
-              (click)="toggleSidebar()"
-              aria-label="Cerrar menú"
-            >
-              <span class="sr-only">Cerrar menú</span>
-              <svg
-                class="h-6 w-6"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M6 18 18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
-          </div>
-
-          <nav class="mt-6 flex-1 space-y-1 px-4">
-            @for (item of filteredMenuItems(); track item.route) {
-              <a
-                [routerLink]="item.route"
-                routerLinkActive="bg-white/10 text-white"
-                class="group flex items-center gap-3 rounded-md px-3 py-3 text-sm font-medium text-white/70 transition hover:bg-white/10 hover:text-white"
-                (click)="closeSidebar()"
-              >
-                <span
-                  class="flex h-9 w-9 items-center justify-center rounded-md bg-white/5 text-white/80 transition group-hover:bg-white/15"
-                >
-                  <svg
-                    class="h-5 w-5"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.5"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      [attr.d]="item.icon"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    ></path>
-                  </svg>
-                </span>
-                <span class="flex-1">
-                  <span class="block text-base font-semibold">{{
-                    item.label
-                  }}</span>
-                  <span class="text-xs text-white/60">{{
-                    item.description
-                  }}</span>
-                </span>
-              </a>
-            }
-          </nav>
-        </aside>
+          app-sidebar
+          [groups]="menuGroups()"
+          [open]="sidebarOpen()"
+          [collapsed]="sidebarPreference.collapsed()"
+          [companyName]="companyName()"
+          [companyLogoUrl]="companyLogoUrl()"
+          (toggleCollapsed)="sidebarPreference.toggle()"
+          (closeRequested)="closeSidebar()"
+        ></aside>
 
         <div class="flex min-w-0 flex-1 flex-col">
           <header
             class="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-default bg-surface/90 px-4 backdrop-blur lg:px-8"
           >
             <div class="flex w-full items-center justify-between gap-4">
-              <div class="flex items-center gap-3">
+              <div class="flex min-w-0 items-center gap-3">
                 <button
                   type="button"
-                  class="rounded-md border border-default p-2 text-muted transition hover:bg-surface-muted lg:hidden"
+                  class="shrink-0 rounded-md border border-default p-2 text-muted transition hover:bg-surface-muted lg:hidden"
                   (click)="toggleSidebar()"
                   aria-label="Abrir menú"
                 >
@@ -157,14 +87,18 @@ interface MenuItem {
                     />
                   </svg>
                 </button>
-                <div>
-                  <p class="text-sm font-medium text-subtle">Panel central</p>
-                  <p class="text-lg font-semibold text-text">
+                <div class="min-w-0">
+                  @if (activeGroupLabel(); as group) {
+                    <p class="hidden text-sm font-medium text-subtle sm:block">
+                      {{ group }}
+                    </p>
+                  }
+                  <p class="truncate text-base font-semibold text-text sm:text-lg">
                     {{ activeRouteLabel() }}
                   </p>
                 </div>
               </div>
-              <div class="flex items-center gap-4">
+              <div class="flex shrink-0 items-center gap-2 sm:gap-4">
                 <app-global-search-trigger />
                 <button
                   type="button"
@@ -306,6 +240,7 @@ export class MainLayoutComponent {
   private readonly notificationsService = inject(NotificationsService);
   private readonly router = inject(Router);
   protected readonly themeService = inject(ThemeService);
+  protected readonly sidebarPreference = inject(SidebarPreferenceService);
 
   private readonly company = signal<CompanyProfile | null>(null);
   readonly companyName = computed(() => this.company()?.legalName ?? '');
@@ -320,83 +255,7 @@ export class MainLayoutComponent {
   // luego se oculta.
   private readonly chatbotEnabled = signal(false);
 
-  readonly menuItems: MenuItem[] = [
-    {
-      label: 'Dashboard',
-      description: 'Resumen de actividad y riesgos',
-      icon: MENU_ICONS.dashboard,
-      route: '/dashboard',
-    },
-    {
-      label: 'Usuarios',
-      description: 'Gestión de cuentas y equipos',
-      icon: MENU_ICONS.users,
-      route: '/usuarios',
-      permissions: ['users.list'],
-    },
-    {
-      label: 'Roles',
-      description: 'Permisos y control de acceso',
-      icon: MENU_ICONS.roles,
-      route: '/roles',
-      permissions: ['roles.list'],
-    },
-    {
-      label: 'Clientes',
-      description: 'Portafolio y riesgos asociados',
-      icon: MENU_ICONS.clients,
-      route: '/clientes',
-      permissions: ['clients.list'],
-    },
-    {
-      label: 'Procesos',
-      description: 'Seguimiento procesal detallado',
-      icon: MENU_ICONS.processes,
-      route: '/procesos',
-      // BUG (2026-09-02): antes gateado con el code muerto 'processes.list'
-      // (nunca verificado por ningún @RequirePermissions del backend). El
-      // módulo real de procesos legales exige 'legal_processes.*' — con el
-      // code viejo, un rol personalizado con solo 'processes.list' veía el
-      // link pero recibía 403 en cada llamada real a la API.
-      permissions: ['legal_processes.list'],
-    },
-    {
-      label: 'Calendario',
-      description: 'Plazos y audiencias del despacho',
-      icon: MENU_ICONS.calendar,
-      route: '/calendario',
-      permissions: ['deadlines.view'],
-    },
-    {
-      label: 'Tareas',
-      description: 'Trabajo asignado y plantillas por proceso',
-      icon: MENU_ICONS.tasks,
-      route: '/tareas',
-      permissions: ['tasks.view'],
-    },
-    {
-      label: 'Documentos',
-      description: 'Control y cargue seguro',
-      icon: MENU_ICONS.documents,
-      route: '/documentos',
-      permissions: ['files.view'],
-    },
-    {
-      label: 'Lexi',
-      description: 'Asistente para consultas operativas',
-      icon: MENU_ICONS.assistant,
-      route: '/chatbot',
-    },
-    {
-      // F43: entrada de menú visible solo con `audit.view` (asignado por
-      // defecto solo al rol administrador — ver permission-seeder.service.ts).
-      label: 'Auditoría',
-      description: 'Registro de actividad de la empresa',
-      icon: MENU_ICONS.audit,
-      route: '/auditoria',
-      permissions: ['audit.view'],
-    },
-  ];
+  readonly menuItems = MENU_ITEMS;
 
   // Filtrar menú según permisos del usuario
   readonly filteredMenuItems = computed(() => {
@@ -411,6 +270,8 @@ export class MainLayoutComponent {
         return this.permissionsService.hasAnyPermission(item.permissions);
       });
   });
+
+  readonly menuGroups = computed(() => groupMenuItems(this.filteredMenuItems()));
 
   readonly currentUser: Signal<AuthUser | null>;
   readonly currentRoute = signal('');
@@ -475,12 +336,18 @@ export class MainLayoutComponent {
     }
   });
 
-  readonly activeRouteLabel = computed(() => {
+  private readonly activeMenuItem = computed(() => {
     const route = this.currentRoute();
-    return (
-      this.filteredMenuItems().find((item) => route.startsWith(item.route))
-        ?.label ?? 'Panel central'
-    );
+    return this.filteredMenuItems().find((item) => route.startsWith(item.route));
+  });
+
+  readonly activeRouteLabel = computed(
+    () => this.activeMenuItem()?.label ?? 'Panel central',
+  );
+
+  readonly activeGroupLabel = computed(() => {
+    const item = this.activeMenuItem();
+    return item ? MENU_GROUP_LABELS[item.group] : null;
   });
 
   // Detectar si el usuario no tiene roles asignados

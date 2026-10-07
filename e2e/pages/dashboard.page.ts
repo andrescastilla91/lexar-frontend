@@ -15,7 +15,7 @@ export class DashboardPage {
   readonly cancelLayoutButton: Locator;
 
   constructor(private readonly page: Page) {
-    this.brandLabel = page.getByText('Gestión Legal');
+    this.brandLabel = page.getByRole('complementary', { name: 'Navegación principal' }).getByText('LexAr Suite');
     this.userMenuToggle = page.locator('app-user-menu button').first();
     this.logoutButton = page.getByRole('button', { name: 'Cerrar sesión' });
     this.personalizeButton = page.getByRole('button', { name: 'Personalizar tablero' });
