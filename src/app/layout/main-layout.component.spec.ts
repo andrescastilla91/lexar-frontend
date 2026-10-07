@@ -15,6 +15,7 @@ import { ToastService } from '../core/services/toast.service';
 import { NotificationsService } from '../core/services/notifications.service';
 import { AuthUser } from '../core/models/auth.model';
 import { Entitlements } from '../core/models/subscription-backend.model';
+import { MENU_ICONS } from './menu-icons';
 
 describe('MainLayoutComponent — banner de impersonación (F9)', () => {
   let authServiceMock: {
@@ -126,5 +127,45 @@ describe('MainLayoutComponent — banner de impersonación (F9)', () => {
 
     expect(aside?.className).toContain('shrink-0');
     expect(contentColumn?.className).toContain('min-w-0');
+  });
+
+  // BUG-32: iconos con el path cortado o de otro dominio, y la entrada del
+  // asistente con su nombre viejo.
+  describe('menú lateral (BUG-32)', () => {
+    const iconValues: string[] = Object.values(MENU_ICONS);
+
+    it('cada ítem usa un icono del catálogo y ninguno se repite', () => {
+      configure({ email: 'admin@bufete.com', roles: ['ADMIN'], permissions: [] });
+      const { component } = createComponent();
+
+      const icons = component.menuItems.map((item) => item.icon);
+      for (const icon of icons) {
+        expect(iconValues).toContain(icon);
+      }
+      expect(new Set(icons).size).toBe(icons.length);
+      expect(icons).toHaveLength(iconValues.length);
+    });
+
+    it('la entrada del asistente se llama Lexi y ya no «Chatbot»', () => {
+      configure({ email: 'admin@bufete.com', roles: ['ADMIN'], permissions: [] });
+      const { component } = createComponent();
+
+      const labels = component.menuItems.map((item) => item.label);
+      expect(labels).toContain('Lexi');
+      expect(labels).not.toContain('Chatbot');
+      expect(component.menuItems.find((item) => item.label === 'Lexi')?.route).toBe('/chatbot');
+    });
+
+    it('el menú pinta el path completo de cada ítem visible', () => {
+      configure({ email: 'admin@bufete.com', roles: ['ADMIN'], permissions: [] });
+      const { fixture, component } = createComponent();
+
+      const rendered = Array.from(
+        (fixture.nativeElement as HTMLElement).querySelectorAll('aside nav a svg path'),
+      ).map((path) => path.getAttribute('d'));
+      for (const item of component.filteredMenuItems()) {
+        expect(rendered).toContain(item.icon);
+      }
+    });
   });
 });
