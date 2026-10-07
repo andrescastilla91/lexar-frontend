@@ -1,4 +1,8 @@
 import { TaskPriority } from '../models/task.model';
+import {
+  RecurrenceFrequency,
+  TaskRecurrenceStatus,
+} from '../models/task-recurrence.model';
 import { TaskStatusRef } from '../models/task-status.model';
 import { getCatalogBadgeClasses } from './catalog-badge.util';
 
@@ -28,4 +32,37 @@ export function getTaskPriorityClasses(priority: TaskPriority): string {
     [TaskPriority.HIGH]: 'bg-danger-tint text-danger',
   };
   return classes[priority] || 'bg-surface-muted text-muted';
+}
+
+export function getRecurrenceFrequencyLabel(
+  frequency: RecurrenceFrequency,
+): string {
+  const labels: Record<RecurrenceFrequency, string> = {
+    [RecurrenceFrequency.DAILY]: 'Diaria',
+    [RecurrenceFrequency.WEEKLY]: 'Semanal',
+    [RecurrenceFrequency.MONTHLY]: 'Mensual',
+    [RecurrenceFrequency.QUARTERLY]: 'Trimestral',
+    [RecurrenceFrequency.YEARLY]: 'Anual',
+  };
+  return labels[frequency] || frequency;
+}
+
+export function getRecurrenceStatusLabel(status: TaskRecurrenceStatus): string {
+  const labels: Record<TaskRecurrenceStatus, string> = {
+    [TaskRecurrenceStatus.ACTIVE]: 'Activa',
+    [TaskRecurrenceStatus.STOPPED]: 'Detenida',
+    [TaskRecurrenceStatus.COMPLETED]: 'Finalizada',
+  };
+  return labels[status] || status;
+}
+
+export function getRecurrenceStatusClasses(
+  status: TaskRecurrenceStatus,
+): string {
+  const classes: Record<TaskRecurrenceStatus, string> = {
+    [TaskRecurrenceStatus.ACTIVE]: 'bg-success-tint text-success',
+    [TaskRecurrenceStatus.STOPPED]: 'bg-warning-tint text-warning',
+    [TaskRecurrenceStatus.COMPLETED]: 'bg-surface-muted text-muted',
+  };
+  return classes[status] || 'bg-surface-muted text-muted';
 }

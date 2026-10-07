@@ -278,6 +278,12 @@ export const routes: Routes = [
 				loadComponent: () => import('./features/tasks/tasks.component').then((m) => m.TasksComponent),
 			},
 			{
+				path: 'tareas/recurrentes',
+				title: 'Tareas recurrentes',
+				loadComponent: () =>
+					import('./features/tasks/task-recurrences.component').then((m) => m.TaskRecurrencesComponent),
+			},
+			{
 				path: 'documentos',
 				title: 'Documentos',
 				loadComponent: () => import('./features/documents/documents.component').then((m) => m.DocumentsComponent),

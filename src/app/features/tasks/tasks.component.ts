@@ -6,9 +6,16 @@ import { TaskStatusesService } from '../../core/services/task-statuses.service';
 import { AdvisorsService } from '../../core/services/advisors.service';
 import { LegalProcessesService } from '../../core/services/legal-processes.service';
 import { ClientsService } from '../../core/services/clients.service';
+import { TaskRecurrencesService } from '../../core/services/task-recurrences.service';
 import { ClientResponse } from '../../core/models/client-backend.model';
 import { TaskClientProcessFieldsComponent } from './components/task-client-process-fields.component';
 import { TaskProcessSummaryComponent } from './components/task-process-summary.component';
+import { TaskRecurrenceFieldsComponent } from './components/task-recurrence-fields.component';
+import {
+  RecurrenceFormValue,
+  buildCreateRecurrenceRequest,
+  createRecurrenceForm,
+} from './utils/task-recurrence-form.util';
 import { ConfirmDialogService } from '../../core/services/confirm-dialog.service';
 import { ToastService } from '../../core/services/toast.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -52,6 +59,7 @@ interface TaskGroup {
     TaskEditModalComponent,
     TaskClientProcessFieldsComponent,
     TaskProcessSummaryComponent,
+    TaskRecurrenceFieldsComponent,
     HasPermissionDirective,
   ],
   template: `
@@ -65,26 +73,34 @@ interface TaskGroup {
             Trabajo asignado y seguimiento por proceso.
           </p>
         </div>
-        <button
-          type="button"
-          class="flex items-center gap-2 rounded-md bg-navy-900 px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:bg-navy-950"
-          (click)="openCreateModal()"
-        >
-          <svg
-            class="h-4 w-4"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-            viewBox="0 0 24 24"
+        <div class="flex flex-wrap gap-2">
+          <a
+            routerLink="/tareas/recurrentes"
+            class="flex items-center gap-2 rounded-md border border-default px-4 py-2 text-sm font-semibold text-muted transition hover:bg-surface-muted"
           >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M12 4.5v15m7.5-7.5h-15"
-            />
-          </svg>
-          Nueva tarea
-        </button>
+            Tareas recurrentes
+          </a>
+          <button
+            type="button"
+            class="flex items-center gap-2 rounded-md bg-navy-900 px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:bg-navy-950"
+            (click)="openCreateModal()"
+          >
+            <svg
+              class="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M12 4.5v15m7.5-7.5h-15"
+              />
+            </svg>
+            Nueva tarea
+          </button>
+        </div>
       </header>
 
       <div *hasPermission="'tasks.approve'">
@@ -241,6 +257,9 @@ interface TaskGroup {
                           } @else {
                             Tarea general
                           }
+                          @if (task.recurrenceId) {
+                            · Recurrente #{{ task.occurrenceNumber }}
+                          }
                           @if (task.assignee) {
                             · {{ task.assignee.firstName }}
                             {{ task.assignee.lastName }}
@@ -322,6 +341,9 @@ interface TaskGroup {
                       } @else {
                         Tarea general
                       }
+                      @if (task.recurrenceId) {
+                        · Recurrente #{{ task.occurrenceNumber }}
+                      }
                     </p>
                     <div class="mt-2 flex flex-wrap items-center gap-2">
                       <span
@@ -373,6 +395,11 @@ interface TaskGroup {
                 <p class="text-sm text-subtle">{{ task.process.title }}</p>
               } @else if (task.client) {
                 <p class="text-sm text-subtle">{{ task.client.name }}</p>
+              }
+              @if (task.recurrenceId) {
+                <p class="text-xs text-subtle">
+                  Tarea recurrente · ocurrencia {{ task.occurrenceNumber }}
+                </p>
               }
             </div>
             <button
@@ -555,6 +582,8 @@ interface TaskGroup {
             </label>
           </div>
 
+          <app-task-recurrence-fields [form]="recurrenceForm" />
+
           @if (createError()) {
             <p
               class="rounded-md border border-danger bg-danger-tint px-3 py-2 text-sm text-danger"
@@ -591,6 +620,7 @@ export class TasksComponent {
   private readonly advisorsService = inject(AdvisorsService);
   private readonly legalProcessesService = inject(LegalProcessesService);
   private readonly clientsService = inject(ClientsService);
+  private readonly taskRecurrencesService = inject(TaskRecurrencesService);
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly toast = inject(ToastService);
   private readonly authService = inject(AuthService);
@@ -647,6 +677,10 @@ export class TasksComponent {
     dueAt: [''],
     priority: [TaskPriority.NORMAL],
   });
+
+  /** F42 (TAR-03): regla de repetición del modal de creación (aparte de
+   * createForm: solo se usa si se activa "Repetir esta tarea"). */
+  readonly recurrenceForm = createRecurrenceForm(this.fb.nonNullable);
 
   readonly taskGroups = computed<TaskGroup[]>(() => {
     const tasks = this.allTasks().filter((t) => !t.status.isTerminal);
@@ -942,6 +976,7 @@ export class TasksComponent {
       dueAt: '',
       priority: TaskPriority.NORMAL,
     });
+    this.recurrenceForm.reset();
     this.createModalOpen.set(true);
   }
 
@@ -960,6 +995,13 @@ export class TasksComponent {
     }
 
     const formValue = this.createForm.getRawValue();
+    const recurrence = this.recurrenceForm.getRawValue();
+
+    if (recurrence.repeat) {
+      this.submitRecurrence(formValue, recurrence);
+      return;
+    }
+
     this.isCreating.set(true);
     this.createError.set(null);
 
@@ -985,6 +1027,61 @@ export class TasksComponent {
       error: (error) => {
         this.createError.set(error.message || 'Error al crear la tarea');
         this.toast.error(error.message || 'Error al crear la tarea');
+        this.isCreating.set(false);
+      },
+    });
+  }
+
+  /** F42 (TAR-03): con "Repetir esta tarea" se crea una serie; el backend
+   * genera la primera ocurrencia al momento y las siguientes de a una. */
+  private submitRecurrence(
+    formValue: {
+      title: string;
+      description: string;
+      processId: string;
+      clientId: string;
+      assigneeUserId: string;
+      dueAt: string;
+      priority: TaskPriority;
+    },
+    recurrence: RecurrenceFormValue,
+  ): void {
+    const built = buildCreateRecurrenceRequest(
+      {
+        title: formValue.title,
+        description: formValue.description || undefined,
+        processId: formValue.processId || undefined,
+        clientId: formValue.processId
+          ? undefined
+          : formValue.clientId || undefined,
+        assigneeUserId: formValue.assigneeUserId || undefined,
+        priority: formValue.priority,
+      },
+      formValue.dueAt,
+      recurrence,
+    );
+    if (!built.ok) {
+      this.createError.set(built.error);
+      return;
+    }
+
+    this.isCreating.set(true);
+    this.createError.set(null);
+
+    this.taskRecurrencesService.create(built.value).subscribe({
+      next: () => {
+        this.isCreating.set(false);
+        this.toast.success(
+          'Tarea recurrente creada. La primera tarea ya está en tu lista.',
+        );
+        this.closeCreateModal();
+        this.loadTasks();
+      },
+      error: (error) => {
+        this.createError.set(
+          error.message || 'Error al crear la tarea recurrente',
+        );
+        this.toast.error(error.message || 'Error al crear la tarea recurrente');
         this.isCreating.set(false);
       },
     });

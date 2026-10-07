@@ -48,6 +48,9 @@ export interface TaskResponse {
   description: string | null;
   processId: string | null;
   process: TaskProcessSummary | null;
+  /** F42 (TAR-03): serie de la que nació y su número de ocurrencia (ausentes en tareas normales). */
+  recurrenceId?: string | null;
+  occurrenceNumber?: number | null;
   clientId: string | null;
   client: { id: string; name: string } | null;
   assigneeUserId: string | null;

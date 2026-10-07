@@ -8,6 +8,7 @@ import { TaskStatusesService } from '../../core/services/task-statuses.service';
 import { AdvisorsService } from '../../core/services/advisors.service';
 import { LegalProcessesService } from '../../core/services/legal-processes.service';
 import { ClientsService } from '../../core/services/clients.service';
+import { TaskRecurrencesService } from '../../core/services/task-recurrences.service';
 import { ConfirmDialogService } from '../../core/services/confirm-dialog.service';
 import { ToastService } from '../../core/services/toast.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -17,6 +18,7 @@ import { FilesService } from '../../core/services/files.service';
 import { AuthUser } from '../../core/models/auth.model';
 import { TaskPriority, TaskResponse } from '../../core/models/task.model';
 import { TaskStatusResponse } from '../../core/models/task-status.model';
+import { RecurrenceFrequency } from '../../core/models/task-recurrence.model';
 
 describe('TasksComponent', () => {
   let tasksServiceMock: {
@@ -30,6 +32,7 @@ describe('TasksComponent', () => {
   let advisorsServiceMock: { getAdvisors: jest.Mock };
   let legalProcessesServiceMock: { getLegalProcesses: jest.Mock };
   let clientsServiceMock: { getClients: jest.Mock };
+  let recurrencesServiceMock: { create: jest.Mock };
   let confirmDialogMock: { confirm: jest.Mock };
   let toastMock: { success: jest.Mock; error: jest.Mock };
   let authServiceMock: { currentUser: jest.Mock };
@@ -143,6 +146,7 @@ describe('TasksComponent', () => {
         of({ message: 'ok', legalProcesses: [], total: 0, page: 1, limit: 100 }),
       ),
     };
+    recurrencesServiceMock = { create: jest.fn().mockReturnValue(of({ id: 'rec-1' })) };
     clientsServiceMock = {
       getClients: jest.fn().mockReturnValue(
         of({ message: 'ok', clients: [], total: 0, page: 1, limit: 100 }),
@@ -182,6 +186,7 @@ describe('TasksComponent', () => {
         { provide: AdvisorsService, useValue: advisorsServiceMock },
         { provide: LegalProcessesService, useValue: legalProcessesServiceMock },
         { provide: ClientsService, useValue: clientsServiceMock },
+        { provide: TaskRecurrencesService, useValue: recurrencesServiceMock },
         { provide: ConfirmDialogService, useValue: confirmDialogMock },
         { provide: ToastService, useValue: toastMock },
         { provide: AuthService, useValue: authServiceMock },
@@ -352,6 +357,96 @@ describe('TasksComponent', () => {
       const request = tasksServiceMock.create.mock.calls[0][0] as Record<string, unknown>;
       expect(request['processId']).toBe('p1');
       expect(request['clientId']).toBeUndefined();
+    });
+  });
+
+  describe('tareas recurrentes (F42 TAR-03)', () => {
+    const fillForm = (component: TasksComponent, dueAt: string) =>
+      component.createForm.setValue({
+        title: 'Revisión mensual de contrato',
+        description: '',
+        processId: '',
+        clientId: 'c1',
+        assigneeUserId: '',
+        dueAt,
+        priority: TaskPriority.NORMAL,
+      });
+
+    it('sin "Repetir esta tarea" crea una tarea normal y no toca las series', async () => {
+      await configure();
+      const component = createComponent();
+      fillForm(component, '');
+
+      component.submitCreate();
+
+      expect(tasksServiceMock.create).toHaveBeenCalledTimes(1);
+      expect(recurrencesServiceMock.create).not.toHaveBeenCalled();
+    });
+
+    it('con "Repetir esta tarea" crea la serie con fecha y hora del primer vencimiento', async () => {
+      await configure();
+      const component = createComponent();
+      fillForm(component, '2026-11-05T09:30');
+      component.recurrenceForm.patchValue({
+        repeat: true,
+        frequency: RecurrenceFrequency.QUARTERLY,
+        endMode: 'COUNT',
+        maxOccurrences: 4,
+      });
+
+      component.submitCreate();
+
+      expect(tasksServiceMock.create).not.toHaveBeenCalled();
+      expect(recurrencesServiceMock.create).toHaveBeenCalledWith({
+        title: 'Revisión mensual de contrato',
+        clientId: 'c1',
+        priority: TaskPriority.NORMAL,
+        frequency: RecurrenceFrequency.QUARTERLY,
+        startDate: '2026-11-05',
+        dueTime: '09:30',
+        maxOccurrences: 4,
+      });
+      expect(toastMock.success).toHaveBeenCalled();
+      expect(component.createModalOpen()).toBe(false);
+    });
+
+    it('repetir sin fecha de vencimiento muestra el error y no crea nada', async () => {
+      await configure();
+      const component = createComponent();
+      fillForm(component, '');
+      component.recurrenceForm.patchValue({ repeat: true });
+
+      component.submitCreate();
+
+      expect(recurrencesServiceMock.create).not.toHaveBeenCalled();
+      expect(component.createError()).toContain('primer vencimiento');
+    });
+
+    it('un error del backend al crear la serie se muestra y rehabilita el envío', async () => {
+      await configure();
+      const component = createComponent();
+      fillForm(component, '2026-11-05T09:30');
+      component.recurrenceForm.patchValue({ repeat: true });
+      recurrencesServiceMock.create.mockReturnValue(
+        throwError(() => new Error('La fecha de inicio no puede ser anterior a hoy')),
+      );
+
+      component.submitCreate();
+
+      expect(component.createError()).toBe('La fecha de inicio no puede ser anterior a hoy');
+      expect(toastMock.error).toHaveBeenCalled();
+      expect(component.isCreating()).toBe(false);
+    });
+
+    it('abrir el modal de creación apaga el interruptor de repetir', async () => {
+      await configure();
+      const component = createComponent();
+      component.recurrenceForm.patchValue({ repeat: true, endMode: 'DATE' });
+
+      component.openCreateModal();
+
+      expect(component.recurrenceForm.getRawValue().repeat).toBe(false);
+      expect(component.recurrenceForm.getRawValue().endMode).toBe('NEVER');
     });
   });
 
