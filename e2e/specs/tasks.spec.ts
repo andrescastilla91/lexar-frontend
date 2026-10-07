@@ -3,6 +3,7 @@ import { expect, test, TestTenant } from '../shared/tenant-fixture';
 import { E2E_API_ORIGIN, E2E_MAILPIT_ORIGIN } from '../shared/environment';
 import { LoginPage } from '../pages/login.page';
 import { TasksPage } from '../pages/tasks.page';
+import { openSettingsSection } from '../pages/settings-nav';
 
 /**
  * E2E del flujo 6 (HU-FE-E2E-2): tablero de tareas con drag nativo y flujo
@@ -44,30 +45,12 @@ async function logout(page: Page, displayName: string): Promise<void> {
   await expect(page).toHaveURL(/\/login$/);
 }
 
-/**
- * Igual patrón resiliente que `SettingsCatalogsPage.selectCatalogType`
- * (ver settings-catalogs.page.ts): en viewport ancho el tab existe como
- * botón; si el tab bar no llegó a renderizar todavía, cae al `<select>`
- * mobile oculto por CSS en desktop.
- */
-async function selectSettingsTab(page: Page, label: string): Promise<void> {
-  const tabButton = page.getByRole('button', { name: label, exact: true });
-  try {
-    await tabButton.click({ timeout: 3_000 });
-    return;
-  } catch {
-    // viewport angosto real: el tab bar no existe, cae al <select> mobile.
-  }
-  const mobileSelect = page.locator('select').first();
-  await mobileSelect.selectOption({ label });
-}
-
 /** Crea, desde Configuración > Estados de tareas, un estado nuevo que
  * exige aprobación (sin aprobadores explícitos: decide cualquiera con el
  * permiso tasks.approve — ver settings-task-statuses.component.ts). */
 async function createApprovalRequiredStatus(page: Page, label: string): Promise<void> {
   await page.goto('/configuracion');
-  await selectSettingsTab(page, 'Estados de tareas');
+  await openSettingsSection(page, 'Estados de tareas');
 
   await page.getByRole('button', { name: 'Nuevo estado' }).click();
   await page.locator('input[formcontrolname="code"]').fill(`e2e_${Date.now()}`);
@@ -188,7 +171,7 @@ async function setupNonApproverUser(
  * requisitos especiales (para probar reordenamiento, no aprobación). */
 async function createStatus(page: Page, label: string): Promise<void> {
   await page.goto('/configuracion');
-  await selectSettingsTab(page, 'Estados de tareas');
+  await openSettingsSection(page, 'Estados de tareas');
 
   await page.getByRole('button', { name: 'Nuevo estado' }).click();
   await page.locator('input[formcontrolname="code"]').fill(`e2e_${Date.now()}_${Math.floor(Math.random() * 1000)}`);
@@ -200,7 +183,7 @@ async function createStatus(page: Page, label: string): Promise<void> {
 
 async function gotoTaskStatusesTab(page: Page): Promise<void> {
   await page.goto('/configuracion');
-  await selectSettingsTab(page, 'Estados de tareas');
+  await openSettingsSection(page, 'Estados de tareas');
 }
 
 /** El badge de label de cada fila (`getCatalogBadgeClasses`) es el único

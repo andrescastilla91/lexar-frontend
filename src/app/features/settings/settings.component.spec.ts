@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, convertToParamMap } from '@angular/router';
+import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { SettingsComponent } from './settings.component';
 import { CompanyService } from '../../core/services/company.service';
@@ -40,6 +40,7 @@ describe('SettingsComponent', () => {
   let aiChatServiceMock: { getUsage: jest.Mock };
   let usersServiceMock: { getUsers: jest.Mock };
   let queryParams: Record<string, string>;
+  let routerMock: { navigate: jest.Mock };
 
   const baseEntitlements: Entitlements = {
     planCode: 'TRIAL',
@@ -80,6 +81,7 @@ describe('SettingsComponent', () => {
     website: null,
     logoUrl: null,
     require2fa: false,
+    onboardingCompletedAt: null,
     processCodePrefix: null,
     processCodeCounter: 0,
     workingDays: [1, 2, 3, 4, 5],
@@ -122,6 +124,7 @@ describe('SettingsComponent', () => {
       getUsers: jest.fn().mockReturnValue(of({ message: '', users: [], total: 0, page: 1, limit: 100 })),
     };
     queryParams = initialQueryParams;
+    routerMock = { navigate: jest.fn().mockResolvedValue(true) };
 
     TestBed.configureTestingModule({
       imports: [SettingsComponent],
@@ -134,6 +137,7 @@ describe('SettingsComponent', () => {
         { provide: DashboardWidgetsService, useValue: dashboardWidgetsServiceMock },
         { provide: AiChatService, useValue: aiChatServiceMock },
         { provide: UsersService, useValue: usersServiceMock },
+        { provide: Router, useValue: routerMock },
         {
           provide: ActivatedRoute,
           useValue: { snapshot: { queryParamMap: convertToParamMap(queryParams) } },
@@ -271,34 +275,19 @@ describe('SettingsComponent', () => {
     expect(companyServiceMock.uploadLogo).not.toHaveBeenCalled();
   });
 
-  // Mitigación temporal (2026-08-08, versión 3): el corte mobile/desktop se
-  // movió de 640px (sm) a 1024px (lg) — por debajo de 1024px sigue el
-  // select de siempre (celular Y tablet, sin cambios de comportamiento en
-  // ese rango); desde 1024px se muestra un sidebar real a la izquierda en
-  // vez de una lista apilada arriba del contenido.
-  // F41 §CAL-04 (ola 3): se agregó la pestaña "Horario" — pasa de 11 a 12 secciones
-  // (F27 ya había hecho el mismo ajuste de 9 a 10 al agregar "Portal del cliente").
-  it('el sidebar de escritorio está oculto por debajo de lg y visible desde lg, con las 12 secciones', () => {
+  // F41 §CAL-04 (ola 3): se agregó la pestaña "Horario" — pasa de 11 a 12 secciones.
+  it('la navegación de secciones muestra las 12 secciones (menú lateral desde lg, desplegable por debajo)', () => {
     const fixture = TestBed.createComponent(SettingsComponent);
     fixture.detectChanges();
 
-    const nav = fixture.nativeElement.querySelector('nav[aria-label="Secciones de configuración"]');
-    const buttons = nav?.querySelectorAll('button');
+    const root = fixture.nativeElement as HTMLElement;
+    const nav = root.querySelector('nav[aria-label="Secciones de configuración"]');
+    const toggle = root.querySelector('button[aria-controls="settings-section-panel"]');
 
-    expect(nav?.className).toContain('hidden');
-    expect(nav?.className).toContain('lg:flex');
-    expect(nav?.className).toContain('lg:flex-col');
-    expect(buttons?.length).toBe(12);
-  });
-
-  it('el select cubre mobile y tablet (oculto solo desde lg), con las mismas 12 opciones', () => {
-    const fixture = TestBed.createComponent(SettingsComponent);
-    fixture.detectChanges();
-
-    const mobileWrapper = fixture.nativeElement.querySelector('.lg\\:hidden');
-    const options = mobileWrapper?.querySelectorAll('option');
-
-    expect(options?.length).toBe(12);
+    expect(nav?.className).toContain('lg:block');
+    expect(nav?.querySelectorAll('button').length).toBe(12);
+    expect(toggle?.className).toContain('lg:hidden');
+    expect(root.querySelector('select')).toBeNull();
   });
 
   it('click en un ítem del sidebar cambia de tab directamente', () => {
@@ -487,6 +476,45 @@ describe('SettingsComponent', () => {
 
     expect(companyServiceMock.updateCompany).toHaveBeenCalledWith(
       expect.objectContaining({ nonWorkingDayExceptionUserIds: ['u1', 'u2'] }),
+    );
+  });
+
+  it('selectTab cambia de sección y deja ?tab= en la URL, limpiando tipo y suggested', () => {
+    const component = createComponent();
+
+    component.selectTab('catalogs');
+
+    expect(component.activeTab()).toBe('catalogs');
+    expect(routerMock.navigate).toHaveBeenCalledWith(
+      [],
+      expect.objectContaining({
+        queryParams: { tab: 'catalogs', tipo: null, suggested: null },
+        queryParamsHandling: 'merge',
+        replaceUrl: true,
+      }),
+    );
+  });
+
+  it('selectTab sobre la sección activa no navega', () => {
+    const component = createComponent();
+
+    component.selectTab('legal');
+
+    expect(routerMock.navigate).not.toHaveBeenCalled();
+  });
+
+  it('elegir una sección desde la navegación cambia de tab y actualiza la URL', () => {
+    const fixture = TestBed.createComponent(SettingsComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+
+    const entry = fixture.nativeElement.querySelector('button[data-section-id="security"]') as HTMLElement;
+    entry.click();
+
+    expect(component.activeTab()).toBe('security');
+    expect(routerMock.navigate).toHaveBeenCalledWith(
+      [],
+      expect.objectContaining({ queryParams: { tab: 'security', tipo: null, suggested: null } }),
     );
   });
 });

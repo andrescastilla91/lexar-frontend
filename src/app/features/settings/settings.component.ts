@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormBuilder } from '@angular/forms';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { CompanyService } from '../../core/services/company.service';
 import { CompanyProfile } from '../../core/models/company.model';
 import { UsersService } from '../../core/services/users.service';
@@ -11,6 +11,7 @@ import { SettingsLegalFormComponent } from './components/settings-legal-form.com
 import { SettingsBillingFormComponent } from './components/settings-billing-form.component';
 import { SettingsBrandFormComponent } from './components/settings-brand-form.component';
 import { SettingsCatalogsComponent } from './components/settings-catalogs.component';
+import { SettingsSectionNavComponent } from './components/settings-section-nav.component';
 import { SettingsTaskTemplatesComponent } from './components/settings-task-templates.component';
 import { SettingsTaskStatusesComponent } from './components/settings-task-statuses.component';
 import { SettingsPlanComponent } from './components/settings-plan.component';
@@ -59,6 +60,7 @@ const SETTINGS_TAB_IDS: SettingsTab[] = [
     SettingsLegalFormComponent,
     SettingsBillingFormComponent,
     SettingsBrandFormComponent,
+    SettingsSectionNavComponent,
     SettingsCatalogsComponent,
     SettingsTaskTemplatesComponent,
     SettingsTaskStatusesComponent,
@@ -71,55 +73,14 @@ const SETTINGS_TAB_IDS: SettingsTab[] = [
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6 md:px-6 lg:max-w-5xl lg:px-8">
+    <div class="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6 md:px-6 lg:max-w-5xl lg:px-8 xl:max-w-6xl">
       <div>
         <h1 class="text-2xl font-semibold text-text">Configuración de la empresa</h1>
         <p class="mt-1 text-sm text-subtle">Administra los datos legales, de facturación y de marca de tu empresa.</p>
       </div>
 
-      <!-- Mitigación temporal (2026-08-08, versión 3) mientras diseño define
-           el rediseño definitivo. El corte mobile/desktop se mueve de 640px
-           (sm) a 1024px (lg): por debajo de 1024px (celular Y tablet) sigue
-           el select desplegable de siempre, sin ningún cambio de
-           comportamiento en ese rango. Desde 1024px (desktop grande) se
-           muestra un sidebar real a la izquierda en vez de una fila o lista
-           apilada arriba. Se eligió 1024px y no 640px a propósito: los
-           formularios internos (ej. datos legales) usan sus propios
-           sm:grid-cols-2/3 que se activan por ancho de VIEWPORT, no por el
-           espacio que les quede — si el sidebar apareciera ya en 640px,
-           esos formularios perderían ancho real sin que sus columnas
-           internas se enteren y se verían apretados. Por eso también el
-           contenedor pasa a max-w-5xl solo en lg: (antes max-w-3xl), para
-           que el contenido conserve un ancho similar al que tenía antes de
-           que el sidebar le quitara esos ~250px. -->
-      <div class="lg:hidden">
-        <select
-          class="w-full rounded-md border border-default bg-surface px-3 py-2 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
-          [value]="activeTab()"
-          (change)="onTabSelect($event)"
-        >
-          @for (tab of tabs; track tab.id) {
-            <option [value]="tab.id">{{ tab.label }}</option>
-          }
-        </select>
-      </div>
-
       <div class="flex flex-col gap-6 lg:grid lg:grid-cols-[220px_1fr] lg:items-start lg:gap-8">
-        <nav class="hidden lg:flex lg:flex-col lg:gap-1" aria-label="Secciones de configuración">
-          @for (tab of tabs; track tab.id) {
-            <button
-              type="button"
-              (click)="activeTab.set(tab.id)"
-              class="rounded-md px-3 py-2 text-left text-sm font-medium transition"
-              [class.bg-navy-900]="activeTab() === tab.id"
-              [class.text-white]="activeTab() === tab.id"
-              [class.text-subtle]="activeTab() !== tab.id"
-              [class.hover:bg-surface-muted]="activeTab() !== tab.id"
-            >
-              {{ tab.label }}
-            </button>
-          }
-        </nav>
+        <app-settings-section-nav [items]="tabs" [activeId]="activeTab()" (selected)="onSectionSelected($event)" />
 
         <div class="min-w-0">
           @switch (activeTab()) {
@@ -205,6 +166,7 @@ export class SettingsComponent implements OnInit {
   private readonly toast = inject(ToastService);
   private readonly planUpgrade = inject(PlanUpgradeService);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly usersService = inject(UsersService);
 
   readonly tabs: { id: SettingsTab; label: string }[] = [
@@ -306,9 +268,26 @@ export class SettingsComponent implements OnInit {
     this.suggestedPlanCode.set(queryParams.get('suggested'));
   }
 
-  onTabSelect(event: Event): void {
-    const value = (event.target as HTMLSelectElement).value as SettingsTab;
-    this.activeTab.set(value);
+  onSectionSelected(id: string): void {
+    this.selectTab(id as SettingsTab);
+  }
+
+  /**
+   * Cambia de sección y deja `?tab=` en la URL, para que un recargue (o un
+   * enlace copiado) vuelva a esta misma sección. Al salir de Catálogos se
+   * limpian `tipo` y `suggested`, que solo tienen sentido en su sección.
+   */
+  selectTab(tab: SettingsTab): void {
+    if (this.activeTab() === tab) {
+      return;
+    }
+    this.activeTab.set(tab);
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { tab, tipo: null, suggested: null },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
   }
 
   onSubmitLegal(): void {

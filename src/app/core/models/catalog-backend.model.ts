@@ -81,3 +81,17 @@ export interface CatalogItemResponse {
   message: string;
   item: CatalogItem;
 }
+
+/** F47: cuántos ítems tiene un tipo de catálogo (para la navegación de Configuración). */
+export interface CatalogSummaryItem {
+  catalogType: CatalogType;
+  /** Todos los ítems del tipo (activos e inactivos). */
+  total: number;
+  /** Solo los activos: los que el usuario ve en los formularios. */
+  active: number;
+}
+
+export interface CatalogSummaryResponse {
+  message: string;
+  summary: CatalogSummaryItem[];
+}
