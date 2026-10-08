@@ -133,19 +133,25 @@ test.describe('Datos de facturación antes de contratar (F45)', () => {
   }) => {
     await loginAsAdmin(page, tenant);
 
+    // La empresa se vuelve a aplicar al formulario cuando termina de cargar y
+    // puede pisar lo escrito; se repite escribir + comprobar hasta que quede estable.
     await gotoSettingsTab(page, 'billing');
-    await page.locator('[data-test="billing-email"]').fill('facturas@empresa');
-    await page.locator('[data-test="billing-email"]').blur();
-    await expect(page.locator('[data-test="billing-email-error"]')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Guardar cambios' })).toBeDisabled();
+    await expect(async () => {
+      await page.locator('[data-test="billing-email"]').fill('facturas@empresa');
+      await page.locator('[data-test="billing-email"]').blur();
+      await expect(page.locator('[data-test="billing-email-error"]')).toBeVisible({ timeout: 2_000 });
+      await expect(page.getByRole('button', { name: 'Guardar cambios' })).toBeDisabled({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
     await page.locator('[data-test="billing-email"]').fill('facturas@empresa.com');
     await expect(page.locator('[data-test="billing-email-error"]')).toHaveCount(0);
 
     await gotoSettingsTab(page, 'legal');
-    await page.locator('[data-test="contact-email"]').fill('no-es-correo');
-    await page.locator('[data-test="contact-email"]').blur();
-    await expect(page.locator('[data-test="contact-email-error"]')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Guardar cambios' })).toBeDisabled();
+    await expect(async () => {
+      await page.locator('[data-test="contact-email"]').fill('no-es-correo');
+      await page.locator('[data-test="contact-email"]').blur();
+      await expect(page.locator('[data-test="contact-email-error"]')).toBeVisible({ timeout: 2_000 });
+      await expect(page.getByRole('button', { name: 'Guardar cambios' })).toBeDisabled({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
   });
 
   test('un dígito de verificación de más de un número no se puede guardar', async ({ page, tenant }) => {
