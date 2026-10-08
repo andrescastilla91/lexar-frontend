@@ -51,10 +51,10 @@ tenantTest.describe('F27 — política de visibilidad configurable del portal', 
       // algo que este test configuró.
       const visibilityPage = new SettingsPortalVisibilityPage(page);
       await visibilityPage.gotoTab();
-      await expect(visibilityPage.modeSelect('Asesor asignado')).toHaveValue('ALWAYS');
-      await expect(visibilityPage.modeSelect('Cambio de estado')).toHaveValue('ALWAYS');
+      await expect(visibilityPage.modeSelect('Asesor asignado')).toContainText('Siempre visible');
+      await expect(visibilityPage.modeSelect('Cambio de estado')).toContainText('Siempre visible');
       // ANNOTATION nunca ofrece ALWAYS (allowsAlways: false, F27 §1).
-      const annotationOptions = await visibilityPage.modeSelect('Anotación').locator('option').allTextContents();
+      const annotationOptions = await visibilityPage.optionLabels('Anotación');
       expect(annotationOptions).not.toContain('Siempre visible');
 
       const suffix = `${Date.now()}${Math.floor(Math.random() * 10_000)}`;

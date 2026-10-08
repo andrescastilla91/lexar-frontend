@@ -1,14 +1,16 @@
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
-import { FormBuilder } from '@angular/forms';
+import { FormBuilder, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { CompanyService } from '../../core/services/company.service';
-import { CompanyProfile } from '../../core/models/company.model';
+import { CompanyPersonType, CompanyProfile } from '../../core/models/company.model';
 import { UsersService } from '../../core/services/users.service';
 import { MultiSelectItem } from '../../shared/components/multi-select/multi-select.component';
 import { ToastService } from '../../core/services/toast.service';
 import { PlanUpgradeService } from '../../core/services/plan-upgrade.service';
+import { resolveLocation, resolveTaxRegime } from '../../core/utils/colombia-location.util';
+import { optionalEmailValidator } from '../../core/validators/email.validator';
 import { SettingsLegalFormComponent } from './components/settings-legal-form.component';
-import { SettingsBillingFormComponent } from './components/settings-billing-form.component';
+import { SettingsBillingSectionComponent } from './components/settings-billing-section.component';
 import { SettingsBrandFormComponent } from './components/settings-brand-form.component';
 import { SettingsCatalogsComponent } from './components/settings-catalogs.component';
 import { SettingsSectionNavComponent } from './components/settings-section-nav.component';
@@ -58,7 +60,7 @@ const SETTINGS_TAB_IDS: SettingsTab[] = [
   standalone: true,
   imports: [
     SettingsLegalFormComponent,
-    SettingsBillingFormComponent,
+    SettingsBillingSectionComponent,
     SettingsBrandFormComponent,
     SettingsSectionNavComponent,
     SettingsCatalogsComponent,
@@ -91,15 +93,19 @@ const SETTINGS_TAB_IDS: SettingsTab[] = [
                 [processCodeCounter]="company()?.processCodeCounter ?? 0"
                 [isSubmitting]="isSubmittingLegal()"
                 [errorMessage]="legalError()"
+                [legacyCityNotice]="legacyCity()"
+                [legacyTaxRegimeNotice]="legacyTaxRegime()"
                 (submit)="onSubmitLegal()"
               />
             }
             @case ('billing') {
-              <app-settings-billing-form
+              <app-settings-billing-section
                 [form]="billingForm"
+                [company]="company()"
                 [isSubmitting]="isSubmittingBilling()"
                 [errorMessage]="billingError()"
                 (submit)="onSubmitBilling()"
+                (sectionRequested)="onSectionSelected($event)"
               />
             }
             @case ('brand') {
@@ -123,7 +129,10 @@ const SETTINGS_TAB_IDS: SettingsTab[] = [
               <app-settings-task-statuses />
             }
             @case ('plan') {
-              <app-settings-plan [suggestedPlanCode]="suggestedPlanCode()" />
+              <app-settings-plan
+                [suggestedPlanCode]="suggestedPlanCode()"
+                (sectionRequested)="onSectionSelected($event)"
+              />
             }
             @case ('security') {
               <app-settings-security-form
@@ -197,6 +206,11 @@ export class SettingsComponent implements OnInit {
   readonly isUploadingLogo = signal(false);
   readonly isSubmittingSecurity = signal(false);
 
+  // Datos de empresa guardados como texto libre antes de las listas oficiales
+  // (ciudad, régimen) que no se pudieron emparejar: se avisa para que se elijan.
+  readonly legacyCity = signal('');
+  readonly legacyTaxRegime = signal('');
+
   readonly legalError = signal<string | null>(null);
   readonly billingError = signal<string | null>(null);
   readonly brandError = signal<string | null>(null);
@@ -215,10 +229,11 @@ export class SettingsComponent implements OnInit {
     legalName: [''],
     address: [''],
     legalRepresentative: [''],
+    department: [''],
     city: [''],
     country: [''],
     phone: [''],
-    email: [''],
+    email: ['', [optionalEmailValidator]],
     registrationNumber: [''],
     taxRegime: [''],
     // F40 §PRO-06: se deshabilita en applyCompany() cuando ya hay procesos
@@ -227,8 +242,16 @@ export class SettingsComponent implements OnInit {
     processCodePrefix: [''],
   });
 
+  // F45: además del correo, los datos fiscales para la factura electrónica.
+  // Los de siempre (razón social, NIT, dirección, ciudad, teléfono, régimen)
+  // siguen en `legalForm`: no se duplican aquí.
   readonly billingForm = this.fb.nonNullable.group({
-    billingEmail: [''],
+    billingEmail: ['', [optionalEmailValidator]],
+    billingContactName: [''],
+    personType: [''],
+    taxIdCheckDigit: ['', [Validators.pattern(/^\d?$/)]],
+    fiscalAddress: [''],
+    fiscalResponsibilities: [[] as string[]],
   });
 
   readonly brandForm = this.fb.nonNullable.group({
@@ -325,19 +348,23 @@ export class SettingsComponent implements OnInit {
     this.isSubmittingBilling.set(true);
     this.billingError.set(null);
 
-    this.companyService.updateCompany(this.billingForm.getRawValue()).subscribe({
-      next: (company) => {
-        this.applyCompany(company);
-        this.isSubmittingBilling.set(false);
-        this.toast.success('Datos de facturación guardados correctamente.');
-      },
-      error: (error) => {
-        const message = error.message || 'No se pudo guardar el correo de facturación.';
-        this.billingError.set(message);
-        this.isSubmittingBilling.set(false);
-        this.toast.error(message);
-      },
-    });
+    const { personType, ...billing } = this.billingForm.getRawValue();
+
+    this.companyService
+      .updateCompany({ ...billing, ...(personType ? { personType: personType as CompanyPersonType } : {}) })
+      .subscribe({
+        next: (company) => {
+          this.applyCompany(company);
+          this.isSubmittingBilling.set(false);
+          this.toast.success('Datos de facturación guardados correctamente.');
+        },
+        error: (error) => {
+          const message = error.message || 'No se pudieron guardar los datos de facturación.';
+          this.billingError.set(message);
+          this.isSubmittingBilling.set(false);
+          this.toast.error(message);
+        },
+      });
   }
 
   onSubmitBrand(): void {
@@ -417,16 +444,21 @@ export class SettingsComponent implements OnInit {
 
   private applyCompany(company: CompanyProfile): void {
     this.company.set(company);
+    const location = resolveLocation(company.department, company.city);
+    const taxRegime = resolveTaxRegime(company.taxRegime);
+    this.legacyCity.set(company.city && !location.city ? company.city : '');
+    this.legacyTaxRegime.set(company.taxRegime && !taxRegime ? company.taxRegime : '');
     this.legalForm.patchValue({
       legalName: company.legalName,
       address: company.address ?? '',
       legalRepresentative: company.legalRepresentative ?? '',
-      city: company.city ?? '',
+      department: location.department,
+      city: location.city,
       country: company.country ?? '',
       phone: company.phone ?? '',
       email: company.email ?? '',
       registrationNumber: company.registrationNumber ?? '',
-      taxRegime: company.taxRegime ?? '',
+      taxRegime,
       processCodePrefix: company.processCodePrefix ?? '',
     });
     // F40 §PRO-06: "queda editable en Configuración mientras no haya
@@ -440,6 +472,11 @@ export class SettingsComponent implements OnInit {
     }
     this.billingForm.patchValue({
       billingEmail: company.billingEmail ?? '',
+      billingContactName: company.billingContactName ?? '',
+      personType: company.personType ?? '',
+      taxIdCheckDigit: company.taxIdCheckDigit ?? '',
+      fiscalAddress: company.fiscalAddress ?? '',
+      fiscalResponsibilities: company.fiscalResponsibilities ?? [],
     });
     this.brandForm.patchValue({
       website: company.website ?? '',

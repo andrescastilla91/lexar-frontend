@@ -212,7 +212,7 @@ import { SidebarPreferenceService } from './sidebar-preference.service';
           }
 
           <main
-            class="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 lg:p-8"
+            class="relative flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 lg:p-8"
           >
             <div class="min-w-0 w-full max-w-[1400px] mx-auto">
               <router-outlet />

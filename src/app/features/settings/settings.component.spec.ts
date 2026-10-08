@@ -12,6 +12,7 @@ import { PortalVisibilityPolicyService } from '../../core/services/portal-visibi
 import { DashboardWidgetsService } from '../../core/services/dashboard-widgets.service';
 import { AiChatService } from '../../core/services/ai-chat.service';
 import { UsersService } from '../../core/services/users.service';
+import { CompanyDocumentsService } from '../../core/services/company-documents.service';
 
 describe('SettingsComponent', () => {
   let companyServiceMock: {
@@ -29,6 +30,7 @@ describe('SettingsComponent', () => {
     getPlanCatalog: jest.Mock;
     listInvoices: jest.Mock;
     isSimulationEnabled: jest.Mock;
+    getBillingReadiness: jest.Mock;
   };
   let portalVisibilityPolicyServiceMock: { getAll: jest.Mock; update: jest.Mock };
   // F32 PR3: al abrir la pestaña "Tablero" se renderiza el
@@ -105,6 +107,7 @@ describe('SettingsComponent', () => {
       getPlanCatalog: jest.fn().mockReturnValue(of([])),
       listInvoices: jest.fn().mockReturnValue(of([])),
       isSimulationEnabled: jest.fn().mockReturnValue(of(false)),
+      getBillingReadiness: jest.fn().mockReturnValue(of({ ready: true, missing: [] })),
     };
     // F27: al abrir la pestaña "Portal del cliente" se renderiza el
     // SettingsPortalVisibilityComponent real — igual que con SettingsPlanComponent
@@ -137,6 +140,8 @@ describe('SettingsComponent', () => {
         { provide: DashboardWidgetsService, useValue: dashboardWidgetsServiceMock },
         { provide: AiChatService, useValue: aiChatServiceMock },
         { provide: UsersService, useValue: usersServiceMock },
+        // F45: la sección Facturación y el aviso de la pestaña Plan consultan documentos y estado.
+        { provide: CompanyDocumentsService, useValue: { list: () => of([]), upload: jest.fn(), remove: jest.fn() } },
         { provide: Router, useValue: routerMock },
         {
           provide: ActivatedRoute,
@@ -181,6 +186,77 @@ describe('SettingsComponent', () => {
 
     expect(component.legalForm.get('processCodePrefix')?.value).toBe('RGJ');
     expect(component.legalForm.get('processCodePrefix')?.disabled).toBe(true);
+  });
+
+  describe('ubicación y régimen de la empresa (listas oficiales)', () => {
+    it('empareja el texto libre guardado con los nombres oficiales de departamento, ciudad y régimen', () => {
+      companyServiceMock.getCompany.mockReturnValue(
+        of({ ...baseCompany, department: 'antioquia', city: 'medellin', taxRegime: 'Régimen común' }),
+      );
+
+      const component = createComponent();
+
+      expect(component.legalForm.getRawValue()).toMatchObject({
+        department: 'Antioquia',
+        city: 'Medellín',
+        taxRegime: 'VAT_RESPONSIBLE',
+      });
+      expect(component.legacyCity()).toBe('');
+      expect(component.legacyTaxRegime()).toBe('');
+    });
+
+    it('si la ciudad guardada no está en el listado, queda vacía y se avisa', () => {
+      companyServiceMock.getCompany.mockReturnValue(
+        of({ ...baseCompany, department: 'Cundinamarca', city: 'Bogotá', taxRegime: 'Régimen simple' }),
+      );
+
+      const component = createComponent();
+
+      expect(component.legalForm.getRawValue()).toMatchObject({
+        department: 'Cundinamarca',
+        city: '',
+        taxRegime: '',
+      });
+      expect(component.legacyCity()).toBe('Bogotá');
+      expect(component.legacyTaxRegime()).toBe('Régimen simple');
+    });
+
+    it('una empresa sin ciudad ni régimen no muestra avisos', () => {
+      const component = createComponent();
+
+      expect(component.legacyCity()).toBe('');
+      expect(component.legacyTaxRegime()).toBe('');
+    });
+
+    it('onSubmitLegal envía departamento, ciudad y régimen elegidos', () => {
+      companyServiceMock.updateCompany.mockReturnValue(of(baseCompany));
+      const component = createComponent();
+      component.legalForm.patchValue({ department: 'Antioquia', city: 'Medellín', taxRegime: 'VAT_NOT_RESPONSIBLE' });
+
+      component.onSubmitLegal();
+
+      expect(companyServiceMock.updateCompany.mock.calls[0][0]).toMatchObject({
+        department: 'Antioquia',
+        city: 'Medellín',
+        taxRegime: 'VAT_NOT_RESPONSIBLE',
+      });
+    });
+  });
+
+  describe('validación de correos', () => {
+    it('el correo de contacto y el de facturación inválidos invalidan su formulario; vacíos son válidos', () => {
+      const component = createComponent();
+
+      component.legalForm.patchValue({ email: 'no-es-correo' });
+      component.billingForm.patchValue({ billingEmail: 'facturas@empresa' });
+      expect(component.legalForm.get('email')?.hasError('email')).toBe(true);
+      expect(component.billingForm.get('billingEmail')?.hasError('email')).toBe(true);
+
+      component.legalForm.patchValue({ email: 'contacto@bufete.com' });
+      component.billingForm.patchValue({ billingEmail: '' });
+      expect(component.legalForm.get('email')?.valid).toBe(true);
+      expect(component.billingForm.get('billingEmail')?.valid).toBe(true);
+    });
   });
 
   it('si falla la carga de la empresa, muestra un mensaje de error', () => {
@@ -238,6 +314,67 @@ describe('SettingsComponent', () => {
     expect(companyServiceMock.updateCompany).toHaveBeenCalled();
     expect(component.company()?.billingEmail).toBe('facturas@bufete.com');
     expect(toastServiceMock.success).toHaveBeenCalledWith('Datos de facturación guardados correctamente.');
+  });
+
+  // F45
+  it('onSubmitBilling envía los datos fiscales y omite el tipo de persona si no se eligió', () => {
+    companyServiceMock.updateCompany.mockReturnValue(of(baseCompany));
+    const component = createComponent();
+    component.billingForm.patchValue({
+      billingEmail: 'facturas@bufete.com',
+      taxIdCheckDigit: '7',
+      fiscalResponsibilities: ['O-13'],
+    });
+
+    component.onSubmitBilling();
+
+    const sent = companyServiceMock.updateCompany.mock.calls[0][0] as Record<string, unknown>;
+    expect(sent).toMatchObject({
+      billingEmail: 'facturas@bufete.com',
+      taxIdCheckDigit: '7',
+      fiscalResponsibilities: ['O-13'],
+    });
+    expect('personType' in sent).toBe(false);
+  });
+
+  it('onSubmitBilling envía el tipo de persona cuando se eligió', () => {
+    companyServiceMock.updateCompany.mockReturnValue(of(baseCompany));
+    const component = createComponent();
+    component.billingForm.patchValue({ personType: 'LEGAL_ENTITY' });
+
+    component.onSubmitBilling();
+
+    expect(companyServiceMock.updateCompany.mock.calls[0][0]).toMatchObject({ personType: 'LEGAL_ENTITY' });
+  });
+
+  it('los datos fiscales guardados llenan el formulario de facturación', () => {
+    companyServiceMock.getCompany.mockReturnValue(
+      of({
+        ...baseCompany,
+        personType: 'NATURAL_PERSON',
+        taxIdCheckDigit: '3',
+        billingContactName: 'Ana',
+        fiscalAddress: 'Calle 9',
+        fiscalResponsibilities: ['O-15'],
+      }),
+    );
+    const component = createComponent();
+
+    expect(component.billingForm.getRawValue()).toMatchObject({
+      personType: 'NATURAL_PERSON',
+      taxIdCheckDigit: '3',
+      billingContactName: 'Ana',
+      fiscalAddress: 'Calle 9',
+      fiscalResponsibilities: ['O-15'],
+    });
+  });
+
+  it('un dígito de verificación inválido invalida el formulario de facturación', () => {
+    const component = createComponent();
+
+    component.billingForm.patchValue({ taxIdCheckDigit: '12' });
+
+    expect(component.billingForm.invalid).toBe(true);
   });
 
   it('onSubmitBrand actualiza el sitio web', () => {
@@ -302,6 +439,28 @@ describe('SettingsComponent', () => {
     billingButton.click();
 
     expect(component.activeTab()).toBe('billing');
+  });
+
+  // F45: el aviso de la pestaña Plan lleva a Facturación sin salir de Configuración.
+  it('la pantalla de planes puede pedir abrir la sección Facturación', () => {
+    configure({ tab: 'plan' });
+    subscriptionServiceMock.getBillingReadiness.mockReturnValue(
+      of({ ready: false, missing: [{ code: 'RUT_DOCUMENT', label: 'RUT cargado', section: 'billing' }] }),
+    );
+    const fixture = TestBed.createComponent(SettingsComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+
+    const button = fixture.nativeElement.querySelector('[data-test="billing-incomplete"] button') as HTMLButtonElement;
+    button.click();
+    fixture.detectChanges();
+
+    expect(component.activeTab()).toBe('billing');
+    expect(routerMock.navigate).toHaveBeenCalledWith(
+      [],
+      expect.objectContaining({ queryParams: expect.objectContaining({ tab: 'billing' }) }),
+    );
+    expect(fixture.nativeElement.querySelector('app-settings-billing-section')).not.toBeNull();
   });
 
   // F27: verifica que la nueva pestaña se pueda abrir y cargue la política real.

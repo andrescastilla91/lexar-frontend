@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, catchError, map, shareReplay, switchMap, tap, throwError } from 'rxjs';
 import { environment } from '../../../environments/environment';
+import { BillingReadiness } from '../models/company.model';
 import {
   CancelSubscriptionResponse,
   CheckoutLinkResponse,
@@ -107,6 +108,11 @@ export class SubscriptionService {
   /** Limpia el caché de entitlements (p. ej. tras volver de un checkout exitoso). */
   invalidate(): void {
     this.entitlementsCache = null;
+  }
+
+  /** F45: qué le falta al tenant para poder contratar un plan de pago. */
+  getBillingReadiness(): Observable<BillingReadiness> {
+    return this.http.get<BillingReadiness>(`${this.apiUrl}/billing-readiness`);
   }
 
   listInvoices(): Observable<SaasInvoice[]> {

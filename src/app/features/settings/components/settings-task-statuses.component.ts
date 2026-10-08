@@ -10,13 +10,14 @@ import { FormModalShellComponent } from '../../../core/components/form-modal-she
 import { getCatalogBadgeClasses } from '../../../core/utils/catalog-badge.util';
 import { PlanUpgradeService } from '../../../core/services/plan-upgrade.service';
 import { MultiSelectComponent, MultiSelectItem } from '../../../shared/components/multi-select/multi-select.component';
+import { SelectComponent, SelectItem } from '../../../shared/components/select/select.component';
 
 const COLOR_OPTIONS = ['info', 'warning', 'success', 'danger', 'accent', 'primary'] as const;
 
 @Component({
   selector: 'app-settings-task-statuses',
   standalone: true,
-  imports: [ReactiveFormsModule, HasPermissionDirective, FormModalShellComponent, MultiSelectComponent],
+  imports: [ReactiveFormsModule, HasPermissionDirective, FormModalShellComponent, MultiSelectComponent, SelectComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="space-y-6">
@@ -160,15 +161,12 @@ const COLOR_OPTIONS = ['info', 'warning', 'success', 'danger', 'accent', 'primar
 
           <label class="text-sm text-muted">
             Posición
-            <select
+            <app-select
+              class="mt-2"
               formControlName="position"
-              class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
-            >
-              @for (s of statuses(); track s.id; let i = $index) {
-                <option [value]="i">Antes de "{{ s.label }}"</option>
-              }
-              <option [value]="statuses().length">Al final</option>
-            </select>
+              [items]="positionItems()"
+              data-test="status-position"
+            />
           </label>
         }
 
@@ -184,14 +182,12 @@ const COLOR_OPTIONS = ['info', 'warning', 'success', 'danger', 'accent', 'primar
 
         <label class="text-sm text-muted">
           Color
-          <select
+          <app-select
+            class="mt-2"
             formControlName="color"
-            class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
-          >
-            @for (color of colorOptions; track color) {
-              <option [value]="color">{{ color }}</option>
-            }
-          </select>
+            [items]="colorItems"
+            data-test="status-color"
+          />
         </label>
 
         <div class="space-y-2 rounded-lg border border-default bg-surface-muted p-3">
@@ -278,7 +274,11 @@ export class SettingsTaskStatusesComponent implements OnInit {
   );
   readonly selectedApproverIdsArray = computed(() => Array.from(this.selectedApproverIds()));
 
-  protected readonly colorOptions = COLOR_OPTIONS;
+  protected readonly colorItems: SelectItem[] = COLOR_OPTIONS.map((color) => ({ value: color, label: color }));
+  protected readonly positionItems = computed<SelectItem[]>(() => [
+    ...this.statuses().map((status, index) => ({ value: String(index), label: `Antes de "${status.label}"` })),
+    { value: String(this.statuses().length), label: 'Al final' },
+  ]);
   protected readonly getCatalogBadgeClasses = getCatalogBadgeClasses;
 
   readonly form = this.fb.nonNullable.group({

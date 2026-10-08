@@ -18,6 +18,7 @@ describe('SettingsPlanComponent', () => {
     simulateSubscription: jest.Mock;
     createCheckout: jest.Mock;
     cancelAtPeriodEnd: jest.Mock;
+    getBillingReadiness: jest.Mock;
   };
   let confirmDialogMock: { confirm: jest.Mock };
   let toastServiceMock: { success: jest.Mock; error: jest.Mock };
@@ -127,6 +128,7 @@ describe('SettingsPlanComponent', () => {
       simulateSubscription: jest.fn(),
       createCheckout: jest.fn(),
       cancelAtPeriodEnd: jest.fn(),
+      getBillingReadiness: jest.fn().mockReturnValue(of({ ready: true, missing: [] })),
     };
     confirmDialogMock = { confirm: jest.fn().mockResolvedValue(true) };
     toastServiceMock = { success: jest.fn(), error: jest.fn() };
@@ -281,6 +283,106 @@ describe('SettingsPlanComponent', () => {
 
     expect(toastServiceMock.error).toHaveBeenCalledWith('No se pudo iniciar el pago');
     expect(component.isCheckingOut()).toBe(false);
+  });
+
+  describe('datos de facturación para el primer plan de pago (F45)', () => {
+    const incomplete = {
+      ready: false,
+      missing: [
+        { code: 'RUT_DOCUMENT', label: 'RUT cargado', section: 'billing' },
+        { code: 'PERSON_TYPE', label: 'Tipo de persona', section: 'billing' },
+      ],
+    };
+
+    function createWithFixture() {
+      const fixture = TestBed.createComponent(SettingsPlanComponent);
+      fixture.detectChanges();
+      return fixture;
+    }
+
+    it('en Trial con datos incompletos muestra el aviso con lo pendiente y un botón para completarlos', () => {
+      subscriptionServiceMock.getBillingReadiness.mockReturnValue(of(incomplete));
+      const fixture = createWithFixture();
+      const requested = jest.fn();
+      fixture.componentInstance.sectionRequested.subscribe(requested);
+
+      const banner = fixture.nativeElement.querySelector('[data-test="billing-incomplete"]') as HTMLElement;
+      expect(banner.textContent).toContain('rut cargado, tipo de persona');
+
+      (banner.querySelector('button') as HTMLButtonElement).click();
+      expect(requested).toHaveBeenCalledWith('billing');
+    });
+
+    it('con los datos completos no muestra el aviso', () => {
+      const fixture = createWithFixture();
+
+      expect(fixture.nativeElement.querySelector('[data-test="billing-incomplete"]')).toBeNull();
+    });
+
+    it('un plan que no es Trial no muestra el aviso aunque falten datos', () => {
+      subscriptionServiceMock.getEntitlements.mockReturnValue(
+        of({ ...entitlements, planCode: 'ESTUDIO', status: 'active' }),
+      );
+      subscriptionServiceMock.getBillingReadiness.mockReturnValue(of(incomplete));
+      const fixture = createWithFixture();
+
+      expect(fixture.nativeElement.querySelector('[data-test="billing-incomplete"]')).toBeNull();
+    });
+
+    it('checkout() desde Trial con datos incompletos no abre el diálogo ni llama a la pasarela y lleva a Facturación', async () => {
+      subscriptionServiceMock.getBillingReadiness.mockReturnValue(of(incomplete));
+      const component = createComponent();
+      const requested = jest.fn();
+      component.sectionRequested.subscribe(requested);
+
+      await component.checkout('INDEPENDIENTE');
+
+      expect(toastServiceMock.error).toHaveBeenCalledWith(
+        'Completa los datos de facturación de tu empresa para contratar un plan de pago.',
+      );
+      expect(requested).toHaveBeenCalledWith('billing');
+      expect(confirmDialogMock.confirm).not.toHaveBeenCalled();
+      expect(subscriptionServiceMock.simulateSubscription).not.toHaveBeenCalled();
+      expect(subscriptionServiceMock.createCheckout).not.toHaveBeenCalled();
+    });
+
+    it('checkout() de quien ya paga no se bloquea aunque el estado diga que faltan datos', async () => {
+      subscriptionServiceMock.getEntitlements.mockReturnValue(
+        of({ ...entitlements, planCode: 'ESTUDIO', status: 'active' }),
+      );
+      subscriptionServiceMock.getBillingReadiness.mockReturnValue(of(incomplete));
+      subscriptionServiceMock.simulateSubscription.mockReturnValue(of({ message: 'ok' }));
+      const component = createComponent();
+
+      await component.checkout('FIRMA');
+
+      expect(subscriptionServiceMock.simulateSubscription).toHaveBeenCalledWith('FIRMA');
+    });
+
+    it('si no se puede consultar el estado (403) deja intentar y manda el servidor', async () => {
+      subscriptionServiceMock.getBillingReadiness.mockReturnValue(throwError(() => new Error('403')));
+      subscriptionServiceMock.simulateSubscription.mockReturnValue(of({ message: 'ok' }));
+      const component = createComponent();
+
+      await component.checkout('INDEPENDIENTE');
+
+      expect(subscriptionServiceMock.simulateSubscription).toHaveBeenCalledWith('INDEPENDIENTE');
+    });
+
+    it('si el servidor rechaza por datos incompletos, muestra su mensaje y vuelve a consultar el estado', async () => {
+      subscriptionServiceMock.simulateSubscription.mockReturnValue(
+        throwError(() => new Error('Completa los datos de facturación de tu empresa antes de contratar un plan de pago')),
+      );
+      const component = createComponent();
+      expect(subscriptionServiceMock.getBillingReadiness).toHaveBeenCalledTimes(1);
+
+      await component.checkout('INDEPENDIENTE');
+
+      expect(toastServiceMock.error).toHaveBeenCalledWith(
+        'Completa los datos de facturación de tu empresa antes de contratar un plan de pago',
+      );
+      expect(subscriptionServiceMock.getBillingReadiness).toHaveBeenCalledTimes(2);
+    });
   });
 
   it('downloadInvoice() abre la URL firmada en una pestaña nueva', () => {

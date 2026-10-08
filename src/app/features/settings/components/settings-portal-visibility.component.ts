@@ -9,6 +9,7 @@ import { getEventLabel } from '../../processes/utils/process-format.utils';
 import { ConfirmDialogService } from '../../../core/services/confirm-dialog.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { HasPermissionDirective } from '../../../core/directives/has-permission.directive';
+import { SelectComponent, SelectItem } from '../../../shared/components/select/select.component';
 
 const MODE_LABELS: Record<PortalEventVisibilityMode, string> = {
   [PortalEventVisibilityMode.ALWAYS]: 'Siempre visible',
@@ -19,7 +20,7 @@ const MODE_LABELS: Record<PortalEventVisibilityMode, string> = {
 @Component({
   selector: 'app-settings-portal-visibility',
   standalone: true,
-  imports: [HasPermissionDirective],
+  imports: [HasPermissionDirective, SelectComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="space-y-6">
@@ -34,20 +35,18 @@ const MODE_LABELS: Record<PortalEventVisibilityMode, string> = {
       } @else {
         <div class="space-y-2">
           @for (policy of policies(); track policy.eventType) {
-            <div class="flex items-center justify-between gap-3 rounded-lg border border-default bg-surface p-4 shadow-card">
+            <div class="flex flex-col gap-2 rounded-lg border border-default bg-surface p-4 shadow-card sm:flex-row sm:items-center sm:justify-between sm:gap-3">
               <span class="text-sm font-medium text-text">{{ getEventLabel(policy.eventType) }}</span>
-              <select
+              <app-select
                 *hasPermission="'companies.edit'"
-                class="rounded-md border border-default bg-surface px-3 py-2 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
-                [disabled]="savingEventType() === policy.eventType"
-                (change)="onModeChange(policy, $event)"
-              >
-                @if (policy.allowsAlways) {
-                  <option [value]="modes.ALWAYS" [selected]="policy.mode === modes.ALWAYS">{{ modeLabels[modes.ALWAYS] }}</option>
-                }
-                <option [value]="modes.DEFAULT_ON" [selected]="policy.mode === modes.DEFAULT_ON">{{ modeLabels[modes.DEFAULT_ON] }}</option>
-                <option [value]="modes.DEFAULT_OFF" [selected]="policy.mode === modes.DEFAULT_OFF">{{ modeLabels[modes.DEFAULT_OFF] }}</option>
-              </select>
+                class="w-full sm:w-56"
+                [items]="modeItems(policy)"
+                [value]="policy.mode"
+                [isDisabled]="savingEventType() === policy.eventType"
+                [ariaLabel]="'Visibilidad de ' + getEventLabel(policy.eventType)"
+                data-test="portal-visibility-mode"
+                (valueChange)="onModeChange(policy, $event)"
+              />
             </div>
           }
         </div>
@@ -64,8 +63,6 @@ export class SettingsPortalVisibilityComponent implements OnInit {
   readonly isLoading = signal(false);
   readonly savingEventType = signal<ProcessEventType | null>(null);
 
-  protected readonly modes = PortalEventVisibilityMode;
-  protected readonly modeLabels = MODE_LABELS;
   protected readonly getEventLabel = getEventLabel;
 
   ngOnInit(): void {
@@ -86,16 +83,25 @@ export class SettingsPortalVisibilityComponent implements OnInit {
     });
   }
 
-  async onModeChange(policy: PortalEventVisibilityPolicy, event: Event): Promise<void> {
-    const select = event.target as HTMLSelectElement;
-    const newMode = select.value as PortalEventVisibilityMode;
-    if (newMode === policy.mode) {
+  protected modeItems(policy: PortalEventVisibilityPolicy): SelectItem[] {
+    const modes = policy.allowsAlways
+      ? [PortalEventVisibilityMode.ALWAYS, PortalEventVisibilityMode.DEFAULT_ON, PortalEventVisibilityMode.DEFAULT_OFF]
+      : [PortalEventVisibilityMode.DEFAULT_ON, PortalEventVisibilityMode.DEFAULT_OFF];
+    return modes.map((mode) => ({ value: mode, label: MODE_LABELS[mode] }));
+  }
+
+  // El selector es controlado (`[value]="policy.mode"`): si se cancela la
+  // confirmación o falla el guardado, el valor de la política no cambia y el
+  // selector sigue mostrando el modo real.
+  async onModeChange(policy: PortalEventVisibilityPolicy, value: string | null): Promise<void> {
+    const newMode = value as PortalEventVisibilityMode;
+    if (!newMode || newMode === policy.mode) {
       return;
     }
 
     // F27: ANNOTATION en DEFAULT_ON cambia el comportamiento por defecto de
     // toda anotación nueva (nace visible para el cliente) — se pide
-    // confirmación porque es fácil de activar sin querer desde un select.
+    // confirmación porque es fácil de activar sin querer desde un selector.
     if (policy.eventType === ProcessEventType.ANNOTATION && newMode === PortalEventVisibilityMode.DEFAULT_ON) {
       const confirmed = await this.confirmDialog.confirm({
         title: 'Anotaciones visibles por defecto',
@@ -103,7 +109,6 @@ export class SettingsPortalVisibilityComponent implements OnInit {
           'Con esta opción, toda anotación nueva será visible para el cliente en el portal a menos que el asesor la marque como interna al crearla. ¿Deseas continuar?',
       });
       if (!confirmed) {
-        select.value = policy.mode;
         return;
       }
     }
@@ -118,7 +123,6 @@ export class SettingsPortalVisibilityComponent implements OnInit {
         this.toast.success('Política de visibilidad actualizada correctamente.');
       },
       error: (error) => {
-        select.value = policy.mode;
         this.savingEventType.set(null);
         this.toast.error(error.message || 'No se pudo actualizar la política de visibilidad.');
       },

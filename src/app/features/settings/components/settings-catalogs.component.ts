@@ -8,11 +8,12 @@ import { ToastService } from '../../../core/services/toast.service';
 import { HasPermissionDirective } from '../../../core/directives/has-permission.directive';
 import { FormModalShellComponent } from '../../../core/components/form-modal-shell.component';
 import { PlanUpgradeService } from '../../../core/services/plan-upgrade.service';
+import { SelectComponent, SelectItem } from '../../../shared/components/select/select.component';
 import { CatalogNavComponent } from './catalog-nav.component';
 import { CatalogItemRowComponent } from './catalog-item-row.component';
 import { CATALOG_META, DEFAULT_CATALOG_TYPE, isCatalogType } from '../utils/catalog-registry';
 
-const COLOR_OPTIONS: { value: string; label: string }[] = [
+const COLOR_OPTIONS: SelectItem[] = [
   { value: 'primary', label: 'Primario' },
   { value: 'accent', label: 'Acento' },
   { value: 'success', label: 'Éxito' },
@@ -30,6 +31,7 @@ const COLOR_OPTIONS: { value: string; label: string }[] = [
     FormModalShellComponent,
     CatalogNavComponent,
     CatalogItemRowComponent,
+    SelectComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -136,30 +138,27 @@ const COLOR_OPTIONS: { value: string; label: string }[] = [
           </label>
           <label class="text-sm text-muted">
             Color
-            <select
+            <app-select
+              class="mt-2"
               formControlName="color"
-              class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
-            >
-              <option value="">Sin color</option>
-              @for (color of colorOptions; track color.value) {
-                <option [value]="color.value">{{ color.label }}</option>
-              }
-            </select>
+              [items]="colorOptions"
+              emptyLabel="Sin color"
+              data-test="catalog-color"
+            />
           </label>
           <!-- F40 §PRO-03: solo relevante para el catálogo "Etapas de proceso" —
                a qué tipo de proceso aplica esta etapa. null = aplica a todos. -->
           @if (activeType() === 'process_stage') {
             <label class="text-sm text-muted">
               Aplica a tipo de proceso
-              <select
+              <app-select
+                class="mt-2"
                 formControlName="processTypeScope"
-                class="mt-2 w-full rounded-md border border-default px-4 py-2.5 text-sm text-text shadow-card focus:border-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-900/30"
-              >
-                <option [value]="null">Todos los tipos</option>
-                @for (processType of processTypeOptions(); track processType.id) {
-                  <option [value]="processType.id">{{ processType.label }}</option>
-                }
-              </select>
+                [items]="processTypeItems()"
+                emptyLabel="Todos los tipos"
+                [emptyValue]="null"
+                data-test="catalog-process-type-scope"
+              />
             </label>
           }
         </form>
@@ -197,6 +196,9 @@ export class SettingsCatalogsComponent implements OnInit {
   /** F40 §PRO-03: opciones para el selector "Aplica a tipo de proceso" en la
    * pestaña de etapas — se carga una sola vez, independiente de activeType(). */
   readonly processTypeOptions = signal<CatalogItem[]>([]);
+  readonly processTypeItems = computed<SelectItem[]>(() =>
+    this.processTypeOptions().map((processType) => ({ value: processType.id, label: processType.label })),
+  );
 
   readonly items = computed(() => [...this.allItems()].sort((a, b) => a.sortOrder - b.sortOrder));
 
