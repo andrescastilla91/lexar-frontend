@@ -5,6 +5,7 @@ export interface PortalUser {
   id: string;
   email: string;
   clientId: string;
+  legalTermsPending?: boolean;
 }
 
 export interface PortalLoginRequest {

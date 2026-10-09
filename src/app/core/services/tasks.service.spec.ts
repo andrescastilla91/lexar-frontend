@@ -19,7 +19,15 @@ describe('TasksService', () => {
     title: 'Revisar contrato',
     description: null,
     processId: 'process-1',
-    process: { id: 'process-1', title: 'Proceso X' },
+    process: {
+      id: 'process-1',
+      title: 'Proceso X',
+      caseNumber: null,
+      internalCode: 'RGJ-000001',
+      stage: null,
+      clientId: 'client-1',
+      clientName: null,
+    },
     clientId: null,
     client: null,
     assigneeUserId: 'user-1',
@@ -85,13 +93,14 @@ describe('TasksService', () => {
   });
 
   it('getAll agrega los filtros provistos como params', () => {
-    service.getAll({ assignee: 'user-1', processId: 'process-1', statusId: 'status-1', from: '2026-01-01', to: '2026-01-31' }).subscribe();
+    service.getAll({ assignee: 'user-1', processId: 'process-1', clientId: 'client-1', statusId: 'status-1', from: '2026-01-01', to: '2026-01-31' }).subscribe();
 
     const req = httpMock.expectOne(
       (r) =>
         r.url === `${apiUrl}/tasks` &&
         r.params.get('assignee') === 'user-1' &&
         r.params.get('processId') === 'process-1' &&
+        r.params.get('clientId') === 'client-1' &&
         r.params.get('statusId') === 'status-1' &&
         r.params.get('from') === '2026-01-01' &&
         r.params.get('to') === '2026-01-31',

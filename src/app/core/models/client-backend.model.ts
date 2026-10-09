@@ -11,6 +11,12 @@ export enum ClientPersonType {
   JURIDICA = 'JURIDICA',
 }
 
+/** F44 §LEG-02: medio por el que el cliente autorizó el tratamiento de sus datos. */
+export enum DataProcessingAuthorizationMethod {
+  FISICA = 'FISICA',
+  DIGITAL = 'DIGITAL',
+}
+
 export interface ClientAdvisorRef {
   id: string;
   firstName: string;
@@ -43,6 +49,15 @@ export interface ClientResponse {
   laftRisk: CatalogRef | null;
   isActive: boolean;
   createdAt: string;
+  /**
+   * F44 §LEG-02: autorización de tratamiento de datos personales — se
+   * edita en la pestaña Cumplimiento junto con riskLevel/laftRisk. El
+   * soporte adjunto no viaja aquí, se consulta vía
+   * `FilesService.getFilesByEntity('client', id)`.
+   */
+  dataProcessingAuthorized?: boolean;
+  dataProcessingAuthorizedAt?: string | null;
+  dataProcessingAuthorizationMethod?: DataProcessingAuthorizationMethod | null;
   contacts?: ClientContactResponse[];
   advisors?: ClientAdvisorRef[];
   /** F34 §4: tipo de vinculación de los asuntos no cerrados del cliente —
@@ -89,6 +104,9 @@ export interface UpdateClientRequest {
 export interface UpdateClientComplianceRequest {
   riskLevelId?: string;
   laftRiskId?: string;
+  dataProcessingAuthorized?: boolean;
+  dataProcessingAuthorizedAt?: string;
+  dataProcessingAuthorizationMethod?: DataProcessingAuthorizationMethod;
 }
 
 export interface CreateClientContactRequest {

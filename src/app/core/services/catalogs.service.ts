@@ -6,6 +6,8 @@ import {
   CatalogItem,
   CatalogItemResponse,
   CatalogItemsResponse,
+  CatalogSummaryItem,
+  CatalogSummaryResponse,
   CatalogType,
   CreateCatalogItemRequest,
   UpdateCatalogItemRequest,
@@ -42,6 +44,20 @@ export class CatalogsService {
 
     this.cache.set(type, request$);
     return request$;
+  }
+
+  /**
+   * F47: conteo de ítems por tipo de catálogo en una sola llamada. No se
+   * cachea: la pantalla de Configuración lo vuelve a pedir tras cada cambio.
+   */
+  getSummary(): Observable<CatalogSummaryItem[]> {
+    return this.http.get<CatalogSummaryResponse>(`${this.apiUrl}/summary`).pipe(
+      map((response) => response.summary),
+      catchError((error) => {
+        console.error('Error al obtener el resumen de catálogos:', error);
+        return throwError(() => new Error(error.message || 'Error al cargar el resumen de catálogos'));
+      })
+    );
   }
 
   /** Devuelve solo los ítems activos, ordenados por sortOrder. */

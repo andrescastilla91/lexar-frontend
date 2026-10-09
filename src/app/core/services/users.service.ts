@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import {
   UserBackend,
@@ -12,7 +13,9 @@ import {
   UserResponse,
   CreateUserResponse,
   AssignableUsersResponse,
+  EffectivePermissionsResponse,
 } from '../models/user-backend.model';
+import { readBlobErrorMessage } from '../utils/blob-download.util';
 
 @Injectable({
   providedIn: 'root',
@@ -70,5 +73,21 @@ export class UsersService {
   /** F11 (S10): desactivación forzada del 2FA de otro usuario — requiere `users.manage-2fa`. */
   disableTwoFactor(id: string): Observable<{ message: string }> {
     return this.http.post<{ message: string }>(`${this.apiUrl}/${id}/disable-2fa`, {});
+  }
+
+  /** F39 (ROL-07): permisos efectivos — requiere `users.view` + `roles.view`. */
+  getEffectivePermissions(id: string): Observable<EffectivePermissionsResponse> {
+    return this.http.get<EffectivePermissionsResponse>(`${this.apiUrl}/${id}/effective-permissions`);
+  }
+
+  /** F39 (ROL-07): CSV de permisos efectivos; baja como blob para poder leer el error real. */
+  exportEffectivePermissions(id: string): Observable<Blob> {
+    return this.http
+      .get(`${this.apiUrl}/${id}/effective-permissions/export`, { responseType: 'blob' })
+      .pipe(
+        catchError((err: HttpErrorResponse) =>
+          readBlobErrorMessage(err, 'No se pudo exportar los permisos efectivos'),
+        ),
+      );
   }
 }

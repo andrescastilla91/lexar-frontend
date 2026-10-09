@@ -63,6 +63,26 @@ async function uploadVisibleDocument(
     );
   }
 
+  // F37 §DOC-02 (ola 1): `documentTypeId` es obligatorio al registrar un
+  // documento de un proceso legal (RegisterFileDto, @ValidateIf). La
+  // clasificación concreta no importa para este flujo — se toma la primera
+  // del catálogo `case_document_type` del tenant (siempre tiene al menos
+  // una por el seed por defecto, ver catalog-defaults.ts), mismo patrón que
+  // users-advisor-removal.spec.ts usa para advisor_specialty.
+  const documentTypeCatalogResponse = await api.get('/api/catalogs/case_document_type');
+  if (!documentTypeCatalogResponse.ok()) {
+    throw new Error(
+      `No se pudo leer el catálogo case_document_type: ${documentTypeCatalogResponse.status()} ${await documentTypeCatalogResponse.text()}`,
+    );
+  }
+  const documentTypeCatalogBody = (await documentTypeCatalogResponse.json()) as {
+    items: { id: string }[];
+  };
+  if (documentTypeCatalogBody.items.length === 0) {
+    throw new Error('El catálogo case_document_type del tenant de prueba está vacío');
+  }
+  const documentTypeId = documentTypeCatalogBody.items[0].id;
+
   const registerResponse = await api.post('/api/files', {
     data: {
       key,
@@ -72,6 +92,7 @@ async function uploadVisibleDocument(
       size: content.byteLength,
       entityType: 'legal_process',
       entityId: legalProcessId,
+      documentTypeId,
     },
   });
   if (!registerResponse.ok()) {

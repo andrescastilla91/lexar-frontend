@@ -83,6 +83,16 @@ describe('OnboardingComponent', () => {
     expect(component.legalForm.value.legalName).toBe('Firma Test');
   });
 
+  it('el formulario legal incluye el departamento y valida el correo de contacto', () => {
+    const { component } = createComponent();
+
+    expect(component.legalForm.get('department')).not.toBeNull();
+    component.legalForm.patchValue({ email: 'no-es-correo' });
+    expect(component.legalForm.get('email')?.hasError('email')).toBe(true);
+    component.legalForm.patchValue({ email: 'contacto@firma.com' });
+    expect(component.legalForm.get('email')?.valid).toBe(true);
+  });
+
   it('onSubmitLegal en éxito avanza al paso 2', () => {
     const { component } = createComponent();
 

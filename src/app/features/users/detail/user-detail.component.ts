@@ -12,9 +12,11 @@ import { Permission, Role } from '../../../core/models/role-backend.model';
 import { CatalogItem } from '../../../core/models/catalog-backend.model';
 import { HasPermissionDirective } from '../../../core/directives/has-permission.directive';
 import { MultiSelectComponent, MultiSelectItem } from '../../../shared/components/multi-select/multi-select.component';
-import { CatalogAssignModalComponent, CatalogAssignItem } from '../../../core/components/catalog-assign-modal.component';
+import { AssignRolesModalComponent } from '../components/assign-roles-modal.component';
+import { EffectivePermissionsComponent } from '../components/effective-permissions.component';
 
 type UserDetailTab = 'cuenta' | 'perfil' | 'permisos';
+type PermisosView = 'por-rol' | 'efectivos';
 
 interface PermissionGroup {
   groupLabel: string;
@@ -57,7 +59,7 @@ function groupPermissions(permissions: Permission[]): PermissionGroup[] {
 @Component({
   selector: 'app-user-detail',
   standalone: true,
-  imports: [ReactiveFormsModule, RouterLink, HasPermissionDirective, MultiSelectComponent, CatalogAssignModalComponent],
+  imports: [ReactiveFormsModule, RouterLink, HasPermissionDirective, MultiSelectComponent, AssignRolesModalComponent, EffectivePermissionsComponent],
   template: `
     @if (isLoading()) {
       <div class="flex items-center justify-center py-12">
@@ -310,7 +312,25 @@ function groupPermissions(permissions: Permission[]): PermissionGroup[] {
           }
           @case ('permisos') {
             <div class="space-y-4">
-              <div class="flex justify-end">
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                @if (canViewEffective()) {
+                  <div class="inline-flex rounded-md border border-default p-0.5" role="group" aria-label="Vista de permisos">
+                    @for (view of permisosViews; track view.id) {
+                      <button
+                        type="button"
+                        (click)="permisosView.set(view.id)"
+                        [attr.aria-pressed]="permisosView() === view.id"
+                        [class]="permisosView() === view.id
+                          ? 'rounded px-3 py-1.5 text-sm font-semibold bg-navy-900 text-white'
+                          : 'rounded px-3 py-1.5 text-sm font-semibold text-muted hover:bg-surface-muted'"
+                      >
+                        {{ view.label }}
+                      </button>
+                    }
+                  </div>
+                } @else {
+                  <span></span>
+                }
                 <button
                   *hasPermission="'users.assign-roles'"
                   type="button"
@@ -320,7 +340,9 @@ function groupPermissions(permissions: Permission[]): PermissionGroup[] {
                   Asignar roles
                 </button>
               </div>
-              @if (isLoadingPermissions()) {
+              @if (permisosView() === 'efectivos' && canViewEffective()) {
+                <app-effective-permissions [userId]="user()!.id" [refreshKey]="user()!.roles" />
+              } @else if (isLoadingPermissions()) {
                 <div class="flex items-center justify-center py-12">
                   <div class="h-8 w-8 animate-spin rounded-full border-4 border-default border-t-navy-900"></div>
                 </div>
@@ -351,25 +373,25 @@ function groupPermissions(permissions: Permission[]): PermissionGroup[] {
                   </div>
                 }
               }
-              <p class="text-xs text-subtle">
-                Los permisos que otorga cada rol son de solo lectura — usa "Asignar roles" para cambiar qué roles tiene este usuario.
-              </p>
+              @if (permisosView() === 'por-rol' || !canViewEffective()) {
+                <p class="text-xs text-subtle">
+                  Los permisos que otorga cada rol son de solo lectura — usa "Asignar roles" para cambiar qué roles tiene este usuario.
+                </p>
+              }
             </div>
           }
         }
       </div>
 
-      <app-catalog-assign-modal
-        title="Asignar roles"
-        subtitlePrefix="Usuario:"
-        [subtitleValue]="user()!.firstName + ' ' + user()!.lastName"
-        [items]="roleCatalogItems()"
+      <app-assign-roles-modal
+        [roles]="availableRoles()"
         [selectedIds]="selectedRoleIds()"
         [isOpen]="showRolesModal()"
         [isSubmitting]="isAssigningRoles()"
-        submitLabel="Guardar roles"
+        [userName]="user()!.firstName + ' ' + user()!.lastName"
         (cancel)="closeRolesModal()"
         (save)="saveRoles($event)"
+        (roleCreated)="onRoleCreated($event)"
       />
     }
   `,
@@ -390,6 +412,15 @@ export class UserDetailComponent implements OnInit {
     { id: 'permisos', label: 'Roles y permisos' },
   ];
   readonly activeTab = signal<UserDetailTab>('cuenta');
+
+  // F39 (ROL-07): "Por rol" es la vista de siempre; "Permisos efectivos" es la
+  // unión de todos los roles (requiere `users.view` + `roles.view`).
+  readonly permisosViews: { id: PermisosView; label: string }[] = [
+    { id: 'por-rol', label: 'Por rol' },
+    { id: 'efectivos', label: 'Permisos efectivos' },
+  ];
+  readonly permisosView = signal<PermisosView>('por-rol');
+  readonly canViewEffective = computed(() => this.permissions.hasAllPermissions(['users.view', 'roles.view']));
 
   readonly user = signal<UserBackend | null>(null);
   readonly isLoading = signal(true);
@@ -414,14 +445,6 @@ export class UserDetailComponent implements OnInit {
 
   readonly specialtyItems = computed<MultiSelectItem[]>(() =>
     this.specialties().map((item) => ({ id: item.id, label: item.label })),
-  );
-
-  readonly roleCatalogItems = computed<CatalogAssignItem[]>(() =>
-    this.availableRoles().map((role) => ({
-      id: role.id,
-      label: role.name,
-      description: role.description,
-    })),
   );
 
   readonly editForm = this.fb.nonNullable.group({
@@ -498,6 +521,11 @@ export class UserDetailComponent implements OnInit {
     if (!currentUser) return;
     this.selectedRoleIds.set(currentUser.roles.map((r) => r.id));
     this.showRolesModal.set(true);
+  }
+
+  /** F39 (ROL-01): rol creado desde el modal — queda disponible en el catálogo. */
+  onRoleCreated(role: Role): void {
+    this.availableRoles.update((roles) => [...roles, role]);
   }
 
   closeRolesModal(): void {

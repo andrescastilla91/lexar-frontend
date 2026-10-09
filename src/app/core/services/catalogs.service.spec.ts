@@ -23,6 +23,8 @@ describe('CatalogsService', () => {
       sortOrder: 2,
       isActive: true,
       isSystem: true,
+      personTypeScope: null,
+      processTypeScope: null,
     },
     {
       id: '2',
@@ -33,6 +35,8 @@ describe('CatalogsService', () => {
       sortOrder: 1,
       isActive: true,
       isSystem: true,
+      personTypeScope: null,
+      processTypeScope: null,
     },
     {
       id: '3',
@@ -43,6 +47,8 @@ describe('CatalogsService', () => {
       sortOrder: 3,
       isActive: false,
       isSystem: false,
+      personTypeScope: null,
+      processTypeScope: null,
     },
   ];
 
@@ -157,5 +163,35 @@ describe('CatalogsService', () => {
       .flush({ message: 'Catálogo no encontrado' }, { status: 400, statusText: 'Bad Request' });
 
     expect(error?.message).toBe('Catálogo no encontrado');
+  });
+
+  it('getSummary hace GET a /catalogs/summary y extrae el resumen', () => {
+    const summary = [{ catalogType: 'risk_level', total: 3, active: 2 }];
+    let result: unknown;
+    service.getSummary().subscribe((r) => (result = r));
+
+    const req = httpMock.expectOne(`${apiUrl}/summary`);
+    expect(req.request.method).toBe('GET');
+    req.flush({ message: 'ok', summary });
+
+    expect(result).toEqual(summary);
+  });
+
+  it('getSummary no se cachea: cada llamada vuelve a pedir el resumen', () => {
+    service.getSummary().subscribe();
+    httpMock.expectOne(`${apiUrl}/summary`).flush({ message: 'ok', summary: [] });
+    service.getSummary().subscribe();
+    httpMock.expectOne(`${apiUrl}/summary`).flush({ message: 'ok', summary: [] });
+  });
+
+  it('getSummary propaga el mensaje de error del backend', () => {
+    let error: Error | undefined;
+    service.getSummary().subscribe({ error: (e) => (error = e) });
+
+    httpMock
+      .expectOne(`${apiUrl}/summary`)
+      .flush({ message: 'Sin acceso' }, { status: 403, statusText: 'Forbidden' });
+
+    expect(error?.message).toBeTruthy();
   });
 });

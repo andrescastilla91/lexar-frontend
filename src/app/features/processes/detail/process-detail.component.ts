@@ -527,7 +527,7 @@ export class ProcessDetailComponent implements OnInit, OnDestroy {
    * relacionados con este proceso — para priorizarlos en
    * DeadlineFormModalComponent. */
   readonly processAdvisorUserIds = computed<string[]>(() =>
-    (this.process()?.advisors ?? []).map((advisor) => advisor.userId),
+    (this.process()?.advisors ?? []).filter((advisor) => !!advisor.user).map((advisor) => advisor.user!.id),
   );
   readonly matters = signal<ClientMatterResponse[]>([]);
   readonly processTypes = signal<CatalogItem[]>([]);

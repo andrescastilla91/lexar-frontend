@@ -12,6 +12,10 @@ import {
   ListFilesParams,
   ListFilesResponse,
   FileUploadProgress,
+  DocumentTreeClientNode,
+  DocumentTreeGroupNode,
+  DocumentTreeTypeNode,
+  FileAuditLogEntry,
 } from '../models/file.model';
 
 @Injectable({
@@ -75,6 +79,115 @@ export class FilesService {
   }
 
   /**
+   * F37 §DOC-01 (ola 2) — nivel 0 del explorador: clientes con documentos.
+   */
+  getDocumentTreeClients(): Observable<DocumentTreeClientNode[]> {
+    return this.http.get<DocumentTreeClientNode[]>(`${this.apiUrl}/tree/clients`);
+  }
+
+  /**
+   * F37 §DOC-01 (ola 2) — nivel 1: asuntos/procesos de un cliente, más el
+   * bucket "general".
+   */
+  getDocumentTreeClientNodes(clientId: string): Observable<DocumentTreeGroupNode[]> {
+    return this.http.get<DocumentTreeGroupNode[]>(
+      `${this.apiUrl}/tree/clients/${clientId}/nodes`,
+    );
+  }
+
+  /**
+   * F37 §DOC-01 (ola 2) — nivel 2: tipos documentales dentro de un nodo.
+   * `matterId`/`processId` son mutuamente excluyentes; sin ninguno de los
+   * dos se pide el bucket "general" del cliente.
+   */
+  getDocumentTreeTypes(
+    clientId: string,
+    matterId?: string | null,
+    processId?: string | null,
+  ): Observable<DocumentTreeTypeNode[]> {
+    let params = new HttpParams().set('clientId', clientId);
+    if (matterId) {
+      params = params.set('matterId', matterId);
+    } else if (processId) {
+      params = params.set('processId', processId);
+    }
+    return this.http.get<DocumentTreeTypeNode[]>(`${this.apiUrl}/tree/document-types`, {
+      params,
+    });
+  }
+
+  /**
+   * F37 §DOC-01 (ola 2) — hoja del explorador: documentos de un tipo
+   * documental dentro de un nodo.
+   */
+  getDocumentTreeDocuments(
+    clientId: string,
+    documentTypeId: string,
+    matterId?: string | null,
+    processId?: string | null,
+    page = 1,
+    limit = 50,
+  ): Observable<ListFilesResponse> {
+    let params = new HttpParams()
+      .set('clientId', clientId)
+      .set('documentTypeId', documentTypeId)
+      .set('page', page.toString())
+      .set('limit', limit.toString());
+    if (matterId) {
+      params = params.set('matterId', matterId);
+    } else if (processId) {
+      params = params.set('processId', processId);
+    }
+    return this.http.get<ListFilesResponse>(`${this.apiUrl}/tree/documents`, { params });
+  }
+
+  /**
+   * F37 §DOC-02 (ola 3) — bandeja "Sin clasificar": archivos que son
+   * documentos del expediente pero les falta tipo documental.
+   */
+  getDocumentTreeUnclassified(page = 1, limit = 20): Observable<ListFilesResponse> {
+    const params = new HttpParams()
+      .set('page', page.toString())
+      .set('limit', limit.toString());
+    return this.http.get<ListFilesResponse>(`${this.apiUrl}/tree/unclassified`, { params });
+  }
+
+  /**
+   * F37 §DOC-02 (ola 3) — completa el tipo documental de un archivo "sin
+   * clasificar".
+   */
+  classifyDocumentType(id: string, documentTypeId: string): Observable<FileModel> {
+    return this.http.patch<FileModel>(`${this.apiUrl}/${id}/document-type`, {
+      documentTypeId,
+    });
+  }
+
+  /**
+   * F37 §DOC-06 (ola 4) — historial de auditoría de un documento (quién lo
+   * consultó/descargó/eliminó y cuándo), para su ficha.
+   */
+  getAuditHistory(
+    id: string,
+    page = 1,
+    limit = 20,
+  ): Observable<{
+    data: FileAuditLogEntry[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    const params = new HttpParams()
+      .set('page', page.toString())
+      .set('limit', limit.toString());
+    return this.http.get<{
+      data: FileAuditLogEntry[];
+      total: number;
+      page: number;
+      limit: number;
+    }>(`${this.apiUrl}/${id}/audit-log`, { params });
+  }
+
+  /**
    * Obtiene un archivo por ID
    */
   getFile(id: string): Observable<FileModel> {
@@ -82,10 +195,19 @@ export class FilesService {
   }
 
   /**
-   * Genera URL firmada para descargar un archivo
+   * Genera URL firmada para descargar un archivo. `forceDownload` pide al
+   * backend que la URL fuerce la descarga real (Content-Disposition:
+   * attachment del lado de S3) en vez de mostrar el archivo inline — ver
+   * `downloadFile()`/`previewFile()` abajo, que son los dos únicos
+   * llamadores y difieren solo en este flag.
    */
-  getDownloadUrl(id: string): Observable<DownloadUrlResponse> {
-    return this.http.get<DownloadUrlResponse>(`${this.apiUrl}/${id}/download`);
+  getDownloadUrl(id: string, forceDownload = false): Observable<DownloadUrlResponse> {
+    const params = forceDownload
+      ? new HttpParams().set('disposition', 'attachment')
+      : undefined;
+    return this.http.get<DownloadUrlResponse>(`${this.apiUrl}/${id}/download`, {
+      ...(params ? { params } : {}),
+    });
   }
 
   /**
@@ -109,6 +231,7 @@ export class FilesService {
     entityId: string,
     metadata?: Record<string, any>,
     annotationEventId?: string,
+    documentTypeId?: string,
   ): Observable<FileModel> {
     const uploadId = `${Date.now()}-${file.name}`;
     
@@ -161,6 +284,7 @@ export class FilesService {
               entityId,
               metadata,
               annotationEventId, // Pasar el ID de anotación si existe
+              documentTypeId, // F37 §DOC-02
             };
 
             return this.registerFile(registerRequest);
@@ -199,23 +323,29 @@ export class FilesService {
   }
 
   /**
-   * Descarga un archivo abriendo la URL firmada
+   * Descarga un archivo. Fix de UX (2026-09-29): antes abría el archivo en
+   * otra pestaña en vez de descargarlo — el atributo `download` del `<a>`
+   * se ignora en navegadores modernos para URLs cross-origin (S3/R2), así
+   * que el objeto se mostraba inline por su Content-Type real, y con
+   * `target="_blank"` eso significaba una pestaña nueva (mala experiencia,
+   * sobre todo en móvil). Ahora pide la URL con `forceDownload: true`
+   * (`disposition=attachment` — ver FilesController/S3Service): la
+   * respuesta de S3 ya trae `Content-Disposition: attachment`, así que el
+   * navegador descarga directo, sin navegar fuera de la app ni abrir
+   * pestaña — sin `target`, ni truco de fetch+blob (que habría exigido CORS
+   * en el bucket, no garantizado en MinIO/Railway storage/R2).
    */
   downloadFile(id: string): Observable<void> {
-    return this.getDownloadUrl(id).pipe(
+    return this.getDownloadUrl(id, true).pipe(
       map((response) => {
-        // Crear un enlace temporal y hacer click
         const link = document.createElement('a');
         link.href = response.url;
         link.download = response.filename;
-        link.target = '_blank';
         link.style.display = 'none';
-        
-        // Agregar al DOM, hacer click y remover
+
         document.body.appendChild(link);
         link.click();
-        
-        // Remover después de un pequeño delay
+
         setTimeout(() => {
           link.remove();
         }, 100);

@@ -58,3 +58,24 @@ test.describe('Shell principal — ancho del sidebar en escritorio angosto', () 
     expect(hasHorizontalOverflow).toBe(false);
   });
 });
+
+test.describe('Shell principal — scroll de la página', () => {
+  test('Facturación (con inputs de archivo ocultos) no genera scroll a nivel de documento', async ({
+    page,
+    tenant,
+  }) => {
+    // Regresión F45: los `<input type="file" class="sr-only">` son absolutos;
+    // sin un ancestro posicionado dentro del `<main>` con scroll, quedaban
+    // ubicados respecto al documento y agrandaban la página dejando un gran
+    // espacio vacío bajo el contenido.
+    await page.setViewportSize({ width: 1440, height: 800 });
+    await loginAsAdmin(page, tenant);
+    await page.goto('/configuracion?tab=billing');
+    await expect(page.locator('[data-document-type]').first()).toBeVisible();
+
+    const hasVerticalOverflow = await page.evaluate(
+      () => document.documentElement.scrollHeight > document.documentElement.clientHeight,
+    );
+    expect(hasVerticalOverflow).toBe(false);
+  });
+});

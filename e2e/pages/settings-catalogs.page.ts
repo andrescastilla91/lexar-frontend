@@ -1,4 +1,5 @@
 import { Locator, Page } from '@playwright/test';
+import { openSettingsSection } from './settings-nav';
 
 /**
  * Page object para la pestaña "Catálogos" de Configuración (/configuracion), F25.
@@ -7,14 +8,12 @@ import { Locator, Page } from '@playwright/test';
  * resto de la app tampoco los usa todavía.
  */
 export class SettingsCatalogsPage {
-  readonly catalogsTab: Locator;
   readonly newItemButton: Locator;
   readonly codeInput: Locator;
   readonly labelInput: Locator;
   readonly saveButton: Locator;
 
   constructor(private readonly page: Page) {
-    this.catalogsTab = page.getByRole('button', { name: 'Catálogos', exact: true });
     this.newItemButton = page.getByRole('button', { name: 'Nuevo ítem' });
     this.codeInput = page.locator('input[formcontrolname="code"]');
     this.labelInput = page.locator('input[formcontrolname="label"]');
@@ -23,25 +22,54 @@ export class SettingsCatalogsPage {
 
   async goto(): Promise<void> {
     await this.page.goto('/configuracion');
-    await this.catalogsTab.click();
+    await openSettingsSection(this.page, 'Catálogos');
+  }
+
+  /**
+   * F47: la navegación entre catálogos es una lista (no pestañas). En viewport
+   * ancho las entradas se ven siempre; por debajo de `md` están detrás del
+   * botón "Catálogo: …", que se abre solo si hace falta. Se localiza con CSS y
+   * no con getByRole porque este ignora lo oculto y, en móvil cerrado, la
+   * entrada existe pero no es visible. El texto de cada entrada es su etiqueta
+   * seguida (a veces) de su contador, de ahí el patrón: evita que
+   * "Tipos de documento" también atrape "Tipos de documento (archivos)".
+   */
+  catalogEntry(label: string): Locator {
+    const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return this.page
+      .locator('nav[aria-label="Catálogos disponibles"] button[data-catalog-type]')
+      .filter({ hasText: new RegExp(`^\\s*${escaped}\\s*(\\d+\\s*)?$`) });
+  }
+
+  private async openMobilePanelIfHidden(target: Locator): Promise<void> {
+    await target.waitFor({ state: 'attached' });
+    if (!(await target.isVisible())) {
+      await this.page.getByRole('button', { name: /^Catálogo:/ }).click();
+    }
+  }
+
+  get navToggle(): Locator {
+    return this.page.getByRole('button', { name: /^Catálogo:/ });
+  }
+
+  async revealNav(): Promise<void> {
+    const nav = this.page.locator('nav[aria-label="Catálogos disponibles"]');
+    await nav.waitFor({ state: 'attached' });
+    if (!(await nav.isVisible())) {
+      await this.navToggle.click();
+    }
   }
 
   async selectCatalogType(label: string): Promise<void> {
-    // click() auto-espera a que el botón exista y sea clickeable, a
-    // diferencia de isVisible() (que no espera nada y puede dar falso
-    // negativo justo después de goto()/catalogsTab.click(), cuando el tab
-    // bar de tipos de catálogo aún no terminó de renderizar) — eso hacía
-    // caer al <select> mobile, oculto por CSS en viewport desktop (30s de
-    // timeout esperando un elemento invisible). Ver HU-FE-E2E-1.
-    const tabButton = this.page.getByRole('button', { name: label, exact: true });
-    try {
-      await tabButton.click({ timeout: 3_000 });
-      return;
-    } catch {
-      // Viewport angosto real: el tab bar no existe, cae al <select> mobile.
-    }
-    const mobileSelect = this.page.locator('select').first();
-    await mobileSelect.selectOption({ label });
+    const entry = this.catalogEntry(label);
+    await this.openMobilePanelIfHidden(entry);
+    await entry.click();
+  }
+
+  async searchCatalog(text: string): Promise<void> {
+    const search = this.page.locator('input[type="search"][placeholder^="Buscar catálogo"]');
+    await this.openMobilePanelIfHidden(search);
+    await search.fill(text);
   }
 
   itemRow(label: string): Locator {

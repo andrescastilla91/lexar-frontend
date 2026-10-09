@@ -39,6 +39,8 @@ export interface AuthUser {
   twoFactorEnabled?: boolean;
   /** F11 (S10): true si la empresa exige 2FA a todos sus usuarios. */
   companyRequire2fa?: boolean;
+  /** F44 §LEG-01: true si tiene pendiente aceptar la versión vigente de los términos internos. */
+  legalTermsPending?: boolean;
 }
 
 /** F11 (S10): /auth/login ya no siempre abre sesión — si el usuario tiene 2FA, responde con un pendingToken. */
@@ -112,6 +114,7 @@ export interface ProfileResponse {
   isOwner?: boolean;
   twoFactorEnabled?: boolean;
   companyRequire2fa?: boolean;
+  legalTermsPending?: boolean;
 }
 
 export interface ForgotPasswordRequest {

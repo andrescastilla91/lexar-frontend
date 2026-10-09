@@ -9,7 +9,7 @@ import { CatalogsService } from '../../../core/services/catalogs.service';
 import { PermissionsService } from '../../../core/services/permissions.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { ConfirmDialogService } from '../../../core/services/confirm-dialog.service';
-import { UserBackend } from '../../../core/models/user-backend.model';
+import { EffectivePermissionsResponse, UserBackend } from '../../../core/models/user-backend.model';
 import { Permission, Role } from '../../../core/models/role-backend.model';
 
 function buildRole(overrides: Partial<Role> = {}): Role {
@@ -46,12 +46,30 @@ function buildPermission(overrides: Partial<Permission> = {}): Permission {
   };
 }
 
+const EFFECTIVE_RESPONSE: EffectivePermissionsResponse = {
+  message: 'ok',
+  user: { id: 'u1', firstName: 'Ana', lastName: 'Gómez' },
+  roles: [{ id: 'r1', name: 'Admin' }],
+  groups: [
+    {
+      groupCode: 'clients',
+      groupLabel: 'Clientes',
+      permissions: [
+        { code: 'clients.view', label: 'Ver clientes', description: 'Ver clientes', sources: [{ roleId: 'r1', roleName: 'Admin' }] },
+      ],
+    },
+  ],
+  total: 1,
+};
+
 describe('UserDetailComponent', () => {
   let usersServiceMock: {
     getUserById: jest.Mock;
     updateUser: jest.Mock;
     resendInvitation: jest.Mock;
     assignRoles: jest.Mock;
+    getEffectivePermissions: jest.Mock;
+    exportEffectivePermissions: jest.Mock;
   };
   let rolesServiceMock: { getRolePermissions: jest.Mock; getRoles: jest.Mock };
   let catalogsServiceMock: { getActiveCatalog: jest.Mock };
@@ -78,6 +96,8 @@ describe('UserDetailComponent', () => {
       updateUser: jest.fn().mockReturnValue(of({ message: 'ok', user: buildUser() })),
       resendInvitation: jest.fn().mockReturnValue(of({ message: 'ok' })),
       assignRoles: jest.fn().mockReturnValue(of({ message: 'ok', user: buildUser() })),
+      getEffectivePermissions: jest.fn().mockReturnValue(of(EFFECTIVE_RESPONSE)),
+      exportEffectivePermissions: jest.fn().mockReturnValue(of(new Blob(['x']))),
     };
     rolesServiceMock = {
       getRolePermissions: jest.fn(
@@ -113,6 +133,9 @@ describe('UserDetailComponent', () => {
               codes.some((code) => grantedPermissions.includes(code)),
             ),
             hasPermission: jest.fn((code: string) => grantedPermissions.includes(code)),
+            hasAllPermissions: jest.fn((codes: string[]) =>
+              codes.every((code) => grantedPermissions.includes(code)),
+            ),
             userPermissions: signal(grantedPermissions),
           },
         },
@@ -528,6 +551,14 @@ describe('UserDetailComponent', () => {
     expect(component.isAssigningRoles()).toBe(false);
   });
 
+  it('onRoleCreated agrega el rol recién creado al catálogo de roles disponibles (F39)', () => {
+    const { component } = configureAndCreate();
+
+    component.onRoleCreated(buildRole({ id: 'r9', name: 'Coordinador', isSystem: false }));
+
+    expect(component.availableRoles().map((r) => r.id)).toEqual(['r1', 'r9']);
+  });
+
   it('saveRoles no hace nada si no hay usuario cargado o ya está asignando', () => {
     const { component } = configureAndCreate();
     component.isAssigningRoles.set(true);
@@ -557,5 +588,42 @@ describe('UserDetailComponent', () => {
       (b) => (b as HTMLButtonElement).textContent?.trim() === 'Asignar roles',
     );
     expect(assignButton).toBeFalsy();
+  });
+
+  describe('permisos efectivos (F39 ROL-07)', () => {
+    function findButton(root: HTMLElement, text: string): HTMLButtonElement | undefined {
+      return Array.from(root.querySelectorAll('button')).find(
+        (b) => b.textContent?.trim() === text,
+      ) as HTMLButtonElement | undefined;
+    }
+
+    it('con users.view + roles.view ofrece la vista "Permisos efectivos" y la monta al elegirla', () => {
+      const { fixture, component } = configureAndCreate({
+        permissions: ['users.view', 'roles.view', 'users.assign-roles'],
+      });
+      component.activeTab.set('permisos');
+      fixture.detectChanges();
+
+      expect(usersServiceMock.getEffectivePermissions).not.toHaveBeenCalled();
+      const toggle = findButton(fixture.nativeElement as HTMLElement, 'Permisos efectivos');
+      expect(toggle).toBeDefined();
+
+      toggle?.click();
+      fixture.detectChanges();
+
+      expect(component.permisosView()).toBe('efectivos');
+      expect(usersServiceMock.getEffectivePermissions).toHaveBeenCalledWith('u1');
+      expect((fixture.nativeElement as HTMLElement).textContent).toContain('Ver clientes');
+      expect((fixture.nativeElement as HTMLElement).textContent).toContain('Origen: Admin');
+    });
+
+    it('sin roles.view no ofrece la vista de permisos efectivos', () => {
+      const { fixture, component } = configureAndCreate({ permissions: ['users.view'] });
+      component.activeTab.set('permisos');
+      fixture.detectChanges();
+
+      expect(component.canViewEffective()).toBe(false);
+      expect(findButton(fixture.nativeElement as HTMLElement, 'Permisos efectivos')).toBeUndefined();
+    });
   });
 });

@@ -6,6 +6,8 @@ import { UsersService } from '../../core/services/users.service';
 import { ToastService } from '../../core/services/toast.service';
 import { ConfirmDialogService } from '../../core/services/confirm-dialog.service';
 import { CompanyProfile } from '../../core/models/company.model';
+import { resolveLocation, resolveTaxRegime } from '../../core/utils/colombia-location.util';
+import { optionalEmailValidator } from '../../core/validators/email.validator';
 import { SettingsLegalFormComponent } from '../settings/components/settings-legal-form.component';
 import { UserFormComponent } from '../users/components/user-form.component';
 
@@ -160,10 +162,11 @@ export class OnboardingComponent {
     legalName: [''],
     address: [''],
     legalRepresentative: [''],
+    department: [''],
     city: [''],
     country: [''],
     phone: [''],
-    email: [''],
+    email: ['', [optionalEmailValidator]],
     registrationNumber: [''],
     taxRegime: [''],
     // F40 §PRO-06: `<app-settings-legal-form>` (compartido con Configuración)
@@ -193,16 +196,18 @@ export class OnboardingComponent {
         }
 
         this.company.set(company);
+        const location = resolveLocation(company.department, company.city);
         this.legalForm.patchValue({
           legalName: company.legalName,
           address: company.address ?? '',
           legalRepresentative: company.legalRepresentative ?? '',
-          city: company.city ?? '',
+          department: location.department,
+          city: location.city,
           country: company.country ?? '',
           phone: company.phone ?? '',
           email: company.email ?? '',
           registrationNumber: company.registrationNumber ?? '',
-          taxRegime: company.taxRegime ?? '',
+          taxRegime: resolveTaxRegime(company.taxRegime),
           processCodePrefix: company.processCodePrefix ?? '',
         });
       },

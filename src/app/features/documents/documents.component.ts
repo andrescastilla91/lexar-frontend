@@ -4,6 +4,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { FilesService } from '../../core/services/files.service';
 import { LegalProcessesService } from '../../core/services/legal-processes.service';
 import { ClientsService } from '../../core/services/clients.service';
+import { CatalogsService } from '../../core/services/catalogs.service';
 import { FileModel } from '../../core/models/file.model';
 import { HasPermissionDirective } from '../../core/directives/has-permission.directive';
 import { PermissionsService } from '../../core/services/permissions.service';
@@ -12,6 +13,7 @@ import { ToastService } from '../../core/services/toast.service';
 import { FilePreviewModalComponent } from '../../core/components/file-preview-modal.component';
 import { DocumentUploadPanelComponent } from './components/document-upload-panel.component';
 import { DocumentsListComponent, DocumentRow } from './components/documents-list.component';
+import { DocumentsExplorerComponent } from './components/documents-explorer.component';
 
 @Component({
   selector: 'app-documents',
@@ -20,6 +22,7 @@ import { DocumentsListComponent, DocumentRow } from './components/documents-list
     ReactiveFormsModule,
     HasPermissionDirective,
     DocumentUploadPanelComponent,
+    DocumentsExplorerComponent,
     DocumentsListComponent,
     FilePreviewModalComponent,
   ],
@@ -30,24 +33,52 @@ import { DocumentsListComponent, DocumentRow } from './components/documents-list
           <h2 class="text-2xl font-semibold text-text">Gestión Documental</h2>
           <p class="text-sm text-subtle">Control de archivos asociados a procesos y clientes.</p>
         </div>
-        <button
-          *hasPermission="['files.upload']"
-          type="button"
-          (click)="toggleUploadPanel()"
-          class="flex items-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-card transition hover:bg-primary-hover"
-        >
-          @if (uploadPanelOpen()) {
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-            </svg>
-            Cancelar
-          } @else {
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-            Subir archivo
-          }
-        </button>
+        <div class="flex items-center gap-2">
+          <!-- F37 §DOC-01 (ola 2): el explorador es la vista por defecto;
+               la tabla plana se conserva como alternativa ("ver como
+               lista") para quien prefiera buscar/filtrar en vez de navegar. -->
+          <div class="flex rounded-md border border-default bg-surface p-0.5">
+            <button
+              type="button"
+              (click)="setViewMode('explorer')"
+              class="rounded px-3 py-1.5 text-xs font-semibold transition"
+              [class.bg-primary-tint]="viewMode() === 'explorer'"
+              [class.text-info]="viewMode() === 'explorer'"
+              [class.text-subtle]="viewMode() !== 'explorer'"
+            >
+              Explorador
+            </button>
+            <button
+              type="button"
+              (click)="setViewMode('list')"
+              class="rounded px-3 py-1.5 text-xs font-semibold transition"
+              [class.bg-primary-tint]="viewMode() === 'list'"
+              [class.text-info]="viewMode() === 'list'"
+              [class.text-subtle]="viewMode() !== 'list'"
+            >
+              Ver como lista
+            </button>
+          </div>
+
+          <button
+            *hasPermission="['files.upload']"
+            type="button"
+            (click)="toggleUploadPanel()"
+            class="flex items-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-card transition hover:bg-primary-hover"
+          >
+            @if (uploadPanelOpen()) {
+              <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+              </svg>
+              Cancelar
+            } @else {
+              <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+              Subir archivo
+            }
+          </button>
+        </div>
       </header>
 
       <app-document-upload-panel
@@ -59,24 +90,29 @@ import { DocumentsListComponent, DocumentRow } from './components/documents-list
         [uploadError]="uploadError()"
         [processes]="processOptions()"
         [clients]="clientOptions()"
+        [documentTypes]="documentTypeOptions()"
         (entityTypeChange)="onEntityTypeChange()"
         (fileSelected)="onFileSelected($event)"
         (submit)="handleUpload()"
       />
 
-      <app-documents-list
-        [files]="documentRows()"
-        [isLoading]="loading()"
-        [filterEntityType]="filterEntityType()"
-        [hasFullAccess]="hasFullDocumentAccess()"
-        [onlyMine]="onlyMine()"
-        (filterChange)="onFilterChange($event)"
-        (onlyMineChange)="onOnlyMineChange($event)"
-        (refresh)="loadFiles()"
-        (previewFile)="previewFile($event)"
-        (downloadFile)="downloadFile($event)"
-        (deleteFile)="deleteFile($event)"
-      />
+      @if (viewMode() === 'explorer') {
+        <app-documents-explorer />
+      } @else {
+        <app-documents-list
+          [files]="documentRows()"
+          [isLoading]="loading()"
+          [filterEntityType]="filterEntityType()"
+          [hasFullAccess]="hasFullDocumentAccess()"
+          [onlyMine]="onlyMine()"
+          (filterChange)="onFilterChange($event)"
+          (onlyMineChange)="onOnlyMineChange($event)"
+          (refresh)="loadFiles()"
+          (previewFile)="previewFile($event)"
+          (downloadFile)="downloadFile($event)"
+          (deleteFile)="deleteFile($event)"
+        />
+      }
     </div>
 
     <app-file-preview-modal
@@ -93,6 +129,7 @@ export class DocumentsComponent implements OnInit {
   private readonly filesService = inject(FilesService);
   private readonly processesService = inject(LegalProcessesService);
   private readonly clientsService = inject(ClientsService);
+  private readonly catalogsService = inject(CatalogsService);
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly permissionsService = inject(PermissionsService);
   private readonly toast = inject(ToastService);
@@ -100,6 +137,9 @@ export class DocumentsComponent implements OnInit {
   readonly files = signal<FileModel[]>([]);
   readonly processes = signal<{ id: string; title: string }[]>([]);
   readonly clients = signal<{ id: string; fullName: string }[]>([]);
+  // F37 §DOC-02: catálogo de clasificación de archivos, distinto del
+  // 'document_type' de identificación del cliente.
+  readonly documentTypes = signal<{ id: string; label: string }[]>([]);
   readonly loading = signal(false);
   readonly isUploading = signal(false);
   readonly uploadError = signal<string | null>(null);
@@ -107,6 +147,9 @@ export class DocumentsComponent implements OnInit {
   readonly previewUrl = signal<SafeResourceUrl | null>(null);
   readonly previewingFile = signal<FileModel | null>(null);
   readonly uploadPanelOpen = signal(false);
+  /** F37 §DOC-01 (ola 2): explorador jerárquico por defecto; "list" es la
+   * tabla plana original ("ver como lista", F37.md §2). */
+  readonly viewMode = signal<'explorer' | 'list'>('explorer');
   readonly filterEntityType = signal('');
   /** F30: filtro "Solo los míos" — solo tiene efecto real para quien tiene
    * files.view.all (ver hasFullDocumentAccess). */
@@ -119,6 +162,7 @@ export class DocumentsComponent implements OnInit {
   readonly uploadForm = this.fb.nonNullable.group({
     entityType: ['legal_process', Validators.required],
     entityId: ['', Validators.required],
+    documentTypeId: ['', Validators.required],
   });
 
   readonly processOptions = computed(() =>
@@ -128,6 +172,8 @@ export class DocumentsComponent implements OnInit {
   readonly clientOptions = computed(() =>
     this.clients().map((client) => ({ id: client.id, label: client.fullName }))
   );
+
+  readonly documentTypeOptions = computed(() => this.documentTypes());
 
   readonly selectedFileSizeLabel = computed(() => {
     const file = this.selectedFile();
@@ -159,6 +205,12 @@ export class DocumentsComponent implements OnInit {
       next: (response) => this.clients.set(response.clients),
       error: (err) => console.error('Error loading clients:', err),
     });
+
+    this.catalogsService.getActiveCatalog('case_document_type').subscribe({
+      next: (items) =>
+        this.documentTypes.set(items.map((item) => ({ id: item.id, label: item.label }))),
+      error: (err) => console.error('Error loading document types:', err),
+    });
   }
 
   loadFiles(): void {
@@ -178,6 +230,10 @@ export class DocumentsComponent implements OnInit {
         this.loading.set(false);
       },
     });
+  }
+
+  setViewMode(mode: 'explorer' | 'list'): void {
+    this.viewMode.set(mode);
   }
 
   onFilterChange(entityType: string): void {
@@ -223,12 +279,19 @@ export class DocumentsComponent implements OnInit {
     const formValue = this.uploadForm.getRawValue();
 
     this.filesService
-      .uploadFile(file, formValue.entityType, formValue.entityId)
+      .uploadFile(
+        file,
+        formValue.entityType,
+        formValue.entityId,
+        undefined,
+        undefined,
+        formValue.documentTypeId,
+      )
       .subscribe({
         next: () => {
           this.isUploading.set(false);
           this.selectedFile.set(null);
-          this.uploadForm.reset({ entityType: 'legal_process', entityId: '' });
+          this.uploadForm.reset({ entityType: 'legal_process', entityId: '', documentTypeId: '' });
           this.uploadPanelOpen.set(false);
           this.loadFiles();
         },

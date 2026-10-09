@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, convertToParamMap } from '@angular/router';
+import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { SettingsComponent } from './settings.component';
 import { CompanyService } from '../../core/services/company.service';
@@ -12,6 +12,7 @@ import { PortalVisibilityPolicyService } from '../../core/services/portal-visibi
 import { DashboardWidgetsService } from '../../core/services/dashboard-widgets.service';
 import { AiChatService } from '../../core/services/ai-chat.service';
 import { UsersService } from '../../core/services/users.service';
+import { CompanyDocumentsService } from '../../core/services/company-documents.service';
 
 describe('SettingsComponent', () => {
   let companyServiceMock: {
@@ -29,6 +30,7 @@ describe('SettingsComponent', () => {
     getPlanCatalog: jest.Mock;
     listInvoices: jest.Mock;
     isSimulationEnabled: jest.Mock;
+    getBillingReadiness: jest.Mock;
   };
   let portalVisibilityPolicyServiceMock: { getAll: jest.Mock; update: jest.Mock };
   // F32 PR3: al abrir la pestaña "Tablero" se renderiza el
@@ -40,6 +42,7 @@ describe('SettingsComponent', () => {
   let aiChatServiceMock: { getUsage: jest.Mock };
   let usersServiceMock: { getUsers: jest.Mock };
   let queryParams: Record<string, string>;
+  let routerMock: { navigate: jest.Mock };
 
   const baseEntitlements: Entitlements = {
     planCode: 'TRIAL',
@@ -80,6 +83,7 @@ describe('SettingsComponent', () => {
     website: null,
     logoUrl: null,
     require2fa: false,
+    onboardingCompletedAt: null,
     processCodePrefix: null,
     processCodeCounter: 0,
     workingDays: [1, 2, 3, 4, 5],
@@ -103,6 +107,7 @@ describe('SettingsComponent', () => {
       getPlanCatalog: jest.fn().mockReturnValue(of([])),
       listInvoices: jest.fn().mockReturnValue(of([])),
       isSimulationEnabled: jest.fn().mockReturnValue(of(false)),
+      getBillingReadiness: jest.fn().mockReturnValue(of({ ready: true, missing: [] })),
     };
     // F27: al abrir la pestaña "Portal del cliente" se renderiza el
     // SettingsPortalVisibilityComponent real — igual que con SettingsPlanComponent
@@ -122,6 +127,7 @@ describe('SettingsComponent', () => {
       getUsers: jest.fn().mockReturnValue(of({ message: '', users: [], total: 0, page: 1, limit: 100 })),
     };
     queryParams = initialQueryParams;
+    routerMock = { navigate: jest.fn().mockResolvedValue(true) };
 
     TestBed.configureTestingModule({
       imports: [SettingsComponent],
@@ -134,6 +140,9 @@ describe('SettingsComponent', () => {
         { provide: DashboardWidgetsService, useValue: dashboardWidgetsServiceMock },
         { provide: AiChatService, useValue: aiChatServiceMock },
         { provide: UsersService, useValue: usersServiceMock },
+        // F45: la sección Facturación y el aviso de la pestaña Plan consultan documentos y estado.
+        { provide: CompanyDocumentsService, useValue: { list: () => of([]), upload: jest.fn(), remove: jest.fn() } },
+        { provide: Router, useValue: routerMock },
         {
           provide: ActivatedRoute,
           useValue: { snapshot: { queryParamMap: convertToParamMap(queryParams) } },
@@ -177,6 +186,77 @@ describe('SettingsComponent', () => {
 
     expect(component.legalForm.get('processCodePrefix')?.value).toBe('RGJ');
     expect(component.legalForm.get('processCodePrefix')?.disabled).toBe(true);
+  });
+
+  describe('ubicación y régimen de la empresa (listas oficiales)', () => {
+    it('empareja el texto libre guardado con los nombres oficiales de departamento, ciudad y régimen', () => {
+      companyServiceMock.getCompany.mockReturnValue(
+        of({ ...baseCompany, department: 'antioquia', city: 'medellin', taxRegime: 'Régimen común' }),
+      );
+
+      const component = createComponent();
+
+      expect(component.legalForm.getRawValue()).toMatchObject({
+        department: 'Antioquia',
+        city: 'Medellín',
+        taxRegime: 'VAT_RESPONSIBLE',
+      });
+      expect(component.legacyCity()).toBe('');
+      expect(component.legacyTaxRegime()).toBe('');
+    });
+
+    it('si la ciudad guardada no está en el listado, queda vacía y se avisa', () => {
+      companyServiceMock.getCompany.mockReturnValue(
+        of({ ...baseCompany, department: 'Cundinamarca', city: 'Bogotá', taxRegime: 'Régimen simple' }),
+      );
+
+      const component = createComponent();
+
+      expect(component.legalForm.getRawValue()).toMatchObject({
+        department: 'Cundinamarca',
+        city: '',
+        taxRegime: '',
+      });
+      expect(component.legacyCity()).toBe('Bogotá');
+      expect(component.legacyTaxRegime()).toBe('Régimen simple');
+    });
+
+    it('una empresa sin ciudad ni régimen no muestra avisos', () => {
+      const component = createComponent();
+
+      expect(component.legacyCity()).toBe('');
+      expect(component.legacyTaxRegime()).toBe('');
+    });
+
+    it('onSubmitLegal envía departamento, ciudad y régimen elegidos', () => {
+      companyServiceMock.updateCompany.mockReturnValue(of(baseCompany));
+      const component = createComponent();
+      component.legalForm.patchValue({ department: 'Antioquia', city: 'Medellín', taxRegime: 'VAT_NOT_RESPONSIBLE' });
+
+      component.onSubmitLegal();
+
+      expect(companyServiceMock.updateCompany.mock.calls[0][0]).toMatchObject({
+        department: 'Antioquia',
+        city: 'Medellín',
+        taxRegime: 'VAT_NOT_RESPONSIBLE',
+      });
+    });
+  });
+
+  describe('validación de correos', () => {
+    it('el correo de contacto y el de facturación inválidos invalidan su formulario; vacíos son válidos', () => {
+      const component = createComponent();
+
+      component.legalForm.patchValue({ email: 'no-es-correo' });
+      component.billingForm.patchValue({ billingEmail: 'facturas@empresa' });
+      expect(component.legalForm.get('email')?.hasError('email')).toBe(true);
+      expect(component.billingForm.get('billingEmail')?.hasError('email')).toBe(true);
+
+      component.legalForm.patchValue({ email: 'contacto@bufete.com' });
+      component.billingForm.patchValue({ billingEmail: '' });
+      expect(component.legalForm.get('email')?.valid).toBe(true);
+      expect(component.billingForm.get('billingEmail')?.valid).toBe(true);
+    });
   });
 
   it('si falla la carga de la empresa, muestra un mensaje de error', () => {
@@ -236,6 +316,67 @@ describe('SettingsComponent', () => {
     expect(toastServiceMock.success).toHaveBeenCalledWith('Datos de facturación guardados correctamente.');
   });
 
+  // F45
+  it('onSubmitBilling envía los datos fiscales y omite el tipo de persona si no se eligió', () => {
+    companyServiceMock.updateCompany.mockReturnValue(of(baseCompany));
+    const component = createComponent();
+    component.billingForm.patchValue({
+      billingEmail: 'facturas@bufete.com',
+      taxIdCheckDigit: '7',
+      fiscalResponsibilities: ['O-13'],
+    });
+
+    component.onSubmitBilling();
+
+    const sent = companyServiceMock.updateCompany.mock.calls[0][0] as Record<string, unknown>;
+    expect(sent).toMatchObject({
+      billingEmail: 'facturas@bufete.com',
+      taxIdCheckDigit: '7',
+      fiscalResponsibilities: ['O-13'],
+    });
+    expect('personType' in sent).toBe(false);
+  });
+
+  it('onSubmitBilling envía el tipo de persona cuando se eligió', () => {
+    companyServiceMock.updateCompany.mockReturnValue(of(baseCompany));
+    const component = createComponent();
+    component.billingForm.patchValue({ personType: 'LEGAL_ENTITY' });
+
+    component.onSubmitBilling();
+
+    expect(companyServiceMock.updateCompany.mock.calls[0][0]).toMatchObject({ personType: 'LEGAL_ENTITY' });
+  });
+
+  it('los datos fiscales guardados llenan el formulario de facturación', () => {
+    companyServiceMock.getCompany.mockReturnValue(
+      of({
+        ...baseCompany,
+        personType: 'NATURAL_PERSON',
+        taxIdCheckDigit: '3',
+        billingContactName: 'Ana',
+        fiscalAddress: 'Calle 9',
+        fiscalResponsibilities: ['O-15'],
+      }),
+    );
+    const component = createComponent();
+
+    expect(component.billingForm.getRawValue()).toMatchObject({
+      personType: 'NATURAL_PERSON',
+      taxIdCheckDigit: '3',
+      billingContactName: 'Ana',
+      fiscalAddress: 'Calle 9',
+      fiscalResponsibilities: ['O-15'],
+    });
+  });
+
+  it('un dígito de verificación inválido invalida el formulario de facturación', () => {
+    const component = createComponent();
+
+    component.billingForm.patchValue({ taxIdCheckDigit: '12' });
+
+    expect(component.billingForm.invalid).toBe(true);
+  });
+
   it('onSubmitBrand actualiza el sitio web', () => {
     const updated: CompanyProfile = { ...baseCompany, website: 'https://bufete.com' };
     companyServiceMock.updateCompany.mockReturnValue(of(updated));
@@ -271,34 +412,19 @@ describe('SettingsComponent', () => {
     expect(companyServiceMock.uploadLogo).not.toHaveBeenCalled();
   });
 
-  // Mitigación temporal (2026-08-08, versión 3): el corte mobile/desktop se
-  // movió de 640px (sm) a 1024px (lg) — por debajo de 1024px sigue el
-  // select de siempre (celular Y tablet, sin cambios de comportamiento en
-  // ese rango); desde 1024px se muestra un sidebar real a la izquierda en
-  // vez de una lista apilada arriba del contenido.
-  // F41 §CAL-04 (ola 3): se agregó la pestaña "Horario" — pasa de 11 a 12 secciones
-  // (F27 ya había hecho el mismo ajuste de 9 a 10 al agregar "Portal del cliente").
-  it('el sidebar de escritorio está oculto por debajo de lg y visible desde lg, con las 12 secciones', () => {
+  // F41 §CAL-04 (ola 3): se agregó la pestaña "Horario" — pasa de 11 a 12 secciones.
+  it('la navegación de secciones muestra las 12 secciones (menú lateral desde lg, desplegable por debajo)', () => {
     const fixture = TestBed.createComponent(SettingsComponent);
     fixture.detectChanges();
 
-    const nav = fixture.nativeElement.querySelector('nav[aria-label="Secciones de configuración"]');
-    const buttons = nav?.querySelectorAll('button');
+    const root = fixture.nativeElement as HTMLElement;
+    const nav = root.querySelector('nav[aria-label="Secciones de configuración"]');
+    const toggle = root.querySelector('button[aria-controls="settings-section-panel"]');
 
-    expect(nav?.className).toContain('hidden');
-    expect(nav?.className).toContain('lg:flex');
-    expect(nav?.className).toContain('lg:flex-col');
-    expect(buttons?.length).toBe(12);
-  });
-
-  it('el select cubre mobile y tablet (oculto solo desde lg), con las mismas 12 opciones', () => {
-    const fixture = TestBed.createComponent(SettingsComponent);
-    fixture.detectChanges();
-
-    const mobileWrapper = fixture.nativeElement.querySelector('.lg\\:hidden');
-    const options = mobileWrapper?.querySelectorAll('option');
-
-    expect(options?.length).toBe(12);
+    expect(nav?.className).toContain('lg:block');
+    expect(nav?.querySelectorAll('button').length).toBe(12);
+    expect(toggle?.className).toContain('lg:hidden');
+    expect(root.querySelector('select')).toBeNull();
   });
 
   it('click en un ítem del sidebar cambia de tab directamente', () => {
@@ -313,6 +439,28 @@ describe('SettingsComponent', () => {
     billingButton.click();
 
     expect(component.activeTab()).toBe('billing');
+  });
+
+  // F45: el aviso de la pestaña Plan lleva a Facturación sin salir de Configuración.
+  it('la pantalla de planes puede pedir abrir la sección Facturación', () => {
+    configure({ tab: 'plan' });
+    subscriptionServiceMock.getBillingReadiness.mockReturnValue(
+      of({ ready: false, missing: [{ code: 'RUT_DOCUMENT', label: 'RUT cargado', section: 'billing' }] }),
+    );
+    const fixture = TestBed.createComponent(SettingsComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+
+    const button = fixture.nativeElement.querySelector('[data-test="billing-incomplete"] button') as HTMLButtonElement;
+    button.click();
+    fixture.detectChanges();
+
+    expect(component.activeTab()).toBe('billing');
+    expect(routerMock.navigate).toHaveBeenCalledWith(
+      [],
+      expect.objectContaining({ queryParams: expect.objectContaining({ tab: 'billing' }) }),
+    );
+    expect(fixture.nativeElement.querySelector('app-settings-billing-section')).not.toBeNull();
   });
 
   // F27: verifica que la nueva pestaña se pueda abrir y cargue la política real.
@@ -487,6 +635,45 @@ describe('SettingsComponent', () => {
 
     expect(companyServiceMock.updateCompany).toHaveBeenCalledWith(
       expect.objectContaining({ nonWorkingDayExceptionUserIds: ['u1', 'u2'] }),
+    );
+  });
+
+  it('selectTab cambia de sección y deja ?tab= en la URL, limpiando tipo y suggested', () => {
+    const component = createComponent();
+
+    component.selectTab('catalogs');
+
+    expect(component.activeTab()).toBe('catalogs');
+    expect(routerMock.navigate).toHaveBeenCalledWith(
+      [],
+      expect.objectContaining({
+        queryParams: { tab: 'catalogs', tipo: null, suggested: null },
+        queryParamsHandling: 'merge',
+        replaceUrl: true,
+      }),
+    );
+  });
+
+  it('selectTab sobre la sección activa no navega', () => {
+    const component = createComponent();
+
+    component.selectTab('legal');
+
+    expect(routerMock.navigate).not.toHaveBeenCalled();
+  });
+
+  it('elegir una sección desde la navegación cambia de tab y actualiza la URL', () => {
+    const fixture = TestBed.createComponent(SettingsComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+
+    const entry = fixture.nativeElement.querySelector('button[data-section-id="security"]') as HTMLElement;
+    entry.click();
+
+    expect(component.activeTab()).toBe('security');
+    expect(routerMock.navigate).toHaveBeenCalledWith(
+      [],
+      expect.objectContaining({ queryParams: { tab: 'security', tipo: null, suggested: null } }),
     );
   });
 });
