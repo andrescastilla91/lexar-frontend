@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
+import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { SettingsCatalogsComponent } from './settings-catalogs.component';
 import { CatalogsService } from '../../../core/services/catalogs.service';
@@ -7,11 +8,13 @@ import { ConfirmDialogService } from '../../../core/services/confirm-dialog.serv
 import { ToastService } from '../../../core/services/toast.service';
 import { PermissionsService } from '../../../core/services/permissions.service';
 import { PlanUpgradeService } from '../../../core/services/plan-upgrade.service';
-import { CatalogItem } from '../../../core/models/catalog-backend.model';
+import { CatalogItem, CatalogSummaryItem } from '../../../core/models/catalog-backend.model';
+import { CATALOG_META } from '../utils/catalog-registry';
 
 describe('SettingsCatalogsComponent', () => {
   let catalogsServiceMock: {
     getCatalog: jest.Mock;
+    getSummary: jest.Mock;
     createItem: jest.Mock;
     updateItem: jest.Mock;
     deleteItem: jest.Mock;
@@ -19,15 +22,25 @@ describe('SettingsCatalogsComponent', () => {
   let confirmDialogMock: { confirm: jest.Mock };
   let toastServiceMock: { success: jest.Mock; error: jest.Mock };
   let planUpgradeMock: { isPlanGateError: jest.Mock; promptUpgrade: jest.Mock };
+  let routerMock: { navigate: jest.Mock };
+  let queryParams: Record<string, string>;
 
-  const items: CatalogItem[] = [
-    { id: '1', catalogType: 'document_type', code: 'CONTRATO', label: 'Contrato', color: 'primary', sortOrder: 0, isActive: true, isSystem: true, usageCount: 3 },
-    { id: '2', catalogType: 'document_type', code: 'PODER', label: 'Poder', color: null, sortOrder: 1, isActive: true, isSystem: false, usageCount: 0 },
+  const summary: CatalogSummaryItem[] = [
+    { catalogType: 'document_type', total: 7, active: 6 },
+    { catalogType: 'process_type', total: 0, active: 0 },
   ];
 
-  function configure(): void {
+  const items: CatalogItem[] = [
+    { id: '1', catalogType: 'document_type', code: 'CONTRATO', label: 'Contrato', color: 'primary', sortOrder: 0, isActive: true, isSystem: true, personTypeScope: null, processTypeScope: null, usageCount: 3 },
+    { id: '2', catalogType: 'document_type', code: 'PODER', label: 'Poder', color: null, sortOrder: 1, isActive: true, isSystem: false, personTypeScope: null, processTypeScope: null, usageCount: 0 },
+  ];
+
+  function configure(initialQueryParams: Record<string, string> = {}): void {
+    queryParams = initialQueryParams;
+    routerMock = { navigate: jest.fn().mockResolvedValue(true) };
     catalogsServiceMock = {
       getCatalog: jest.fn().mockReturnValue(of(items)),
+      getSummary: jest.fn().mockReturnValue(of(summary)),
       createItem: jest.fn(),
       updateItem: jest.fn(),
       deleteItem: jest.fn(),
@@ -43,6 +56,8 @@ describe('SettingsCatalogsComponent', () => {
         { provide: ConfirmDialogService, useValue: confirmDialogMock },
         { provide: ToastService, useValue: toastServiceMock },
         { provide: PlanUpgradeService, useValue: planUpgradeMock },
+        { provide: Router, useValue: routerMock },
+        { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap(queryParams) } } },
         {
           provide: PermissionsService,
           useValue: {
@@ -85,7 +100,7 @@ describe('SettingsCatalogsComponent', () => {
     catalogsServiceMock.getCatalog.mockReturnValue(of([]));
     const component = createComponent();
 
-    expect(component.tabs.find((t) => t.id === 'contract_type')?.label).toBe('Tipos de vinculación');
+    expect(CATALOG_META.contract_type.label).toBe('Tipos de vinculación');
 
     component.selectType('contract_type');
 
@@ -314,7 +329,7 @@ describe('SettingsCatalogsComponent', () => {
     catalogsServiceMock.getCatalog.mockReturnValue(of([]));
     const component = createComponent();
 
-    expect(component.tabs.find((t) => t.id === 'process_type')?.label).toBe('Tipos de proceso');
+    expect(CATALOG_META.process_type.label).toBe('Tipos de proceso');
 
     component.selectType('process_type');
 
@@ -384,6 +399,107 @@ describe('SettingsCatalogsComponent', () => {
         label: 'Contrato',
         color: 'primary',
       });
+    });
+  });
+
+  describe('navegación entre catálogos (F47)', () => {
+    it('sin ?tipo abre el primer catálogo', () => {
+      const component = createComponent();
+
+      expect(component.activeType()).toBe('document_type');
+    });
+
+    it('un enlace profundo ?tipo= abre ese catálogo y carga sus ítems', () => {
+      TestBed.resetTestingModule();
+      configure({ tipo: 'process_type' });
+      const component = createComponent();
+
+      expect(component.activeType()).toBe('process_type');
+      expect(catalogsServiceMock.getCatalog).toHaveBeenCalledWith('process_type');
+      expect(catalogsServiceMock.getCatalog).not.toHaveBeenCalledWith('document_type');
+    });
+
+    it('un ?tipo inválido se ignora y abre el catálogo por defecto', () => {
+      TestBed.resetTestingModule();
+      configure({ tipo: 'inventado' });
+      const component = createComponent();
+
+      expect(component.activeType()).toBe('document_type');
+    });
+
+    it('seleccionar un catálogo lo deja en la URL sin llenar el historial', () => {
+      const component = createComponent();
+
+      component.selectType('risk_level');
+
+      expect(routerMock.navigate).toHaveBeenCalledWith(
+        [],
+        expect.objectContaining({
+          queryParams: { tab: 'catalogs', tipo: 'risk_level' },
+          queryParamsHandling: 'merge',
+          replaceUrl: true,
+        }),
+      );
+    });
+
+    it('volver a seleccionar el catálogo activo no toca la URL', () => {
+      const component = createComponent();
+
+      component.selectType('document_type');
+
+      expect(routerMock.navigate).not.toHaveBeenCalled();
+    });
+
+    it('carga el resumen al abrir y lo pasa a la navegación', () => {
+      const fixture = TestBed.createComponent(SettingsCatalogsComponent);
+      fixture.detectChanges();
+
+      expect(catalogsServiceMock.getSummary).toHaveBeenCalledTimes(1);
+      expect(fixture.componentInstance.summary()).toEqual(summary);
+      const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+      expect(text).toContain('Clientes');
+      expect(text).toContain('Procesos');
+    });
+
+    it('si el resumen falla no molesta al usuario: sin toast y la lista sigue funcionando', () => {
+      catalogsServiceMock.getSummary.mockReturnValue(throwError(() => new Error('falló')));
+      const component = createComponent();
+
+      expect(component.summary()).toBeNull();
+      expect(toastServiceMock.error).not.toHaveBeenCalled();
+      expect(component.items()).toHaveLength(2);
+    });
+
+    it('al crear un ítem se vuelven a pedir lista y resumen', () => {
+      catalogsServiceMock.createItem.mockReturnValue(of(items[0]));
+      const component = createComponent();
+      catalogsServiceMock.getSummary.mockClear();
+      component.openCreateModal();
+      component.itemForm.patchValue({ code: 'NUEVO', label: 'Nuevo' });
+
+      component.submitItem();
+
+      expect(catalogsServiceMock.getSummary).toHaveBeenCalledTimes(1);
+    });
+
+    it('un catálogo vacío explica qué es y ofrece crear el primer ítem', () => {
+      catalogsServiceMock.getCatalog.mockReturnValue(of([]));
+      const fixture = TestBed.createComponent(SettingsCatalogsComponent);
+      fixture.detectChanges();
+
+      const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+      expect(text).toContain('Aún no hay ítems en Tipos de documento');
+      expect(text).toContain(CATALOG_META.document_type.description);
+      expect(text).toContain('Crear el primer ítem');
+    });
+
+    it('ya no hay pestañas horizontales: la navegación es la lista de catálogos', () => {
+      const fixture = TestBed.createComponent(SettingsCatalogsComponent);
+      fixture.detectChanges();
+
+      const root = fixture.nativeElement as HTMLElement;
+      expect(root.querySelector('nav[aria-label="Tipos de catálogo"]')).toBeNull();
+      expect(root.querySelector('nav[aria-label="Catálogos disponibles"]')).not.toBeNull();
     });
   });
 });

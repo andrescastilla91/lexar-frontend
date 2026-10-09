@@ -286,4 +286,121 @@ describe('PlatformAdminService', () => {
 
     expect(completed).toBe(true);
   });
+
+  // F44 §LEG-05 (ola 6)
+  describe('listLegalDocuments', () => {
+    it('hace GET a /admin/legal-documents y extrae el arreglo', () => {
+      let documents: unknown;
+      service.listLegalDocuments().subscribe((d) => (documents = d));
+
+      const req = httpMock.expectOne(`${apiUrl}/legal-documents`);
+      expect(req.request.method).toBe('GET');
+      req.flush({ documents: [{ id: 'doc-1', type: 'internal_terms' }] });
+
+      expect(documents).toEqual([{ id: 'doc-1', type: 'internal_terms' }]);
+    });
+
+    it('con type agrega el query param', () => {
+      service.listLegalDocuments('internal_terms').subscribe();
+
+      const req = httpMock.expectOne(
+        (request) => request.url === `${apiUrl}/legal-documents` && request.params.get('type') === 'internal_terms',
+      );
+      req.flush({ documents: [] });
+    });
+
+    it('en error propaga un mensaje legible', () => {
+      let error: Error | undefined;
+      service.listLegalDocuments().subscribe({ error: (e) => (error = e) });
+
+      httpMock.expectOne(`${apiUrl}/legal-documents`).flush({ message: 'boom' }, { status: 400, statusText: 'Bad Request' });
+
+      expect(error?.message).toBe('boom');
+    });
+  });
+
+  describe('publishLegalDocument', () => {
+    const file = new File(['contenido'], 'terminos.pdf', { type: 'application/pdf' });
+    let fetchMock: jest.Mock;
+
+    beforeEach(() => {
+      fetchMock = jest.fn();
+      (global as unknown as { fetch: jest.Mock }).fetch = fetchMock;
+    });
+
+    // Resuelve fetchMock con una promesa que este test controla a mano: el
+    // await de abajo engancha su propio .then sobre la MISMA promesa que
+    // from(fetch(...)) ya enganchó al llamar fetch() (durante el flush de
+    // signed-url, de forma síncrona) — por orden de registro, el .then
+    // interno de RxJS corre primero, así que al terminar el await la
+    // request de /legal-documents ya está pendiente en httpMock.
+    function mockFetchResult(result: { ok: boolean; statusText?: string }): Promise<{ ok: boolean; statusText?: string }> {
+      let resolveFetch!: (value: { ok: boolean; statusText?: string }) => void;
+      const fetchPromise = new Promise<{ ok: boolean; statusText?: string }>((resolve) => {
+        resolveFetch = resolve;
+      });
+      fetchMock.mockReturnValue(fetchPromise);
+      resolveFetch(result);
+      return fetchPromise;
+    }
+
+    it('pide signed-url, sube el archivo a S3 y registra la metadata', async () => {
+      let document: unknown;
+
+      service
+        .publishLegalDocument({ type: 'internal_terms', version: '1.0', isSubstantialChange: true, file })
+        .subscribe((d) => (document = d));
+
+      const signedReq = httpMock.expectOne(`${apiUrl}/legal-documents/signed-url`);
+      expect(signedReq.request.method).toBe('POST');
+      expect(signedReq.request.body).toEqual({
+        type: 'internal_terms',
+        filename: 'terminos.pdf',
+        contentType: 'application/pdf',
+        size: file.size,
+      });
+
+      const fetchPromise = mockFetchResult({ ok: true });
+      signedReq.flush({ url: 'https://s3/signed', bucket: 'lexar-test', key: 'legal-documents/internal_terms/x.pdf' });
+      await fetchPromise;
+
+      expect(fetchMock).toHaveBeenCalledWith('https://s3/signed', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/pdf' },
+        body: file,
+      });
+
+      const publishReq = httpMock.expectOne(`${apiUrl}/legal-documents`);
+      expect(publishReq.request.method).toBe('POST');
+      expect(publishReq.request.body).toEqual({
+        type: 'internal_terms',
+        version: '1.0',
+        isSubstantialChange: true,
+        bucket: 'lexar-test',
+        key: 'legal-documents/internal_terms/x.pdf',
+        originalFilename: 'terminos.pdf',
+        contentType: 'application/pdf',
+        size: file.size,
+      });
+      publishReq.flush({ document: { id: 'doc-1', type: 'internal_terms', version: '1.0' } });
+
+      expect(document).toEqual({ id: 'doc-1', type: 'internal_terms', version: '1.0' });
+    });
+
+    it('si la subida a S3 falla, propaga el error sin registrar la metadata', async () => {
+      let error: Error | undefined;
+
+      service
+        .publishLegalDocument({ type: 'internal_terms', version: '1.0', isSubstantialChange: true, file })
+        .subscribe({ error: (e) => (error = e) });
+
+      const signedReq = httpMock.expectOne(`${apiUrl}/legal-documents/signed-url`);
+      const fetchPromise = mockFetchResult({ ok: false, statusText: 'Forbidden' });
+      signedReq.flush({ url: 'https://s3/signed', bucket: 'lexar-test', key: 'x.pdf' });
+      await fetchPromise;
+
+      expect(error?.message).toBe('Error al subir el archivo: Forbidden');
+      httpMock.expectNone(`${apiUrl}/legal-documents`);
+    });
+  });
 });

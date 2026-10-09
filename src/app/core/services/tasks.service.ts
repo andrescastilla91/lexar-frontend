@@ -50,6 +50,7 @@ export class TasksService {
     const params: Record<string, string> = {};
     if (filters?.assignee) params['assignee'] = filters.assignee;
     if (filters?.processId) params['processId'] = filters.processId;
+    if (filters?.clientId) params['clientId'] = filters.clientId;
     if (filters?.statusId) params['statusId'] = filters.statusId;
     if (filters?.from) params['from'] = filters.from;
     if (filters?.to) params['to'] = filters.to;

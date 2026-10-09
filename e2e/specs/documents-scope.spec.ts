@@ -132,6 +132,11 @@ test.describe('F30: alcance del menú Documentos', () => {
     await loginAsAdmin(page, tenant);
     await page.goto('/documentos');
 
+    // F37 §DOC-01 (ola 2): el explorador jerárquico es la vista por
+    // defecto de /documentos; el filtro Todos/Solo los míos y el conteo de
+    // archivos siguen viviendo en la tabla plana ("Ver como lista").
+    await page.getByRole('button', { name: 'Ver como lista' }).click();
+
     await expect(page.getByText(/\d+ archivo/)).toBeVisible();
 
     const selects = page.locator('select');
@@ -181,6 +186,10 @@ test.describe('F30: alcance del menú Documentos', () => {
 
     await loginAsUser(page, restricted.email, restricted.password);
     await page.goto('/documentos');
+
+    // F37 §DOC-01 (ola 2): mismo motivo que el otro caso — el texto
+    // explicativo del alcance vive en la tabla plana, no en el explorador.
+    await page.getByRole('button', { name: 'Ver como lista' }).click();
 
     await expect(
       page.getByText('Ves los documentos de los procesos y clientes a tu cargo.'),

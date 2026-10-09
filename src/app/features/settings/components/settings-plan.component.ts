@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, input, output, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { SubscriptionService } from '../../../core/services/subscription.service';
 import { ConfirmDialogService } from '../../../core/services/confirm-dialog.service';
@@ -6,6 +6,7 @@ import { ToastService } from '../../../core/services/toast.service';
 import { AiChatService } from '../../../core/services/ai-chat.service';
 import { Entitlements, PlanCatalogEntry, SaasInvoice } from '../../../core/models/subscription-backend.model';
 import { AiUsageSummary } from '../../../core/models/ai-chat.model';
+import { BillingReadiness } from '../../../core/models/company.model';
 import { PlanComparisonTableComponent } from './plan-comparison-table.component';
 
 interface UsageBar {
@@ -33,6 +34,24 @@ interface UsageBar {
             }
             Elige un plan abajo para no perder acceso al terminar.
           </div>
+        }
+
+        @if (isTrial() && billingReadiness(); as readiness) {
+          @if (!readiness.ready) {
+            <div class="rounded-md border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-text" data-test="billing-incomplete">
+              <p class="font-medium">Antes de contratar un plan de pago completa los datos de facturación de tu empresa.</p>
+              <p class="mt-1 text-subtle">
+                Los necesitamos para emitirte la factura electrónica. Pendiente: {{ missingLabels() }}.
+              </p>
+              <button
+                type="button"
+                class="mt-3 min-h-11 rounded-md bg-navy-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-navy-950"
+                (click)="sectionRequested.emit('billing')"
+              >
+                Completar datos de facturación
+              </button>
+            </div>
+          }
         }
 
         @if (ent.status === 'past_due') {
@@ -179,6 +198,9 @@ export class SettingsPlanComponent implements OnInit {
   /** F7-R3: plan a resaltar cuando se llega vía el CTA de upgrade de otra pantalla. */
   readonly suggestedPlanCode = input<string | null>(null);
 
+  /** F45: pide al contenedor abrir otra sección de Configuración (p. ej. «billing»). */
+  readonly sectionRequested = output<string>();
+
   readonly isLoading = signal(true);
   readonly isCheckingOut = signal(false);
   readonly loadError = signal<string | null>(null);
@@ -186,9 +208,17 @@ export class SettingsPlanComponent implements OnInit {
   readonly plans = signal<PlanCatalogEntry[]>([]);
   readonly invoices = signal<SaasInvoice[]>([]);
   readonly simulationEnabled = signal(false);
+  /** F45: null si no se pudo consultar (p. ej. sin permiso) — en ese caso manda el servidor. */
+  readonly billingReadiness = signal<BillingReadiness | null>(null);
   /** F7-R4: consumo del cupo mensual de IA — informativo, no bloquea la
    * pantalla si falla (ver comentario en AiChatService.getUsage). */
   readonly aiUsage = signal<AiUsageSummary | null>(null);
+
+  readonly isTrial = computed(() => this.entitlements()?.planCode === 'TRIAL');
+
+  readonly missingLabels = computed(() =>
+    (this.billingReadiness()?.missing ?? []).map((item) => item.label.toLowerCase()).join(', '),
+  );
 
   readonly trialDaysLeft = computed(() => {
     const ent = this.entitlements();
@@ -241,6 +271,7 @@ export class SettingsPlanComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    this.loadBillingReadiness();
     this.subscriptionService.getEntitlements().subscribe({
       next: (entitlements) => {
         this.entitlements.set(entitlements);
@@ -300,6 +331,15 @@ export class SettingsPlanComponent implements OnInit {
       return;
     }
 
+    // F45: el primer plan de pago exige los datos de facturación. La pantalla
+    // lo anticipa para no mandar a pagar en vano; el servidor igual lo valida.
+    const readiness = this.billingReadiness();
+    if (this.isTrial() && readiness && !readiness.ready) {
+      this.toast.error('Completa los datos de facturación de tu empresa para contratar un plan de pago.');
+      this.sectionRequested.emit('billing');
+      return;
+    }
+
     const planName = this.plans().find((p) => p.code === planCode)?.name ?? planCode;
     const confirmed = await this.confirmDialog.confirm(
       this.simulationEnabled()
@@ -328,6 +368,7 @@ export class SettingsPlanComponent implements OnInit {
         error: (error: Error) => {
           this.isCheckingOut.set(false);
           this.toast.error(error.message || 'No se pudo simular la suscripción.');
+          this.loadBillingReadiness();
         },
       });
       return;
@@ -343,7 +384,15 @@ export class SettingsPlanComponent implements OnInit {
       error: (error: Error) => {
         this.isCheckingOut.set(false);
         this.toast.error(error.message || 'No se pudo iniciar el pago.');
+        this.loadBillingReadiness();
       },
+    });
+  }
+
+  private loadBillingReadiness(): void {
+    this.subscriptionService.getBillingReadiness().subscribe({
+      next: (readiness) => this.billingReadiness.set(readiness),
+      error: () => this.billingReadiness.set(null),
     });
   }
 

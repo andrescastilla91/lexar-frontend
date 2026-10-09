@@ -121,10 +121,23 @@ describe('FilesService', () => {
     expect(result).toEqual(file);
   });
 
-  it('getDownloadUrl hace GET a /files/:id/download', () => {
+  it('getDownloadUrl hace GET a /files/:id/download sin query params por defecto', () => {
     service.getDownloadUrl('file-1').subscribe();
 
     const req = httpMock.expectOne(`${apiUrl}/file-1/download`);
+    expect(req.request.method).toBe('GET');
+    expect(req.request.params.keys().length).toBe(0);
+    req.flush({ url: 'https://s3/download', filename: 'a.pdf', contentType: 'application/pdf', expiresIn: 300 });
+  });
+
+  it('getDownloadUrl(id, true) agrega el query param disposition=attachment (fix UX descarga, 2026-09-29)', () => {
+    service.getDownloadUrl('file-1', true).subscribe();
+
+    const req = httpMock.expectOne(
+      (request) =>
+        request.url === `${apiUrl}/file-1/download` &&
+        request.params.get('disposition') === 'attachment',
+    );
     expect(req.request.method).toBe('GET');
     req.flush({ url: 'https://s3/download', filename: 'a.pdf', contentType: 'application/pdf', expiresIn: 300 });
   });
@@ -154,16 +167,18 @@ describe('FilesService', () => {
     expect(result).toEqual({ id: 'file-1', visibleToClient: true });
   });
 
-  it('previewFile resuelve la url firmada de descarga', () => {
+  it('previewFile resuelve la url firmada de descarga sin forzar disposition=attachment', () => {
     let result: string | undefined;
     service.previewFile('file-1').subscribe((r) => (result = r));
 
-    httpMock.expectOne(`${apiUrl}/file-1/download`).flush({ url: 'https://s3/preview', filename: 'a.pdf', contentType: 'application/pdf', expiresIn: 300 });
+    const req = httpMock.expectOne(`${apiUrl}/file-1/download`);
+    expect(req.request.params.has('disposition')).toBe(false);
+    req.flush({ url: 'https://s3/preview', filename: 'a.pdf', contentType: 'application/pdf', expiresIn: 300 });
 
     expect(result).toBe('https://s3/preview');
   });
 
-  it('downloadFile crea un link temporal, simula el click y lo agrega/remueve del DOM', () => {
+  it('downloadFile pide disposition=attachment, crea un link temporal sin target, simula el click y lo agrega/remueve del DOM (fix UX descarga, 2026-09-29)', () => {
     jest.useFakeTimers();
     const clickSpy = jest.fn();
     jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(clickSpy);
@@ -172,13 +187,24 @@ describe('FilesService', () => {
     let completed = false;
     service.downloadFile('file-1').subscribe(() => (completed = true));
 
-    httpMock
-      .expectOne(`${apiUrl}/file-1/download`)
-      .flush({ url: 'https://s3/download', filename: 'a.pdf', contentType: 'application/pdf', expiresIn: 300 });
+    const req = httpMock.expectOne(
+      (request) =>
+        request.url === `${apiUrl}/file-1/download` &&
+        request.params.get('disposition') === 'attachment',
+    );
+    req.flush({ url: 'https://s3/download', filename: 'a.pdf', contentType: 'application/pdf', expiresIn: 300 });
 
     expect(completed).toBe(true);
     expect(appendSpy).toHaveBeenCalled();
     expect(clickSpy).toHaveBeenCalled();
+
+    const createdLink = appendSpy.mock.calls[0][0] as HTMLAnchorElement;
+    expect(createdLink.href).toBe('https://s3/download');
+    expect(createdLink.download).toBe('a.pdf');
+    // antes del fix, `target="_blank"` combinado con el atributo `download`
+    // ignorado en URLs cross-origin era la causa de que se abriera una
+    // pestaña nueva en vez de descargar — nunca debe volver a fijarse.
+    expect(createdLink.target).toBe('');
 
     jest.advanceTimersByTime(100);
     jest.useRealTimers();
@@ -211,6 +237,27 @@ describe('FilesService', () => {
     registerReq.flush(file);
 
     expect(result).toEqual(file);
+  });
+
+  it('uploadFile: F37 §DOC-02 — reenvía documentTypeId al registrar', async () => {
+    const testFile = new File(['contenido'], 'contrato.pdf', { type: 'application/pdf' });
+    const fetchMock = jest.fn().mockResolvedValue({ ok: true, statusText: 'OK' });
+    (global as unknown as { fetch: jest.Mock }).fetch = fetchMock;
+
+    service
+      .uploadFile(testFile, 'legal_process', 'process-1', undefined, undefined, 'doc-type-1')
+      .subscribe();
+
+    const signedReq = httpMock.expectOne(`${apiUrl}/signed-url`);
+    signedReq.flush({ url: 'https://s3/upload', key: 'key-1', bucket: 'bucket-1', expiresIn: 900 });
+
+    await flushMicrotasks();
+
+    const registerReq = httpMock.expectOne(apiUrl);
+    expect(registerReq.request.body).toEqual(
+      expect.objectContaining({ documentTypeId: 'doc-type-1' }),
+    );
+    registerReq.flush(file);
   });
 
   it('uploadFile propaga el error cuando la subida a S3 falla', async () => {
@@ -259,5 +306,157 @@ describe('FilesService', () => {
   it('formatFileSize formatea kilobytes y megabytes', () => {
     expect(service.formatFileSize(1024)).toBe('1 KB');
     expect(service.formatFileSize(1048576)).toBe('1 MB');
+  });
+
+  describe('F37 §DOC-01 (ola 2) — explorador de documentos', () => {
+    it('getDocumentTreeClients hace GET a /files/tree/clients', () => {
+      let result: unknown;
+      service.getDocumentTreeClients().subscribe((r) => (result = r));
+
+      const req = httpMock.expectOne(`${apiUrl}/tree/clients`);
+      expect(req.request.method).toBe('GET');
+      const clients = [{ id: 'c1', label: 'Cliente 1', documentCount: 3 }];
+      req.flush(clients);
+
+      expect(result).toEqual(clients);
+    });
+
+    it('getDocumentTreeClientNodes hace GET a /files/tree/clients/:id/nodes', () => {
+      let result: unknown;
+      service.getDocumentTreeClientNodes('c1').subscribe((r) => (result = r));
+
+      const req = httpMock.expectOne(`${apiUrl}/tree/clients/c1/nodes`);
+      expect(req.request.method).toBe('GET');
+      req.flush([]);
+
+      expect(result).toEqual([]);
+    });
+
+    it('getDocumentTreeTypes envía matterId cuando se pasa', () => {
+      service.getDocumentTreeTypes('c1', 'm1').subscribe();
+
+      const req = httpMock.expectOne(
+        (r) => r.url === `${apiUrl}/tree/document-types`,
+      );
+      expect(req.request.params.get('clientId')).toBe('c1');
+      expect(req.request.params.get('matterId')).toBe('m1');
+      expect(req.request.params.has('processId')).toBe(false);
+      req.flush([]);
+    });
+
+    it('getDocumentTreeTypes envía processId cuando no hay matterId', () => {
+      service.getDocumentTreeTypes('c1', null, 'p1').subscribe();
+
+      const req = httpMock.expectOne(
+        (r) => r.url === `${apiUrl}/tree/document-types`,
+      );
+      expect(req.request.params.get('processId')).toBe('p1');
+      expect(req.request.params.has('matterId')).toBe(false);
+      req.flush([]);
+    });
+
+    it('getDocumentTreeTypes no envía matterId ni processId para el nodo "general"', () => {
+      service.getDocumentTreeTypes('c1').subscribe();
+
+      const req = httpMock.expectOne(
+        (r) => r.url === `${apiUrl}/tree/document-types`,
+      );
+      expect(req.request.params.has('matterId')).toBe(false);
+      expect(req.request.params.has('processId')).toBe(false);
+      req.flush([]);
+    });
+
+    it('getDocumentTreeDocuments envía clientId/documentTypeId/página/límite', () => {
+      let result: unknown;
+      service
+        .getDocumentTreeDocuments('c1', 'dt1', 'm1', undefined, 2, 10)
+        .subscribe((r) => (result = r));
+
+      const req = httpMock.expectOne(
+        (r) => r.url === `${apiUrl}/tree/documents`,
+      );
+      expect(req.request.method).toBe('GET');
+      expect(req.request.params.get('clientId')).toBe('c1');
+      expect(req.request.params.get('documentTypeId')).toBe('dt1');
+      expect(req.request.params.get('matterId')).toBe('m1');
+      expect(req.request.params.get('page')).toBe('2');
+      expect(req.request.params.get('limit')).toBe('10');
+      const response = { data: [file], total: 1, page: 2, limit: 10 };
+      req.flush(response);
+
+      expect(result).toEqual(response);
+    });
+  });
+
+  describe('F37 §DOC-02 (ola 3) — bandeja "Sin clasificar"', () => {
+    it('getDocumentTreeUnclassified hace GET a /files/tree/unclassified con página/límite', () => {
+      let result: unknown;
+      service.getDocumentTreeUnclassified(2, 10).subscribe((r) => (result = r));
+
+      const req = httpMock.expectOne(
+        (r) => r.url === `${apiUrl}/tree/unclassified`,
+      );
+      expect(req.request.method).toBe('GET');
+      expect(req.request.params.get('page')).toBe('2');
+      expect(req.request.params.get('limit')).toBe('10');
+      const response = { data: [file], total: 1, page: 2, limit: 10 };
+      req.flush(response);
+
+      expect(result).toEqual(response);
+    });
+
+    it('classifyDocumentType hace PATCH a /files/:id/document-type', () => {
+      let result: unknown;
+      service.classifyDocumentType('f1', 'dt1').subscribe((r) => (result = r));
+
+      const req = httpMock.expectOne(`${apiUrl}/f1/document-type`);
+      expect(req.request.method).toBe('PATCH');
+      expect(req.request.body).toEqual({ documentTypeId: 'dt1' });
+      req.flush(file);
+
+      expect(result).toEqual(file);
+    });
+  });
+
+  describe('F37 §DOC-06 (ola 4) — historial de auditoría de un documento', () => {
+    it('getAuditHistory hace GET a /files/:id/audit-log con página/límite', () => {
+      let result: unknown;
+      service.getAuditHistory('f1', 2, 10).subscribe((r) => (result = r));
+
+      const req = httpMock.expectOne(
+        (r) => r.url === `${apiUrl}/f1/audit-log`,
+      );
+      expect(req.request.method).toBe('GET');
+      expect(req.request.params.get('page')).toBe('2');
+      expect(req.request.params.get('limit')).toBe('10');
+      const response = {
+        data: [
+          {
+            id: 'log-1',
+            action: 'download',
+            userEmail: 'a@b.com',
+            source: 'internal',
+            createdAt: new Date('2026-09-29'),
+          },
+        ],
+        total: 1,
+        page: 2,
+        limit: 10,
+      };
+      req.flush(response);
+
+      expect(result).toEqual(response);
+    });
+
+    it('getAuditHistory usa page=1/limit=20 por default', () => {
+      service.getAuditHistory('f1').subscribe();
+
+      const req = httpMock.expectOne(
+        (r) => r.url === `${apiUrl}/f1/audit-log`,
+      );
+      expect(req.request.params.get('page')).toBe('1');
+      expect(req.request.params.get('limit')).toBe('20');
+      req.flush({ data: [], total: 0, page: 1, limit: 20 });
+    });
   });
 });

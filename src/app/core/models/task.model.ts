@@ -30,12 +30,27 @@ export interface TaskPendingApproval {
   createdAt: string;
 }
 
+/** F42 (TAR-01): lo mínimo del proceso para confirmar de un vistazo que se
+ * eligió el correcto — cliente, radicado, código interno y etapa. */
+export interface TaskProcessSummary {
+  id: string;
+  title: string;
+  caseNumber: string | null;
+  internalCode: string;
+  stage: string | null;
+  clientId: string;
+  clientName: string | null;
+}
+
 export interface TaskResponse {
   id: string;
   title: string;
   description: string | null;
   processId: string | null;
-  process: { id: string; title: string } | null;
+  process: TaskProcessSummary | null;
+  /** F42 (TAR-03): serie de la que nació y su número de ocurrencia (ausentes en tareas normales). */
+  recurrenceId?: string | null;
+  occurrenceNumber?: number | null;
   clientId: string | null;
   client: { id: string; name: string } | null;
   assigneeUserId: string | null;
@@ -82,6 +97,7 @@ export interface UpdateTaskRequest {
 export interface QueryTasksFilters {
   assignee?: string;
   processId?: string;
+  clientId?: string;
   statusId?: string;
   from?: string;
   to?: string;

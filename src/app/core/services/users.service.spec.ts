@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { UsersService } from './users.service';
-import { UserBackend } from '../models/user-backend.model';
+import { EffectivePermissionsResponse, UserBackend } from '../models/user-backend.model';
 import { environment } from '../../../environments/environment';
 
 describe('UsersService', () => {
@@ -168,5 +168,51 @@ describe('UsersService', () => {
     req.flush({ message: '2FA desactivado' });
 
     expect(result).toEqual({ message: '2FA desactivado' });
+  });
+
+  it('getEffectivePermissions hace GET a /users/:id/effective-permissions', () => {
+    let result: EffectivePermissionsResponse | undefined;
+    service.getEffectivePermissions('user-1').subscribe((r) => (result = r));
+
+    const req = httpMock.expectOne(`${apiUrl}/user-1/effective-permissions`);
+    expect(req.request.method).toBe('GET');
+    const body: EffectivePermissionsResponse = {
+      message: 'ok',
+      user: { id: 'user-1', firstName: 'Ana', lastName: 'Ríos' },
+      roles: [{ id: 'role-1', name: 'Coordinador' }],
+      groups: [],
+      total: 0,
+    };
+    req.flush(body);
+
+    expect(result).toEqual(body);
+  });
+
+  it('exportEffectivePermissions baja el CSV como blob', () => {
+    let result: Blob | undefined;
+    service.exportEffectivePermissions('user-1').subscribe((r) => (result = r));
+
+    const req = httpMock.expectOne(`${apiUrl}/user-1/effective-permissions/export`);
+    expect(req.request.method).toBe('GET');
+    expect(req.request.responseType).toBe('blob');
+    req.flush(new Blob(['a,b'], { type: 'text/csv' }));
+
+    expect(result).toBeInstanceOf(Blob);
+  });
+
+  it('exportEffectivePermissions propaga el mensaje real del backend en un error', (done) => {
+    service.exportEffectivePermissions('user-1').subscribe({
+      next: () => fail('no debería emitir valor'),
+      error: (err: Error) => {
+        expect(err.message).toBe('Sin permiso');
+        done();
+      },
+    });
+
+    const req = httpMock.expectOne(`${apiUrl}/user-1/effective-permissions/export`);
+    req.flush(new Blob([JSON.stringify({ message: 'Sin permiso' })], { type: 'application/json' }), {
+      status: 403,
+      statusText: 'Forbidden',
+    });
   });
 });

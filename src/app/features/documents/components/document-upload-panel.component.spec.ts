@@ -7,6 +7,7 @@ function buildForm() {
   return fb.nonNullable.group({
     entityType: ['legal_process', Validators.required],
     entityId: ['', Validators.required],
+    documentTypeId: ['', Validators.required],
   });
 }
 
@@ -77,13 +78,21 @@ describe('DocumentUploadPanelComponent', () => {
     TestBed.configureTestingModule({ imports: [DocumentUploadPanelComponent] });
     const fixture = TestBed.createComponent(DocumentUploadPanelComponent);
     const form = buildForm();
-    form.patchValue({ entityId: 'p1' });
+    form.patchValue({ entityId: 'p1', documentTypeId: 'dt1' });
     fixture.componentRef.setInput('form', form);
     fixture.componentRef.setInput('isOpen', true);
     fixture.componentRef.setInput('selectedFile', file);
     fixture.detectChanges();
 
     expect((fixture.nativeElement.querySelector('button[type="submit"]') as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('renderiza las opciones de tipo de documento', () => {
+    const { fixture } = createComponent();
+    fixture.componentRef.setInput('documentTypes', [{ id: 'dt1', label: 'Contrato' }]);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Contrato');
   });
 
   it('renderiza las opciones de procesos o clientes según el tipo de entidad', () => {

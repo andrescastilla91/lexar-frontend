@@ -68,6 +68,7 @@ export class AdminLayoutComponent {
     { label: 'Notificaciones', route: '/admin/notifications' },
     { label: 'Permisos', route: '/admin/permissions' },
     { label: 'Festivos', route: '/admin/holidays' },
+    { label: 'Documentos legales', route: '/admin/legal-documents' },
   ];
 
   logout(): void {

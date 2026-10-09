@@ -394,6 +394,15 @@ describe('UsersComponent', () => {
     expect(component.showRolesModal()).toBe(false);
   });
 
+  it('onRoleCreated agrega el rol recién creado al catálogo de roles disponibles (F39)', () => {
+    configure();
+    const { component } = createComponent();
+
+    component.onRoleCreated({ id: 'r9', name: 'Coordinador', isSystem: false });
+
+    expect(component.availableRoles().map((r) => r.id)).toEqual(['r1', 'r9']);
+  });
+
   it('saveRoles no hace nada si no hay usuario seleccionado', () => {
     configure();
     const { component } = createComponent();

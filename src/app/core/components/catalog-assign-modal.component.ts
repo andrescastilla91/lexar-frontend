@@ -102,6 +102,18 @@ function normalizeSearchText(value: string): string {
             </div>
           }
 
+          @if (createActionLabel()) {
+            <div class="mb-4 flex justify-end">
+              <button
+                type="button"
+                (click)="onCreateRequested()"
+                class="rounded-md border border-default px-3 py-1.5 text-sm font-semibold text-navy-900 transition hover:bg-surface-muted"
+              >
+                {{ createActionLabel() }}
+              </button>
+            </div>
+          }
+
           <div class="mb-6 space-y-4">
             @if (hasGroups()) {
               @if (filteredGroupedItems().length === 0) {
@@ -201,9 +213,15 @@ export class CatalogAssignModalComponent {
   // F31: opt-in — apagado por defecto para no alterar a los consumidores
   // actuales del modal (catálogos, otras asignaciones).
   searchable = input(false);
+  // F39 (ROL-01): opt-in — texto del botón "crear ítem" dentro del modal
+  // (p. ej. "Crear rol nuevo"). Sin texto no se renderiza el botón.
+  createActionLabel = input<string | null>(null);
 
   save = output<string[]>();
   cancel = output<void>();
+  // Emite la selección actual (sin guardar) para que el consumidor la
+  // preserve mientras el usuario crea el ítem en otro modal.
+  createRequested = output<string[]>();
 
   private readonly internalSelected = signal<string[]>([]);
   private readonly searchTermSignal = signal('');
@@ -296,6 +314,10 @@ export class CatalogAssignModalComponent {
 
   onCancel(): void {
     this.cancel.emit();
+  }
+
+  onCreateRequested(): void {
+    this.createRequested.emit([...this.internalSelected()]);
   }
 
   onSave(): void {

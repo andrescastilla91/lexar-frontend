@@ -11,7 +11,13 @@ export type CatalogType =
   | 'laft_risk'
   | 'contract_type'
   | 'process_type'
-  | 'contingency';
+  | 'contingency'
+  /**
+   * F37 §DOC-02: clasificación de archivos del expediente (contrato,
+   * poder, memorial, etc.) — distinto de 'document_type', que es el tipo
+   * de documento de IDENTIFICACIÓN del cliente (cédula, NIT, pasaporte).
+   */
+  | 'case_document_type';
 
 /** F33 §1: solo relevante para `document_type`. `null` = aplica a ambos. */
 export type CatalogPersonTypeScope = 'NATURAL' | 'JURIDICA';
@@ -74,4 +80,18 @@ export interface CatalogItemsResponse {
 export interface CatalogItemResponse {
   message: string;
   item: CatalogItem;
+}
+
+/** F47: cuántos ítems tiene un tipo de catálogo (para la navegación de Configuración). */
+export interface CatalogSummaryItem {
+  catalogType: CatalogType;
+  /** Todos los ítems del tipo (activos e inactivos). */
+  total: number;
+  /** Solo los activos: los que el usuario ve en los formularios. */
+  active: number;
+}
+
+export interface CatalogSummaryResponse {
+  message: string;
+  summary: CatalogSummaryItem[];
 }

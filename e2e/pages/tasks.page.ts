@@ -64,6 +64,17 @@ export class TasksPage {
     }
   }
 
+  /** F42 (TAR-03) — "Repetir esta tarea" del modal de creación: fecha/hora
+   * del primer vencimiento (`datetime-local`), periodicidad y casilla. */
+  async fillDueAt(dueAtLocal: string): Promise<void> {
+    await this.createForm.locator('input[formcontrolname="dueAt"]').fill(dueAtLocal);
+  }
+
+  async enableRepeat(frequencyValue: string): Promise<void> {
+    await this.createForm.getByLabel('Repetir esta tarea').check();
+    await this.createForm.locator('select[formcontrolname="frequency"]').selectOption(frequencyValue);
+  }
+
   async submitCreate(): Promise<void> {
     await this.createSubmitButton.click();
   }

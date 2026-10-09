@@ -1,15 +1,18 @@
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { ActivatedRoute, provideRouter } from '@angular/router';
 import { signal } from '@angular/core';
 import { of, throwError } from 'rxjs';
 import { convertToParamMap } from '@angular/router';
 import { ClientDetailComponent } from './client-detail.component';
+import { ClientDataProcessingAuthorizationPanelComponent } from './components/client-data-processing-authorization-panel.component';
 import { ClientsService } from '../../../core/services/clients.service';
 import { CatalogsService } from '../../../core/services/catalogs.service';
 import { AdvisorsService } from '../../../core/services/advisors.service';
 import { LegalProcessesService } from '../../../core/services/legal-processes.service';
 import { TasksService } from '../../../core/services/tasks.service';
 import { ToastService } from '../../../core/services/toast.service';
+import { FilesService } from '../../../core/services/files.service';
 import { PermissionsService } from '../../../core/services/permissions.service';
 import { ClientResponse, ClientPersonType } from '../../../core/models/client-backend.model';
 import { LegalProcessResponse } from '../../../core/models/legal-process.model';
@@ -83,6 +86,10 @@ describe('ClientDetailComponent', () => {
           useValue: { getForProcess: jest.fn().mockReturnValue(overrides.getForProcessResult ?? of(overrides.tasks ?? [])) },
         },
         { provide: ToastService, useValue: toastServiceMock },
+        {
+          provide: FilesService,
+          useValue: { getFilesByEntity: jest.fn().mockReturnValue(of([])), uploadFile: jest.fn(), downloadFile: jest.fn() },
+        },
         {
           provide: PermissionsService,
           useValue: {
@@ -251,6 +258,34 @@ describe('ClientDetailComponent', () => {
     const link = fixture.nativeElement.querySelector('a[href*="tareas"]') as HTMLAnchorElement;
     expect(link).toBeTruthy();
     expect(link.textContent).toContain('Tarea Uno');
+  });
+
+  // F44 §LEG-02 (ola 3): TRA-03 — aviso no bloqueante en el header cuando
+  // falta la autorización de tratamiento de datos.
+  it('muestra el aviso de autorización pendiente cuando el cliente no la tiene registrada', () => {
+    const { fixture } = configureAndCreate();
+
+    expect(fixture.nativeElement.textContent).toContain('Sin autorización de datos');
+  });
+
+  it('oculta el aviso de autorización pendiente cuando el cliente ya la tiene registrada', () => {
+    const authorizedClient: ClientResponse = { ...client, dataProcessingAuthorized: true };
+    const { fixture } = configureAndCreate({ getClientResult: of(authorizedClient) });
+
+    expect(fixture.nativeElement.textContent).not.toContain('Sin autorización de datos');
+  });
+
+  it('actualiza el cliente cuando el panel de autorización de tratamiento de datos emite una actualización', () => {
+    const { fixture, component } = configureAndCreate();
+
+    component.activeTab.set('cumplimiento');
+    fixture.detectChanges();
+
+    const updatedClient: ClientResponse = { ...client, dataProcessingAuthorized: true };
+    const panel = fixture.debugElement.query(By.directive(ClientDataProcessingAuthorizationPanelComponent));
+    panel.componentInstance.updated.emit(updatedClient);
+
+    expect(component.client()).toEqual(updatedClient);
   });
 
   // Gap de coverage detectado por el CI 2026-09-15 (branches por debajo del

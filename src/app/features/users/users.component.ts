@@ -11,7 +11,7 @@ import { HasPermissionDirective } from '../../core/directives/has-permission.dir
 import { PaginationComponent } from '../../core/components/pagination.component';
 import { ConfirmDialogService } from '../../core/services/confirm-dialog.service';
 import { ToastService } from '../../core/services/toast.service';
-import { CatalogAssignModalComponent, CatalogAssignItem } from '../../core/components/catalog-assign-modal.component';
+import { AssignRolesModalComponent } from './components/assign-roles-modal.component';
 import { UserFormComponent } from './components/user-form.component';
 import { UsersTableComponent } from './components/users-table.component';
 
@@ -22,7 +22,7 @@ import { UsersTableComponent } from './components/users-table.component';
     ReactiveFormsModule,
     HasPermissionDirective,
     PaginationComponent,
-    CatalogAssignModalComponent,
+    AssignRolesModalComponent,
     UserFormComponent,
     UsersTableComponent,
   ],
@@ -147,17 +147,15 @@ import { UsersTableComponent } from './components/users-table.component';
         />
       }
 
-      <app-catalog-assign-modal
-        title="Asignar roles"
-        subtitlePrefix="Usuario:"
-        [subtitleValue]="selectedUserFullName()"
-        [items]="roleCatalogItems()"
+      <app-assign-roles-modal
+        [roles]="availableRoles()"
         [selectedIds]="selectedRoleIds()"
         [isOpen]="showRolesModal()"
         [isSubmitting]="isSubmitting()"
-        submitLabel="Guardar roles"
+        [userName]="selectedUserFullName()"
         (cancel)="closeRolesModal()"
         (save)="saveRoles($event)"
+        (roleCreated)="onRoleCreated($event)"
       />
     </div>
   `,
@@ -245,14 +243,6 @@ export class UsersComponent implements OnInit {
     const user = this.selectedUser();
     return user ? `${user.firstName} ${user.lastName}` : null;
   });
-
-  readonly roleCatalogItems = computed<CatalogAssignItem[]>(() =>
-    this.availableRoles().map((role) => ({
-      id: role.id,
-      label: role.name,
-      description: role.description,
-    }))
-  );
 
   ngOnInit(): void {
     this.loadUsers();
@@ -413,6 +403,11 @@ export class UsersComponent implements OnInit {
     this.selectedUser.set(user);
     this.selectedRoleIds.set(user.roles.map((r) => r.id));
     this.showRolesModal.set(true);
+  }
+
+  /** F39 (ROL-01): rol creado desde el modal — queda disponible en el catálogo. */
+  onRoleCreated(role: Role): void {
+    this.availableRoles.update((roles) => [...roles, role]);
   }
 
   closeRolesModal(): void {

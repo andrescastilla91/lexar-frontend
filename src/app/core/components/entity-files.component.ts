@@ -2,6 +2,7 @@ import { Component, Input, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { FilesService } from '../services/files.service';
+import { CatalogsService } from '../services/catalogs.service';
 import { FileModel } from '../models/file.model';
 import { HasPermissionDirective } from '../directives/has-permission.directive';
 import { ConfirmDialogService } from '../services/confirm-dialog.service';
@@ -41,15 +42,45 @@ import { FilePreviewModalComponent } from './file-preview-modal.component';
         </label>
       </div>
 
-      <!-- Upload progress -->
-      @if (uploading()) {
-        <div class="rounded-md border border-default bg-primary-tint px-4 py-3">
-          <div class="flex items-center gap-3">
-            <svg class="h-4 w-4 animate-spin text-primary" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4l3.5-3.5L12 1v4a7 7 0 0 0-7 7h-1z"></path>
-            </svg>
-            <span class="text-sm font-medium text-info">Subiendo...</span>
+      <!-- F37 §DOC-02: antes de subir, si la entidad lo requiere, pide el
+           tipo de documento — el archivo elegido no se sube hasta confirmar. -->
+      @if (pendingFile()) {
+        <div class="rounded-md border border-default bg-primary-tint px-4 py-3 space-y-3">
+          <p class="text-sm font-medium text-text truncate">{{ pendingFile()!.name }}</p>
+
+          @if (requiresDocumentType()) {
+            <label class="block text-sm font-medium text-text">
+              Tipo de documento
+              <select
+                class="mt-1.5 w-full rounded-md border border-default bg-surface px-3 py-2 text-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                [value]="pendingDocumentTypeId()"
+                (change)="onDocumentTypeChange($event)"
+              >
+                <option value="">Seleccione...</option>
+                @for (documentType of documentTypes(); track documentType.id) {
+                  <option [value]="documentType.id">{{ documentType.label }}</option>
+                }
+              </select>
+            </label>
+          }
+
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              (click)="confirmPendingUpload()"
+              [disabled]="uploading() || (requiresDocumentType() && !pendingDocumentTypeId())"
+              class="rounded-md bg-primary px-4 py-2 text-xs font-semibold text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-strong"
+            >
+              {{ uploading() ? 'Subiendo...' : 'Subir' }}
+            </button>
+            <button
+              type="button"
+              (click)="cancelPendingUpload()"
+              [disabled]="uploading()"
+              class="rounded-md border border-default bg-surface px-4 py-2 text-xs font-semibold text-text transition hover:bg-surface-muted"
+            >
+              Cancelar
+            </button>
           </div>
         </div>
       }
@@ -165,6 +196,7 @@ export class EntityFilesComponent implements OnInit {
   @Input({ required: true }) entityId!: string;
 
   private readonly filesService = inject(FilesService);
+  private readonly catalogsService = inject(CatalogsService);
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly sanitizer = inject(DomSanitizer);
   private readonly toast = inject(ToastService);
@@ -176,8 +208,26 @@ export class EntityFilesComponent implements OnInit {
   readonly previewUrl = signal<SafeResourceUrl | null>(null);
   readonly previewingFile = signal<FileModel | null>(null);
 
+  // F37 §DOC-02: catálogo de clasificación de archivos, distinto del
+  // 'document_type' de identificación del cliente.
+  readonly documentTypes = signal<{ id: string; label: string }[]>([]);
+  readonly pendingFile = signal<File | null>(null);
+  readonly pendingDocumentTypeId = signal('');
+
   ngOnInit(): void {
     this.loadFiles();
+    if (this.requiresDocumentType()) {
+      this.catalogsService.getActiveCatalog('case_document_type').subscribe({
+        next: (items) =>
+          this.documentTypes.set(items.map((item) => ({ id: item.id, label: item.label }))),
+        error: (err) => console.error('Error loading document types:', err),
+      });
+    }
+  }
+
+  /** F37 §DOC-02: mismo criterio que `FilesService.registerFile` en el backend. */
+  requiresDocumentType(): boolean {
+    return this.entityType === 'legal_process' || this.entityType === 'client';
   }
 
   loadFiles(): void {
@@ -200,28 +250,58 @@ export class EntityFilesComponent implements OnInit {
       return;
     }
 
-    const file = input.files[0];
+    this.uploadError.set(null);
+    this.pendingDocumentTypeId.set('');
+    this.pendingFile.set(input.files[0]);
+    input.value = '';
+  }
+
+  onDocumentTypeChange(event: Event): void {
+    const select = event.target as HTMLSelectElement;
+    this.pendingDocumentTypeId.set(select.value);
+  }
+
+  cancelPendingUpload(): void {
+    this.pendingFile.set(null);
+    this.pendingDocumentTypeId.set('');
+    this.uploadError.set(null);
+  }
+
+  confirmPendingUpload(): void {
+    const file = this.pendingFile();
+    if (!file || this.uploading()) {
+      return;
+    }
+    if (this.requiresDocumentType() && !this.pendingDocumentTypeId()) {
+      return;
+    }
+
     this.uploading.set(true);
     this.uploadError.set(null);
 
-    this.filesService.uploadFile(file, this.entityType, this.entityId).subscribe({
-      next: () => {
-        this.uploading.set(false);
-        this.loadFiles();
-        // Reset input
-        input.value = '';
-      },
-      error: (err) => {
-        // BUG-20 ola 1: err.message ya es el mensaje real y seguro que
-        // calculó error.interceptor.ts (BUG-19) — err.error?.message lee el
-        // body crudo, sin sus reglas de seguridad.
-        this.uploading.set(false);
-        const message = err.message || 'Error al subir el archivo';
-        this.uploadError.set(message);
-        this.toast.error(message);
-        input.value = '';
-      },
-    });
+    const documentTypeId = this.requiresDocumentType()
+      ? this.pendingDocumentTypeId()
+      : undefined;
+
+    this.filesService
+      .uploadFile(file, this.entityType, this.entityId, undefined, undefined, documentTypeId)
+      .subscribe({
+        next: () => {
+          this.uploading.set(false);
+          this.pendingFile.set(null);
+          this.pendingDocumentTypeId.set('');
+          this.loadFiles();
+        },
+        error: (err) => {
+          // BUG-20 ola 1: err.message ya es el mensaje real y seguro que
+          // calculó error.interceptor.ts (BUG-19) — err.error?.message lee
+          // el body crudo, sin sus reglas de seguridad.
+          this.uploading.set(false);
+          const message = err.message || 'Error al subir el archivo';
+          this.uploadError.set(message);
+          this.toast.error(message);
+        },
+      });
   }
 
   previewFile(file: FileModel): void {

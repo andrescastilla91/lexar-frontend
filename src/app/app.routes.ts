@@ -5,7 +5,9 @@ import { chatbotFeatureGuard } from './core/guards/feature-flag.guard';
 import { emailVerifiedGuard } from './core/guards/email-verified.guard';
 import { ownerOnlyGuard } from './core/guards/owner-only.guard';
 import { twoFactorRequiredGuard } from './core/guards/two-factor-required.guard';
+import { legalTermsRequiredGuard } from './core/guards/legal-terms-required.guard';
 import { portalAuthGuard } from './core/guards/portal-auth.guard';
+import { portalLegalTermsRequiredGuard } from './core/guards/portal-legal-terms-required.guard';
 import { MainLayoutComponent } from './layout/main-layout.component';
 import { AdminLayoutComponent } from './layout/admin-layout.component';
 import { PortalLayoutComponent } from './layout/portal-layout.component';
@@ -94,6 +96,15 @@ export const routes: Routes = [
 			),
 	},
 	{
+		path: 'aceptar-terminos',
+		title: 'Aceptar términos de uso',
+		canActivate: [authGuard],
+		loadComponent: () =>
+			import('./features/auth/legal-terms-required/legal-terms-required.component').then(
+				(m) => m.LegalTermsRequiredComponent,
+			),
+	},
+	{
 		path: 'admin/login',
 		title: 'Acceso administrador',
 		data: { titleSuffix: 'admin' },
@@ -146,6 +157,14 @@ export const routes: Routes = [
 					import('./features/admin/holidays/admin-holidays.component').then((m) => m.AdminHolidaysComponent),
 			},
 			{
+				path: 'legal-documents',
+				title: 'Documentos legales',
+				loadComponent: () =>
+					import('./features/admin/legal-documents/admin-legal-documents.component').then(
+						(m) => m.AdminLegalDocumentsComponent,
+					),
+			},
+			{
 				path: '',
 				pathMatch: 'full',
 				redirectTo: 'tenants',
@@ -155,7 +174,7 @@ export const routes: Routes = [
 	{
 		path: '',
 		component: MainLayoutComponent,
-		canActivate: [authGuard, emailVerifiedGuard, twoFactorRequiredGuard],
+		canActivate: [authGuard, emailVerifiedGuard, twoFactorRequiredGuard, legalTermsRequiredGuard],
 		children: [
 			{
 				path: 'dashboard',
@@ -199,6 +218,23 @@ export const routes: Routes = [
 				loadComponent: () => import('./features/roles/roles.component').then((m) => m.RolesComponent),
 			},
 			{
+				path: 'auditoria',
+				title: 'Auditoría',
+				loadComponent: () => import('./features/audit/audit.component').then((m) => m.AuditComponent),
+			},
+			{
+				path: 'auditoria/aceptaciones',
+				title: 'Aceptaciones de términos',
+				loadComponent: () =>
+					import('./features/audit/legal-acceptances.component').then((m) => m.LegalAcceptancesComponent),
+			},
+			{
+				path: 'auditoria/autorizaciones',
+				title: 'Autorizaciones de clientes',
+				loadComponent: () =>
+					import('./features/audit/client-authorizations.component').then((m) => m.ClientAuthorizationsComponent),
+			},
+			{
 				path: 'configuracion',
 				title: 'Configuración',
 				loadComponent: () => import('./features/settings/settings.component').then((m) => m.SettingsComponent),
@@ -240,6 +276,12 @@ export const routes: Routes = [
 				path: 'tareas',
 				title: 'Tareas',
 				loadComponent: () => import('./features/tasks/tasks.component').then((m) => m.TasksComponent),
+			},
+			{
+				path: 'tareas/recurrentes',
+				title: 'Tareas recurrentes',
+				loadComponent: () =>
+					import('./features/tasks/task-recurrences.component').then((m) => m.TaskRecurrencesComponent),
 			},
 			{
 				path: 'documentos',
@@ -294,9 +336,19 @@ export const routes: Routes = [
 			),
 	},
 	{
+		path: 'portal/aceptar-terminos',
+		title: 'Términos del portal',
+		data: { titleSuffix: 'portal' },
+		canActivate: [portalAuthGuard],
+		loadComponent: () =>
+			import('./features/portal/legal-terms-required/portal-legal-terms-required.component').then(
+				(m) => m.PortalLegalTermsRequiredComponent,
+			),
+	},
+	{
 		path: 'portal',
 		component: PortalLayoutComponent,
-		canActivate: [portalAuthGuard],
+		canActivate: [portalAuthGuard, portalLegalTermsRequiredGuard],
 		data: { titleSuffix: 'portal' },
 		children: [
 			{

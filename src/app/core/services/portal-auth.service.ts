@@ -143,4 +143,8 @@ export class PortalAuthService {
   clearSession(): void {
     this.currentPortalUserSignal.set(null);
   }
+
+  patchCurrentPortalUser(patch: Partial<PortalUser>): void {
+    this.currentPortalUserSignal.update((user) => (user ? { ...user, ...patch } : user));
+  }
 }

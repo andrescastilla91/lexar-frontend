@@ -21,12 +21,8 @@ describe('SettingsPortalVisibilityComponent', () => {
     { eventType: ProcessEventType.ANNOTATION, mode: PortalEventVisibilityMode.DEFAULT_OFF, allowsAlways: false },
     { eventType: ProcessEventType.STATUS_CHANGE, mode: PortalEventVisibilityMode.ALWAYS, allowsAlways: true },
     // allowsAlways: true pero el modo real NO es ALWAYS — regresión del bug
-    // real reportado por el usuario: el <select> mostraba siempre la
-    // primera <option> renderizada (ALWAYS, cuando allowsAlways es true)
-    // en vez del modo real, porque [value] estaba en el <select> padre en
-    // vez de [selected] en cada <option> (Angular no resuelve a tiempo el
-    // <option> que vive dentro de un @if antes de aplicar el value del
-    // padre). Ver settings-portal-visibility.component.ts.
+    // real reportado por el usuario: el selector mostraba siempre la primera
+    // opción (ALWAYS, cuando allowsAlways es true) en vez del modo real.
     { eventType: ProcessEventType.DOCUMENT_UPLOADED, mode: PortalEventVisibilityMode.DEFAULT_OFF, allowsAlways: true },
   ];
 
@@ -80,40 +76,65 @@ describe('SettingsPortalVisibilityComponent', () => {
     expect(component.isLoading()).toBe(false);
   });
 
-  it('no ofrece la opción ALWAYS para ANNOTATION en el select', () => {
+  const triggers = (fixture: { nativeElement: HTMLElement }) =>
+    Array.from(fixture.nativeElement.querySelectorAll<HTMLButtonElement>('app-select button[role="combobox"]'));
+
+  it('no ofrece la opción ALWAYS para ANNOTATION en el selector', () => {
     const { fixture } = createComponent();
 
-    const selects: HTMLSelectElement[] = Array.from(fixture.nativeElement.querySelectorAll('select'));
-    const annotationSelect = selects[0];
-    const optionValues = Array.from(annotationSelect.options).map((o) => o.value);
+    triggers(fixture)[0].click();
+    fixture.detectChanges();
+    const labels = Array.from(fixture.nativeElement.querySelectorAll('[role="option"]')).map((o) =>
+      (o as HTMLElement).textContent?.trim(),
+    );
 
-    expect(optionValues).not.toContain(PortalEventVisibilityMode.ALWAYS);
+    expect(labels).toEqual(['Visible por defecto', 'Oculto por defecto']);
   });
 
-  it('F27: cada select muestra su modo real seleccionado, no siempre el primero de la lista', () => {
+  it('ofrece ALWAYS cuando el evento lo permite', () => {
     const { fixture } = createComponent();
 
-    const selects: HTMLSelectElement[] = Array.from(fixture.nativeElement.querySelectorAll('select'));
-    // ANNOTATION: allowsAlways=false, primera opción real es DEFAULT_ON —
-    // su modo es DEFAULT_OFF, así que si el bug reapareciera se vería en
-    // blanco (ningún <option> marcado selected).
-    expect(selects[0].value).toBe(PortalEventVisibilityMode.DEFAULT_OFF);
-    // STATUS_CHANGE: su modo SÍ es la primera opción (ALWAYS) — no prueba
-    // nada por sí solo, pero se incluye por completitud de la fila.
-    expect(selects[1].value).toBe(PortalEventVisibilityMode.ALWAYS);
-    // DOCUMENT_UPLOADED: allowsAlways=true (primera opción es ALWAYS) pero
-    // su modo real es DEFAULT_OFF — este es el caso que el bug rompía: sin
-    // el fix, el select mostraría "Siempre visible" aunque el modo
-    // guardado fuera otro.
-    expect(selects[2].value).toBe(PortalEventVisibilityMode.DEFAULT_OFF);
+    triggers(fixture)[1].click();
+    fixture.detectChanges();
+    const labels = Array.from(fixture.nativeElement.querySelectorAll('[role="option"]')).map((o) =>
+      (o as HTMLElement).textContent?.trim(),
+    );
+
+    expect(labels).toEqual(['Siempre visible', 'Visible por defecto', 'Oculto por defecto']);
+  });
+
+  it('F27: cada selector muestra su modo real, no siempre el primero de la lista', () => {
+    const { fixture } = createComponent();
+
+    const shown = triggers(fixture).map((trigger) => trigger.textContent?.trim());
+    // ANNOTATION: su modo es DEFAULT_OFF aunque la primera opción sea DEFAULT_ON.
+    // DOCUMENT_UPLOADED: allowsAlways=true (primera opción ALWAYS) pero su modo
+    // real es DEFAULT_OFF — el caso que rompía el <select> nativo anterior.
+    expect(shown).toEqual(['Oculto por defecto', 'Siempre visible', 'Oculto por defecto']);
+  });
+
+  it('elegir una opción en el selector guarda el nuevo modo', () => {
+    policyServiceMock.update.mockReturnValue(
+      of({ eventType: ProcessEventType.STATUS_CHANGE, mode: PortalEventVisibilityMode.DEFAULT_ON, allowsAlways: true }),
+    );
+    const { fixture } = createComponent();
+
+    triggers(fixture)[1].click();
+    fixture.detectChanges();
+    (fixture.nativeElement.querySelectorAll('[role="option"]')[1] as HTMLElement).click();
+    fixture.detectChanges();
+
+    expect(policyServiceMock.update).toHaveBeenCalledWith(
+      ProcessEventType.STATUS_CHANGE,
+      PortalEventVisibilityMode.DEFAULT_ON,
+    );
+    expect(triggers(fixture)[1].textContent?.trim()).toBe('Visible por defecto');
   });
 
   it('no llama al servicio cuando el modo elegido es igual al actual', async () => {
     const { component } = createComponent();
 
-    await component.onModeChange(policies[0], {
-      target: { value: PortalEventVisibilityMode.DEFAULT_OFF },
-    } as unknown as Event);
+    await component.onModeChange(policies[0], PortalEventVisibilityMode.DEFAULT_OFF);
 
     expect(policyServiceMock.update).not.toHaveBeenCalled();
   });
@@ -123,9 +144,8 @@ describe('SettingsPortalVisibilityComponent', () => {
       of({ eventType: ProcessEventType.ANNOTATION, mode: PortalEventVisibilityMode.DEFAULT_ON, allowsAlways: false }),
     );
     const { component } = createComponent();
-    const event = { target: { value: PortalEventVisibilityMode.DEFAULT_ON } } as unknown as Event;
 
-    await component.onModeChange(policies[0], event);
+    await component.onModeChange(policies[0], PortalEventVisibilityMode.DEFAULT_ON);
 
     expect(confirmDialogMock.confirm).toHaveBeenCalled();
     expect(policyServiceMock.update).toHaveBeenCalledWith(
@@ -135,27 +155,33 @@ describe('SettingsPortalVisibilityComponent', () => {
     expect(toastServiceMock.success).toHaveBeenCalled();
   });
 
-  it('F27: si el usuario cancela la confirmación, revierte el select y no llama al servicio', async () => {
+  it('F27: si el usuario cancela la confirmación no llama al servicio y el selector sigue mostrando el modo real', async () => {
     confirmDialogMock.confirm.mockResolvedValue(false);
-    const { component } = createComponent();
-    const select = { value: PortalEventVisibilityMode.DEFAULT_ON } as HTMLSelectElement;
-    const event = { target: select } as unknown as Event;
+    const { fixture } = createComponent();
 
-    await component.onModeChange(policies[0], event);
+    triggers(fixture)[0].click();
+    fixture.detectChanges();
+    (fixture.nativeElement.querySelectorAll('[role="option"]')[0] as HTMLElement).click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
 
     expect(policyServiceMock.update).not.toHaveBeenCalled();
-    expect(select.value).toBe(PortalEventVisibilityMode.DEFAULT_OFF);
+    expect(triggers(fixture)[0].textContent?.trim()).toBe('Oculto por defecto');
   });
 
-  it('en error de actualización, revierte el select y muestra un toast', async () => {
+  it('en error de actualización muestra un toast y el selector conserva el modo real', async () => {
     policyServiceMock.update.mockReturnValue(throwError(() => ({ message: 'No se pudo actualizar' })));
-    const { component } = createComponent();
-    const select = { value: PortalEventVisibilityMode.DEFAULT_OFF } as HTMLSelectElement;
-    const event = { target: select } as unknown as Event;
+    const { fixture } = createComponent();
 
-    await component.onModeChange(policies[1], event);
+    triggers(fixture)[1].click();
+    fixture.detectChanges();
+    (fixture.nativeElement.querySelectorAll('[role="option"]')[2] as HTMLElement).click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
 
     expect(toastServiceMock.error).toHaveBeenCalledWith('No se pudo actualizar');
-    expect(select.value).toBe(PortalEventVisibilityMode.ALWAYS);
+    expect(triggers(fixture)[1].textContent?.trim()).toBe('Siempre visible');
   });
 });

@@ -46,6 +46,19 @@ interface EntityOption {
                 }
               </select>
             </label>
+
+            <label class="text-sm font-medium text-text md:col-span-3">
+              Tipo de documento
+              <select
+                formControlName="documentTypeId"
+                class="mt-1.5 w-full rounded-md border border-default bg-surface px-3 py-2 text-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              >
+                <option value="">Seleccione...</option>
+                @for (documentType of documentTypes(); track documentType.id) {
+                  <option [value]="documentType.id">{{ documentType.label }}</option>
+                }
+              </select>
+            </label>
           </div>
 
           <div class="flex flex-col sm:flex-row items-stretch gap-2">
@@ -112,6 +125,7 @@ export class DocumentUploadPanelComponent {
   uploadError = input<string | null>(null);
   processes = input<EntityOption[]>([]);
   clients = input<EntityOption[]>([]);
+  documentTypes = input<EntityOption[]>([]);
 
   entityTypeChange = output<void>();
   fileSelected = output<File>();

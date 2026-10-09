@@ -1,6 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { Observable, catchError, map, of, tap, throwError } from 'rxjs';
+import { HttpClient, HttpParams } from '@angular/common/http';
+import { Observable, catchError, from, map, of, switchMap, tap, throwError } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
   AdminMetrics,
@@ -11,6 +11,8 @@ import {
   CreatePlanRequest,
   CreatePlatformAdminRequest,
   Holiday,
+  LegalDocumentAdmin,
+  LegalDocumentType,
   PlatformAdminSummary,
   PlatformAdminUser,
   PlatformLoginOutcome,
@@ -18,6 +20,7 @@ import {
   PlatformNotificationTypeSetting,
   PlatformTwoFactorSetupResponse,
   PlatformTwoFactorVerifySetupResponse,
+  PublishLegalDocumentRequest,
   TenantDetail,
   TenantSummary,
   UpdateHolidayRequest,
@@ -308,5 +311,57 @@ export class PlatformAdminService {
     return this.http.delete<void>(`${this.apiUrl}/holidays/${id}`).pipe(
       catchError((error) => throwError(() => new Error(error.message || 'No se pudo eliminar el festivo')))
     );
+  }
+
+  // F44 §LEG-05 (ola 6): documentos legales de plataforma — mismo flujo de
+  // subida en dos pasos que CompanyService.uploadLogo (signed-url, el
+  // cliente sube directo a S3 vía fetch, luego se registra la metadata).
+  listLegalDocuments(type?: LegalDocumentType): Observable<LegalDocumentAdmin[]> {
+    const params = type ? new HttpParams().set('type', type) : undefined;
+    return this.http.get<{ documents: LegalDocumentAdmin[] }>(`${this.apiUrl}/legal-documents`, { params }).pipe(
+      map((response) => response.documents),
+      catchError((error) => throwError(() => new Error(error.message || 'Error al cargar los documentos legales')))
+    );
+  }
+
+  publishLegalDocument(dto: PublishLegalDocumentRequest): Observable<LegalDocumentAdmin> {
+    const { file, type, version, isSubstantialChange } = dto;
+
+    return this.http
+      .post<{ url: string; bucket: string; key: string }>(`${this.apiUrl}/legal-documents/signed-url`, {
+        type,
+        filename: file.name,
+        contentType: file.type,
+        size: file.size,
+      })
+      .pipe(
+        switchMap((signed) =>
+          from(
+            fetch(signed.url, {
+              method: 'PUT',
+              headers: { 'Content-Type': file.type },
+              body: file,
+            }),
+          ).pipe(
+            switchMap((response) => {
+              if (!response.ok) {
+                throw new Error(`Error al subir el archivo: ${response.statusText}`);
+              }
+              return this.http.post<{ document: LegalDocumentAdmin }>(`${this.apiUrl}/legal-documents`, {
+                type,
+                version,
+                isSubstantialChange,
+                bucket: signed.bucket,
+                key: signed.key,
+                originalFilename: file.name,
+                contentType: file.type,
+                size: file.size,
+              });
+            }),
+          ),
+        ),
+        map((res) => res.document),
+        catchError((error) => throwError(() => new Error(error.message || 'No se pudo publicar el documento')))
+      );
   }
 }
